@@ -450,11 +450,11 @@ export default function GeneratePage() {
 
                         {/* Info about local development */}
                         <div className="text-center text-blue-400 text-xs mt-2">
-                          📝 Local dev: Video generation may take 10-15 minutes. Use "Manual Callback" button when ready.
+                          📝 Local dev: Video generation may take 10-15 minutes. Use &quot;Manual Callback&quot; button when ready.
                             </div>
                         {/* ⚠️ WARNING: Test button - doesn't use your image! */}
                         <div className="text-center text-yellow-400 text-xs mt-2 p-2 bg-yellow-900/20 rounded border border-yellow-500/30">
-                          ⚠️ Use "Generate Video" above to create a video with YOUR image
+                          ⚠️ Use &quot;Generate Video&quot; above to create a video with YOUR image
                         </div>
 
                         {/* Test callback button for local development */}
@@ -498,7 +498,7 @@ export default function GeneratePage() {
                           className="w-full bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-xs opacity-50"
                           disabled={isGenerating}
                         >
-                          ⚠️ TEST ONLY - Doesn't use your image
+                          ⚠️ TEST ONLY - Doesn&apos;t use your image
                         </button>
 
                         {/* Manual callback trigger for when real video is ready */}
