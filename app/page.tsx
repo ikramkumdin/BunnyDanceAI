@@ -2,44 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Layout from '@/components/Layout';
 import { templates } from '@/data/templates';
 import { Template, TemplateCategory } from '@/types';
 import { Camera } from 'lucide-react';
+import Layout from '@/components/Layout';
 
 export default function Home() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory>('all');
   const [activeTab, setActiveTab] = useState<'trending' | 'my-effect'>('trending');
   const [searchQuery, setSearchQuery] = useState('');
-  const [templateVideoUrls, setTemplateVideoUrls] = useState<Record<string, string>>({});
-
-  // Fetch signed URLs for template videos
-  useEffect(() => {
-    const fetchSignedUrls = async () => {
-      const urls: Record<string, string> = {};
-      for (const template of templates) {
-        if (template.previewVideo) {
-          try {
-            const signedResponse = await fetch(`/api/get-signed-url?path=${encodeURIComponent(template.previewVideo)}`);
-            if (signedResponse.ok) {
-              const data = await signedResponse.json();
-              urls[template.id] = data.url;
-            } else {
-              urls[template.id] = template.previewVideo;
-            }
-          } catch (error) {
-            urls[template.id] = template.previewVideo;
-          }
-        }
-      }
-      setTemplateVideoUrls(urls);
-    };
-
-    if (templates.length > 0) {
-      fetchSignedUrls();
-    }
-  }, [templates.length]);
 
   const filteredTemplates = templates.filter((template) => {
     // Filter out hidden templates
@@ -59,7 +31,6 @@ export default function Home() {
     return true;
   });
 
-  // Get "Top Choice" templates (you can customize this logic)
   const topChoiceTemplates = filteredTemplates.slice(0, 5);
 
   const handleAnimatePhoto = () => {
@@ -148,7 +119,7 @@ export default function Home() {
                 {template.previewVideo ? (
                   <video
                     key={template.id}
-                    src={templateVideoUrls[template.id] || template.previewVideo}
+                    src={template.previewVideo}
                     className="w-full h-full object-cover"
                     muted
                     loop
@@ -164,7 +135,7 @@ export default function Home() {
                     onError={(e) => {
                       console.error('Video failed to load:', template.id, e.currentTarget.src);
                       // Try fallback to original URL if signed URL fails
-                      if (templateVideoUrls[template.id] && template.previewVideo && e.currentTarget.src !== template.previewVideo) {
+                      if (template.previewVideo && e.currentTarget.src !== template.previewVideo) {
                         e.currentTarget.src = template.previewVideo;
                       }
                     }}
@@ -176,7 +147,7 @@ export default function Home() {
                     </span>
                   </div>
                 )}
-                
+
                 {/* Top Choice Badge */}
                 {isTopChoice && (
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
@@ -184,7 +155,7 @@ export default function Home() {
                     <div className="text-white text-sm font-bold">{template.name}</div>
                   </div>
                 )}
-                
+
                 {/* Template Name Overlay (if not top choice) */}
                 {!isTopChoice && (
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">

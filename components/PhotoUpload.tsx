@@ -7,7 +7,7 @@ import { useStore } from '@/store/useStore';
 import { useUser } from '@/hooks/useUser';
 
 interface PhotoUploadProps {
-  onImageSelect: (imageUrl: string) => void;
+  onImageSelect: (imageData: { gcpUrl: string; base64Url: string }) => void;
   maxSize?: number; // in MB
 }
 
@@ -29,14 +29,16 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
     const file = acceptedFiles[0];
     if (!file || !user) return;
 
-    // Show preview immediately (keep base64 in component state only, not in store)
+    // Show preview immediately and get base64
     const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setPreview(result); // Show base64 immediately
-      setBase64Fallback(result); // Keep base64 as fallback
-      // Don't store base64 in Zustand store (too large for localStorage)
-    };
+    const base64Promise = new Promise<string>((resolve) => {
+      reader.onload = () => {
+        const result = reader.result as string;
+        setPreview(result); // Show base64 immediately
+        setBase64Fallback(result); // Keep base64 as fallback
+        resolve(result);
+      };
+    });
     reader.readAsDataURL(file);
 
     // Upload to GCP Storage
@@ -56,10 +58,11 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
         // Update to GCP URL after successful upload
         const gcpUrl = data.imageUrl;
         setUploadedImage(gcpUrl);
-        // Keep base64 in preview as fallback, but also try GCP URL
-        // If GCP URL fails to load, base64 will still show
         setPreview(gcpUrl); // Try GCP URL first
-        onImageSelect(gcpUrl);
+
+        // Wait for base64 to be available before calling onImageSelect
+        const base64Data = await base64Promise;
+        onImageSelect({ gcpUrl, base64Url: base64Data });
       } else {
         // Keep base64 preview if upload fails
         console.error('Upload failed, keeping base64 preview');
