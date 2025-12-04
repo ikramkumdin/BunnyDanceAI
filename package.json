@@ -1,0 +1,42 @@
+{
+  "name": "bunny-dance-ai",
+  "version": "1.3.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3009",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "upload-templates": "tsx scripts/upload-downloaded-templates.ts",
+    "generate-from-prompt": "tsx scripts/generate-from-saved-prompts.ts"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.17.3",
+    "@stripe/react-stripe-js": "^2.4.0",
+    "@stripe/stripe-js": "^2.4.0",
+    "axios": "^1.6.8",
+    "file-saver": "^2.0.5",
+    "firebase": "^12.6.0",
+    "framer-motion": "^11.0.8",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.344.0",
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-dropzone": "^14.2.3",
+    "stripe": "^14.21.0",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^20.11.24",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.18",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.6",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3"
+  }
+}
