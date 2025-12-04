@@ -252,8 +252,7 @@ export async function POST(request: NextRequest) {
       templateName: template.name,
       createdAt: new Date().toISOString(),
       isWatermarked,
-      userId,
-      status: 'completed'
+      userId
     });
 
     // Return video URL

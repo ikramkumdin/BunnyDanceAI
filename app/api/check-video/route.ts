@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { GeneratedVideo } from '@/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -27,13 +28,19 @@ export async function GET(request: NextRequest) {
       );
       const querySnapshot = await getDocs(q);
       
-      const videos = querySnapshot.docs.map(doc => {
+      const videos: GeneratedVideo[] = querySnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate?.()?.toISOString() || 
+          videoUrl: data.videoUrl || '',
+          thumbnail: data.thumbnail || '',
+          templateId: data.templateId || '',
+          templateName: data.templateName || '',
+          createdAt: data.createdAt?.toDate?.()?.toISOString() ||
                      (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
+          isWatermarked: data.isWatermarked || false,
+          tags: data.tags || [],
+          userId: data.userId || '',
         };
       });
       
@@ -73,13 +80,19 @@ export async function GET(request: NextRequest) {
         );
         const querySnapshot = await getDocs(q);
         
-        const videos = querySnapshot.docs.map(doc => {
+        const videos: GeneratedVideo[] = querySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate?.()?.toISOString() || 
+            videoUrl: data.videoUrl || '',
+            thumbnail: data.thumbnail || '',
+            templateId: data.templateId || '',
+            templateName: data.templateName || '',
+            createdAt: data.createdAt?.toDate?.()?.toISOString() ||
                        (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
+            isWatermarked: data.isWatermarked || false,
+            tags: data.tags || [],
+            userId: data.userId || '',
           };
         });
         
