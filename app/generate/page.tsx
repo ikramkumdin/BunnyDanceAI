@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Layout from '@/components/Layout';
 import PhotoUpload from '@/components/PhotoUpload';
 import AgeVerificationModal from '@/components/AgeVerificationModal';
@@ -8,11 +9,12 @@ import FullScreenVideoModal from '@/components/FullScreenVideoModal';
 import { templates } from '@/data/templates';
 import { useStore } from '@/store/useStore';
 import { Template } from '@/types';
-import { Sparkles, RotateCcw, Save, Heart, Download, Search } from 'lucide-react';
+import { Sparkles, RotateCcw, Save, Heart, Download, Search, X } from 'lucide-react';
 import RandomWaifuButton from '@/components/RandomWaifuButton';
 import { useUser } from '@/hooks/useUser';
 
-export default function GeneratePage() {
+function GeneratePageContent() {
+  const searchParams = useSearchParams();
   const { user, isLoading: userLoading } = useUser();
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null as Template | null);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
@@ -21,12 +23,25 @@ export default function GeneratePage() {
   const [showFullScreen, setShowFullScreen] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [countdown, setCountdown] = useState<number | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   
-  const { uploadedImage, isAgeVerified, setSelectedTemplate: setStoreTemplate } = useStore();
+  const { uploadedImage, isAgeVerified, setSelectedTemplate: setStoreTemplate, setUploadedImage } = useStore();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  // Handle template from URL parameter
+  useEffect(() => {
+    const templateId = searchParams.get('template');
+    if (templateId) {
+      const template = templates.find(t => t.id === templateId);
+      if (template) {
+        setSelectedTemplate(template);
+        setStoreTemplate(template);
+      }
+    }
+  }, [searchParams, setStoreTemplate]);
 
   useEffect(() => {
     if (!isAgeVerified) {
@@ -281,6 +296,14 @@ export default function GeneratePage() {
   };
 
   const filteredTemplates = templates.filter((template) => {
+    // Filter out hidden templates
+    if (template.isHidden) return false;
+
+    // Filter by category (if not 'all')
+    if (selectedCategory && selectedCategory !== 'all') {
+      if (template.category !== selectedCategory) return false;
+    }
+
     // Filter by search query
     if (searchQuery) {
       const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -315,28 +338,32 @@ export default function GeneratePage() {
       setTemplateVideoUrls(urls);
     };
 
-    // Only fetch once on mount, not on every filter change
-    if (templates.length > 0 && Object.keys(templateVideoUrls).length === 0) {
+    if (templates.length > 0) {
       fetchSignedUrls();
     }
-  }, []); // Empty dependency array - only run once
+  }, [templates.length]); // Run when templates are loaded
 
   return (
     <>
       <Layout showBackButton backLabel="Photo to Video">
         <div className="p-6 flex flex-col gap-6">
-          {/* Show upload first if no image uploaded */}
-          {!uploadedImage ? (
-            <div className="space-y-6">
+          {/* Always show upload section at the top */}
+          <div className="space-y-4">
+            {!uploadedImage && (
               <div className="text-center">
                 <h1 className="text-2xl font-bold mb-2">Upload Your Photo</h1>
                 <p className="text-gray-400">Choose an image to animate into a video</p>
               </div>
-              <div className="flex justify-center">
+            )}
+            <div className="flex justify-center">
+              <div className="w-full max-w-sm aspect-[9/16]">
                 <PhotoUpload onImageSelect={handleImageSelect} />
               </div>
             </div>
-          ) : (
+          </div>
+          
+          {/* Show preview and generation when image is uploaded */}
+          {uploadedImage && (
             <>
               {/* Unified Preview Section - ABOVE template selection when image is uploaded */}
               {selectedTemplate && (
@@ -356,7 +383,22 @@ export default function GeneratePage() {
                       {/* Debug State Indicator */}
                       <div className="absolute top-2 left-2 bg-black/80 text-white px-2 py-1 rounded text-[10px] z-30 font-mono">
                         State: {isGenerating ? '🔴 GENERATING' : generatedVideo ? '🟢 COMPLETE' : '⚪ READY'}
-                          </div>
+                      </div>
+
+                      {/* Close X button */}
+                      <button
+                        onClick={() => {
+                          setUploadedImage(null);
+                          setSelectedTemplate(null);
+                          setGeneratedVideo(null);
+                          setIsGenerating(false);
+                          setCountdown(null);
+                          setTaskId(null);
+                        }}
+                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors z-30"
+                      >
+                        <X className="w-4 h-4 text-white" />
+                      </button>
 
                       {/* Small Template Preview in Top Right Corner */}
                       <div className="absolute top-2 right-2 w-20 h-28 bg-gray-800 rounded-lg overflow-hidden border-2 border-primary z-20 shadow-lg">
@@ -560,13 +602,9 @@ export default function GeneratePage() {
                     </div>
                   )}
 
-              {/* Template Selection - Show when image is uploaded but no template selected */}
-              {!selectedTemplate && uploadedImage && (
+              {/* Template Selection - Always show templates when image is uploaded */}
+              {uploadedImage && !selectedTemplate && (
                   <div className="space-y-4">
-                    <div className="text-center">
-                      <h2 className="text-xl font-bold mb-2">Choose a Dance Style</h2>
-                      <p className="text-gray-400">Select a template to animate your photo</p>
-                    </div>
                     {/* Search and Category Tabs in same row */}
                     <div className="flex items-center gap-4 flex-wrap">
                       {/* Small Search Bar */}
@@ -581,7 +619,7 @@ export default function GeneratePage() {
                         />
                       </div>
 
-                      {/* Category Tabs (without trending) */}
+                      {/* Category Tabs */}
                       <div className="flex gap-2 flex-wrap">
                         {[
                           { label: 'All', value: 'all' },
@@ -595,7 +633,12 @@ export default function GeneratePage() {
                         ].map((cat) => (
                           <button
                             key={cat.value}
-                            className="px-4 py-2 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-sm"
+                            onClick={() => setSelectedCategory(cat.value)}
+                            className={`px-4 py-2 rounded-full transition-colors text-sm ${
+                              selectedCategory === cat.value
+                                ? 'bg-primary text-white'
+                                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                            }`}
                           >
                             {cat.label}
                           </button>
@@ -613,17 +656,28 @@ export default function GeneratePage() {
                             selectedTemplate && selectedTemplate.id === template.id ? 'ring-2 ring-primary' : ''
                           }`}
                         >
-                          {template.previewVideo && templateVideoUrls[template.id] ? (
+                          {template.previewVideo ? (
                             <video
+                              key={template.id}
                               src={templateVideoUrls[template.id] || template.previewVideo}
                               className="w-full h-full object-cover"
                               muted
                               loop
                               playsInline
-                              onMouseEnter={(e) => e.currentTarget.play()}
+                              preload="metadata"
+                              onMouseEnter={(e) => {
+                                e.currentTarget.play().catch(err => console.log('Play failed:', err));
+                              }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.pause();
                                 e.currentTarget.currentTime = 0;
+                              }}
+                              onError={(e) => {
+                                console.error('Video failed to load:', template.id, e.currentTarget.src);
+                                // Try fallback to original URL if signed URL fails
+                                if (templateVideoUrls[template.id] && template.previewVideo && e.currentTarget.src !== template.previewVideo) {
+                                  e.currentTarget.src = template.previewVideo;
+                                }
                               }}
                             />
                           ) : (
@@ -635,8 +689,8 @@ export default function GeneratePage() {
                           )}
                         </div>
                       ))}
-                      </div>
                     </div>
+                  </div>
               )}
             </>
           )}
@@ -663,5 +717,19 @@ export default function GeneratePage() {
         isLiked={isLiked}
       />
     </>
+  );
+}
+
+export default function GeneratePage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="p-6 flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    }>
+      <GeneratePageContent />
+    </Suspense>
   );
 }
