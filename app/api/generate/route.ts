@@ -135,9 +135,6 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ API key configured, proceeding with generation...');
 
-    // Call Kie.ai API according to documentation
-    const grokApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/veo/generate';
-
     if (!process.env.GROK_API_KEY) {
       console.error('❌ GROK_API_KEY is not configured in .env.local');
       return NextResponse.json(
@@ -147,6 +144,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ API key configured, proceeding with generation...');
+
+    let taskId: string | undefined;
 
     // Try synchronous request first (some APIs support this)
     let requestBody: any = {
