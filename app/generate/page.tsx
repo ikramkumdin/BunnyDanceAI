@@ -40,14 +40,55 @@ export default function GeneratePage() {
   // Poll for video status
   const pollVideoStatus = useCallback(async (startTime = Date.now(), taskId = null) => {
     try {
-      console.log('🔍 Checking video status...');
+      // First try polling Kie.ai directly for task status
+      if (taskId) {
+        console.log('🔍 Polling Kie.ai for task status...');
+        try {
+          const pollResponse = await fetch(`/api/poll-task?taskId=${taskId}`);
+          if (pollResponse.ok) {
+            const pollData = await pollResponse.json();
+            console.log('📊 Kie.ai poll response:', pollData);
+
+            // Check if video is ready (look for various possible response formats)
+            const videoUrl = pollData.videoUrl || pollData.url || pollData.result?.videoUrl || pollData.output?.videoUrl;
+            if (videoUrl && (pollData.status === 'completed' || pollData.status === 'success' || pollData.completed)) {
+              console.log('🎬 Video ready from Kie.ai:', videoUrl);
+
+              // Save the video to our database
+              const saveResponse = await fetch('/api/callback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  videoUrl: videoUrl,
+                  taskId: taskId,
+                  userId: user?.id,
+                  templateId: 'unknown', // We don't have this info
+                  templateName: 'Generated Video',
+                  thumbnail: 'unknown'
+                })
+              });
+
+              if (saveResponse.ok) {
+                setGeneratedVideo(videoUrl);
+                setIsGenerating(false);
+                return;
+              }
+            }
+          }
+        } catch (pollError) {
+          console.log('⚠️ Kie.ai polling failed, falling back to database check');
+        }
+      }
+
+      // Fallback: Check our database for completed videos
+      console.log('🔍 Checking database for completed videos...');
       const response = await fetch(`/api/check-video?userId=${user?.id}${taskId ? `&taskId=${taskId}` : ''}`);
       const data = await response.json();
 
-      console.log('📊 Video check response:', data);
+      console.log('📊 Database check response:', data);
 
       if (data.ready && data.videoUrl) {
-        console.log('🎬 Video ready:', data.videoUrl);
+        console.log('🎬 Video ready from database:', data.videoUrl);
         setGeneratedVideo(data.videoUrl);
         setIsGenerating(false);
         return;

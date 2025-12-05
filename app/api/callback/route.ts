@@ -16,11 +16,24 @@ export async function POST(request: NextRequest) {
     console.log('🔗 Callback query params:', Object.fromEntries(searchParams));
     console.log('🔍 Full request keys:', Object.keys(body));
 
-    // Get metadata from query params (passed in callBackUrl)
-    const userId = searchParams.get('userId') || body.userId || body.data?.userId;
-    const templateId = searchParams.get('templateId') || body.templateId || body.data?.templateId;
-    const templateName = searchParams.get('templateName') || body.templateName || body.data?.templateName;
-    const thumbnail = searchParams.get('thumbnail') || body.thumbnail || body.data?.thumbnail;
+    // Try to get metadata from various sources
+    // Kie.ai might send it in body, or we might need to use a different approach
+    let userId = searchParams.get('userId') || body.userId || body.data?.userId;
+    let templateId = searchParams.get('templateId') || body.templateId || body.data?.templateId;
+    let templateName = searchParams.get('templateName') || body.templateName || body.data?.templateName;
+    let thumbnail = searchParams.get('thumbnail') || body.thumbnail || body.data?.thumbnail;
+
+    // If no metadata found, this might be a direct callback from Kie.ai
+    // We'll need to handle this differently or skip saving for now
+    if (!userId) {
+      console.log('⚠️ No userId found in callback - this might be a direct Kie.ai callback');
+      console.log('📦 Full callback data:', JSON.stringify(body, null, 2));
+      // For now, just acknowledge the callback without saving
+      return NextResponse.json({
+        success: true,
+        message: 'Callback received but no metadata to process',
+      });
+    }
 
     // Handle different callback formats from Kie.ai
     const taskId = body.taskId || body.data?.taskId || body.task_id || searchParams.get('taskId');

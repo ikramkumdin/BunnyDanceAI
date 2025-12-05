@@ -97,7 +97,9 @@ export async function POST(request: NextRequest) {
     console.log('✅ API key configured, proceeding with generation...');
 
     // Prepare request body according to Kie.ai API documentation
-    const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3009'}/api/callback?userId=${encodeURIComponent(userId)}&templateId=${encodeURIComponent(template.id)}&templateName=${encodeURIComponent(template.name)}&thumbnail=${encodeURIComponent(imageUrl)}`;
+    // For Vercel deployment, use a simple callback URL
+    // Kie.ai will send data in the request body
+    const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3009'}/api/callback`;
 
     const requestBody = {
       prompt: prompt,
@@ -106,8 +108,8 @@ export async function POST(request: NextRequest) {
       aspectRatio: "16:9", // Landscape format as required by API
       generationType: "REFERENCE_2_VIDEO",
       enableFallback: false,
-      enableTranslation: true,
-      callBackUrl: callbackUrl
+      enableTranslation: true
+      // Removed callBackUrl - we'll use polling instead
     };
 
     console.log('═══════════════════════════════════════════════');
