@@ -25,14 +25,34 @@ export async function GET(request: NextRequest) {
     // Try different possible endpoints for task status
     const kieApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/veo/generate';
     const baseUrl = kieApiUrl.replace('/api/v1/veo/generate', '');
-    
-    // Try common task status endpoints
+
+    // Try common task status endpoints and variations
     const possibleEndpoints = [
-      `${baseUrl}/api/v1/veo/task/${taskId}`,
-      `${baseUrl}/api/v1/veo/status/${taskId}`,
-      `${baseUrl}/api/v1/task/${taskId}`,
-      `${baseUrl}/api/v1/veo/generate/${taskId}`,
-      `${baseUrl}/api/v1/veo/result/${taskId}`,
+      // Standard REST patterns
+      `${baseUrl}/api/v1/tasks/${taskId}`,
+      `${baseUrl}/api/v1/veo/tasks/${taskId}`,
+      `${baseUrl}/api/v1/generation/${taskId}`,
+      `${baseUrl}/api/v1/veo/generation/${taskId}`,
+      `${baseUrl}/api/v1/jobs/${taskId}`,
+      `${baseUrl}/api/v1/veo/jobs/${taskId}`,
+
+      // Status endpoints
+      `${baseUrl}/api/v1/tasks/${taskId}/status`,
+      `${baseUrl}/api/v1/veo/tasks/${taskId}/status`,
+      `${baseUrl}/api/v1/generation/${taskId}/status`,
+      `${baseUrl}/api/v1/veo/generation/${taskId}/status`,
+
+      // Result endpoints
+      `${baseUrl}/api/v1/tasks/${taskId}/result`,
+      `${baseUrl}/api/v1/veo/tasks/${taskId}/result`,
+      `${baseUrl}/api/v1/generation/${taskId}/result`,
+      `${baseUrl}/api/v1/veo/generation/${taskId}/result`,
+
+      // Alternative API versions
+      `${baseUrl}/v1/tasks/${taskId}`,
+      `${baseUrl}/v1/veo/tasks/${taskId}`,
+      `${baseUrl}/tasks/${taskId}`,
+      `${baseUrl}/veo/tasks/${taskId}`,
     ];
     
     // Try each endpoint until one works

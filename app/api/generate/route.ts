@@ -4,9 +4,48 @@ import { IntensityLevel } from '@/types';
 import { uploadVideo, uploadImage } from '@/lib/storage';
 import { saveVideo } from '@/lib/firestore';
 import { generateVideoId } from '@/lib/utils';
+import { adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+// Helper function to save video to database
+async function saveVideoToDatabase({
+  videoUrl,
+  userId,
+  templateId,
+  templateName,
+  thumbnail,
+  prompt
+}: {
+  videoUrl: string;
+  userId: string;
+  templateId: string;
+  templateName: string;
+  thumbnail: string;
+  prompt: string;
+}) {
+  try {
+    const videoData = {
+      videoUrl,
+      userId,
+      templateId,
+      templateName,
+      thumbnail,
+      prompt,
+      createdAt: new Date(),
+      isWatermarked: false,
+      tags: [],
+    };
+
+    const docRef = await adminDb.collection('videos').add(videoData);
+    console.log('✅ Video saved to database:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ Failed to save video to database:', error);
+    throw error;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -96,21 +135,115 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ API key configured, proceeding with generation...');
 
-    // Prepare request body according to Kie.ai API documentation
-    // For Vercel deployment, use a simple callback URL
-    // Kie.ai will send data in the request body
-    const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3009'}/api/callback`;
+    // Call Kie.ai API according to documentation
+    const grokApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/veo/generate';
 
-    const requestBody = {
+    if (!process.env.GROK_API_KEY) {
+      console.error('❌ GROK_API_KEY is not configured in .env.local');
+      return NextResponse.json(
+        { error: 'GROK_API_KEY is not configured. Please add it to .env.local' },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ API key configured, proceeding with generation...');
+
+    // Try synchronous request first (some APIs support this)
+    let requestBody: any = {
       prompt: prompt,
       imageUrls: [accessibleImageUrl],
       model: "veo3_fast",
       aspectRatio: "16:9", // Landscape format as required by API
       generationType: "REFERENCE_2_VIDEO",
       enableFallback: false,
-      enableTranslation: true
-      // Removed callBackUrl - we'll use polling instead
+      enableTranslation: true,
+      // Try synchronous mode first
+      sync: true,
+      waitForCompletion: true
     };
+
+    console.log('🔄 Trying synchronous generation request...');
+
+    let response;
+    let data;
+
+    try {
+      response = await fetch(grokApiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      data = await response.json();
+      console.log('📊 Sync response:', JSON.stringify(data, null, 2));
+
+      // Check if we got a direct video URL (synchronous success)
+      const videoUrl = data.videoUrl || data.url || data.result?.videoUrl || data.output?.url;
+      if (response.ok && videoUrl) {
+        console.log('✅ Synchronous generation succeeded:', videoUrl);
+
+        // Save directly to database
+        await saveVideoToDatabase({
+          videoUrl,
+          userId,
+          templateId: template.id,
+          templateName: template.name,
+          thumbnail: imageUrl,
+          prompt
+        });
+
+        return NextResponse.json({
+          success: true,
+          taskId: 'sync',
+          message: 'Video generated synchronously',
+        });
+      }
+
+      // If sync failed but we got a taskId, fall back to async polling
+      if (data.taskId || data.id || data.task_id) {
+        console.log('⚠️ Sync failed, got taskId, switching to async mode');
+        taskId = data.taskId || data.id || data.task_id;
+      } else {
+        throw new Error('No video URL or taskId in sync response');
+      }
+
+    } catch (syncError) {
+      console.log('⚠️ Synchronous request failed, trying async mode:', syncError);
+
+      // Fall back to async request without sync parameters
+      requestBody = {
+        prompt: prompt,
+        imageUrls: [accessibleImageUrl],
+        model: "veo3_fast",
+        aspectRatio: "16:9",
+        generationType: "REFERENCE_2_VIDEO",
+        enableFallback: false,
+        enableTranslation: true
+      };
+
+      response = await fetch(grokApiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`Kie.ai API error: ${response.status} - ${JSON.stringify(data)}`);
+      }
+
+      taskId = data.taskId || data.id || data.task_id;
+      if (!taskId) {
+        throw new Error('No taskId received from Kie.ai API');
+      }
+    }
 
     console.log('═══════════════════════════════════════════════');
     console.log('🎬 Calling Kie.ai API:', grokApiUrl);
