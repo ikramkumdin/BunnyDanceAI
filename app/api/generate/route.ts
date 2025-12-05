@@ -126,14 +126,16 @@ export async function POST(request: NextRequest) {
     const grokApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/veo/generate';
 
     if (!process.env.GROK_API_KEY) {
-      console.error('❌ GROK_API_KEY is not configured in .env.local');
+      console.error('❌ GROK_API_KEY is not configured in environment');
+      console.log('🔍 Available env vars:', Object.keys(process.env).filter(key => key.includes('GROK') || key.includes('API')));
       return NextResponse.json(
-        { error: 'GROK_API_KEY is not configured. Please add it to .env.local' },
+        { error: 'GROK_API_KEY is not configured. Please add it to Vercel environment variables' },
         { status: 500 }
       );
     }
 
     console.log('✅ API key configured, proceeding with generation...');
+    console.log('🔗 API URL:', grokApiUrl);
 
     if (!process.env.GROK_API_KEY) {
       console.error('❌ GROK_API_KEY is not configured in .env.local');
@@ -233,13 +235,23 @@ export async function POST(request: NextRequest) {
       });
 
       data = await response.json();
+      console.log('📊 Async Kie.ai response:', JSON.stringify(data, null, 2));
+      console.log('📊 Response status:', response.status);
 
       if (!response.ok) {
+        console.error('❌ Kie.ai API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        });
         throw new Error(`Kie.ai API error: ${response.status} - ${JSON.stringify(data)}`);
       }
 
       taskId = data.taskId || data.id || data.task_id;
+      console.log('🎯 Extracted taskId:', taskId);
+
       if (!taskId) {
+        console.error('❌ No taskId found in response data:', data);
         throw new Error('No taskId received from Kie.ai API');
       }
     }
