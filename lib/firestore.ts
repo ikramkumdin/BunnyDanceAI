@@ -13,10 +13,10 @@ import {
   deleteDoc,
   Timestamp,
   DocumentData,
-  QuerySnapshot
+  QuerySnapshot,
+  Firestore
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { adminDb } from './firebase-admin';
 import { User, GeneratedVideo } from '@/types';
 
 // User collection
@@ -24,10 +24,11 @@ const USERS_COLLECTION = 'users';
 const VIDEOS_COLLECTION = 'videos';
 
 // Use admin SDK for server-side operations, client SDK for client-side
-const getDb = () => {
+const getDb = async (): Promise<Firestore> => {
   // Check if we're in a server environment (API routes)
   if (typeof window === 'undefined') {
-    return adminDb;
+    const { adminDb } = await import('./firebase-admin');
+    return adminDb as any; // Type assertion to handle SDK differences
   }
   return db;
 };
@@ -35,7 +36,7 @@ const getDb = () => {
 // User operations
 export async function getUser(userId: string): Promise<User | null> {
   try {
-    const database = getDb();
+    const database = await getDb();
     const userDoc = await getDoc(doc(database, USERS_COLLECTION, userId));
     if (userDoc.exists()) {
       return { id: userDoc.id, ...userDoc.data() } as User;
@@ -49,7 +50,7 @@ export async function getUser(userId: string): Promise<User | null> {
 
 export async function createUser(userData: Omit<User, 'id'>): Promise<string> {
   try {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(collection(database, USERS_COLLECTION));
     const newUser: User = {
       id: userRef.id,
@@ -68,7 +69,7 @@ export async function createUser(userData: Omit<User, 'id'>): Promise<string> {
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<void> {
   try {
-    const database = getDb();
+    const database = await getDb();
     const userRef = doc(database, USERS_COLLECTION, userId);
     await updateDoc(userRef, {
       ...updates,
@@ -83,7 +84,7 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
 // Video operations
 export async function saveVideo(videoData: Omit<GeneratedVideo, 'id'> & { userId: string }): Promise<string> {
   try {
-    const database = getDb();
+    const database = await getDb();
     const videoRef = await addDoc(collection(database, VIDEOS_COLLECTION), {
       ...videoData,
       createdAt: Timestamp.now(),
@@ -97,7 +98,7 @@ export async function saveVideo(videoData: Omit<GeneratedVideo, 'id'> & { userId
 
 export async function getUserVideos(userId: string): Promise<GeneratedVideo[]> {
   try {
-    const database = getDb();
+    const database = await getDb();
     const q = query(
       collection(database, VIDEOS_COLLECTION),
       where('userId', '==', userId),
@@ -121,7 +122,7 @@ export async function getUserVideos(userId: string): Promise<GeneratedVideo[]> {
 
 export async function getVideo(videoId: string): Promise<GeneratedVideo | null> {
   try {
-    const database = getDb();
+    const database = await getDb();
     const videoDoc = await getDoc(doc(database, VIDEOS_COLLECTION, videoId));
     if (videoDoc.exists()) {
       return {
@@ -139,7 +140,7 @@ export async function getVideo(videoId: string): Promise<GeneratedVideo | null> 
 
 export async function deleteVideo(videoId: string): Promise<void> {
   try {
-    const database = getDb();
+    const database = await getDb();
     await deleteDoc(doc(database, VIDEOS_COLLECTION, videoId));
   } catch (error) {
     console.error('Error deleting video:', error);

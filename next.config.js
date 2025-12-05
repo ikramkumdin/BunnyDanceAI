@@ -8,6 +8,13 @@ const nextConfig = {
       bodySizeLimit: '10mb',
     },
   },
+  webpack: (config) => {
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
+    return config;
+  },
 };
 
 module.exports = nextConfig;
