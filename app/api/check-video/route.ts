@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId');
     const taskId = searchParams.get('taskId');
 
+    console.log('🔍 Check-video API called:', { userId, taskId });
+
     if (!userId) {
       return NextResponse.json(
         { error: 'userId is required' },
@@ -51,20 +53,26 @@ export async function GET(request: NextRequest) {
         return timeB - timeA; // Most recent first
       });
       
+      console.log(`📹 Found ${videos.length} videos for user ${userId}`);
+
       // Check if we have a video that was recently created (within last 5 minutes)
       const recentVideo = videos.find(video => {
         const createdAt = new Date(video.createdAt).getTime();
         const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+        console.log(`🎥 Video ${video.id}: created ${new Date(createdAt).toISOString()}, within 5min: ${createdAt > fiveMinutesAgo}`);
         return createdAt > fiveMinutesAgo;
       });
 
       if (recentVideo) {
+        console.log('✅ Found recent video:', recentVideo.videoUrl);
         return NextResponse.json({
           ready: true,
           videoUrl: recentVideo.videoUrl,
           videoId: recentVideo.id,
         });
       }
+
+      console.log('❌ No recent videos found');
 
       return NextResponse.json({
         ready: false,

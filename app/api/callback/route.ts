@@ -10,9 +10,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { searchParams } = new URL(request.url);
-    
-    console.log('Callback received:', JSON.stringify(body, null, 2));
-    console.log('Callback query params:', Object.fromEntries(searchParams));
+
+    console.log('🎯 Callback received from Kie.ai!');
+    console.log('📦 Callback body:', JSON.stringify(body, null, 2));
+    console.log('🔗 Callback query params:', Object.fromEntries(searchParams));
     
     // Get metadata from query params (passed in callBackUrl)
     const userId = searchParams.get('userId') || body.userId || body.data?.userId;

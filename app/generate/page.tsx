@@ -40,8 +40,11 @@ export default function GeneratePage() {
   // Poll for video status
   const pollVideoStatus = useCallback(async (startTime = Date.now(), taskId = null) => {
     try {
+      console.log('🔍 Checking video status...');
       const response = await fetch(`/api/check-video?userId=${user?.id}${taskId ? `&taskId=${taskId}` : ''}`);
       const data = await response.json();
+
+      console.log('📊 Video check response:', data);
 
       if (data.ready && data.videoUrl) {
         console.log('🎬 Video ready:', data.videoUrl);
@@ -50,14 +53,17 @@ export default function GeneratePage() {
         return;
       }
 
-      // Continue polling if not ready (max 10 minutes)
+      // Continue polling if not ready (max 15 minutes)
       const elapsed = Date.now() - startTime;
-      if (elapsed < 10 * 60 * 1000) { // 10 minutes
-        setTimeout(() => pollVideoStatus(startTime, taskId), 5000); // Check every 5 seconds
+      const elapsedMinutes = Math.round(elapsed / (60 * 1000));
+      console.log(`⏳ Polling... ${elapsedMinutes}/15 minutes elapsed`);
+
+      if (elapsed < 15 * 60 * 1000) { // 15 minutes
+        setTimeout(() => pollVideoStatus(startTime, taskId), 10000); // Check every 10 seconds
       } else {
-        console.log('⏰ Video generation timeout');
+        console.log('⏰ Video generation timeout after 15 minutes');
         setIsGenerating(false);
-        alert('Video generation is taking longer than expected. Please check back later.');
+        alert('Video generation is taking longer than expected. The video may still complete - please refresh the page in a few minutes to check.');
       }
     } catch (error) {
       console.error('Polling error:', error);
