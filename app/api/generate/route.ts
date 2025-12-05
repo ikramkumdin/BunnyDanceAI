@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     let requestBody: any = {
         prompt: prompt,
         imageUrls: [accessibleImageUrl],
-        model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
+        model: "Veo Fast", // Exact model name from Kie.ai error message
         aspectRatio: "16:9", // Landscape format as required by API
         generationType: "REFERENCE_2_VIDEO",
         enableFallback: false,
@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
         {
           prompt: prompt,
           imageUrls: [accessibleImageUrl],
-          model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
+          model: "Veo Fast", // Exact model name from Kie.ai error message
           aspectRatio: "16:9",
           generationType: "REFERENCE_2_VIDEO",
           enableFallback: false,
@@ -283,14 +283,14 @@ export async function POST(request: NextRequest) {
         {
           prompt: prompt,
           imageUrls: [accessibleImageUrl],
-          model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
+          model: "Veo Fast", // Exact model name from Kie.ai error message
           aspectRatio: "16:9"
         },
         // Try with more parameters
         {
           prompt: prompt,
           imageUrls: [accessibleImageUrl],
-          model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
+          model: "Veo Fast", // Exact model name from Kie.ai error message
           aspectRatio: "16:9",
           generationType: "REFERENCE_2_VIDEO",
           enableFallback: false,
@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
         {
           prompt: prompt,
           image_urls: [accessibleImageUrl],
-          model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
+          model: "Veo Fast", // Exact model name from Kie.ai error message
           aspect_ratio: "16:9",
           generation_type: "REFERENCE_2_VIDEO"
         }
