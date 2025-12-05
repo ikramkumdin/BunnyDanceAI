@@ -123,7 +123,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Call Kie.ai API according to documentation
-    const grokApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/veo/generate';
+    // Try multiple possible endpoints in case the API has changed
+    const possibleApiUrls = [
+      process.env.GROK_API_URL,
+      'https://api.kie.ai/api/v1/veo/generate',
+      'https://api.kie.ai/v1/generate',
+      'https://api.kie.ai/api/v1/generate',
+      'https://api.kie.ai/generate'
+    ].filter(Boolean);
+
+    const grokApiUrl = possibleApiUrls[0];
+    console.log('🎯 Using API URL:', grokApiUrl);
+    console.log('🔄 Alternative URLs available:', possibleApiUrls.slice(1));
 
     if (!process.env.GROK_API_KEY) {
       console.error('❌ GROK_API_KEY is not configured in environment');
@@ -151,7 +162,7 @@ export async function POST(request: NextRequest) {
 
     // Try synchronous request first (some APIs support this)
     let requestBody: any = {
-      prompt: prompt,
+        prompt: prompt,
       imageUrls: [accessibleImageUrl],
       model: "veo3_fast",
       aspectRatio: "16:9", // Landscape format as required by API
@@ -169,6 +180,9 @@ export async function POST(request: NextRequest) {
     let data;
 
     try {
+      console.log('🚀 Sending sync request to Kie.ai...');
+      console.log('📝 Request body:', JSON.stringify(requestBody, null, 2));
+
       response = await fetch(grokApiUrl, {
         method: 'POST',
         headers: {
@@ -178,11 +192,14 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify(requestBody),
       });
 
+      console.log('📊 Response status:', response.status);
+      console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
+
       data = await response.json();
       console.log('📊 Sync response:', JSON.stringify(data, null, 2));
 
       // Check if we got a direct video URL (synchronous success)
-      const videoUrl = data.videoUrl || data.url || data.result?.videoUrl || data.output?.url;
+      const videoUrl = data.videoUrl || data.url || data.result?.videoUrl || data.output?.url || data.data?.videoUrl;
       if (response.ok && videoUrl) {
         console.log('✅ Synchronous generation succeeded:', videoUrl);
 
@@ -203,56 +220,130 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // If sync failed but we got a taskId, fall back to async polling
-      if (data.taskId || data.id || data.task_id) {
-        console.log('⚠️ Sync failed, got taskId, switching to async mode');
-        taskId = data.taskId || data.id || data.task_id;
+      // Check for taskId in various formats
+      const possibleTaskIds = [
+        data.taskId,
+        data.id,
+        data.task_id,
+        data.data?.taskId,
+        data.data?.id,
+        data.jobId,
+        data.job_id,
+        data.requestId,
+        data.request_id
+      ];
+
+      const foundTaskId = possibleTaskIds.find(id => id);
+      if (foundTaskId) {
+        console.log('⚠️ Sync failed, got taskId, switching to async mode:', foundTaskId);
+        taskId = foundTaskId;
+      } else if (response.ok) {
+        // If response is OK but no video or taskId, Kie.ai might not support this mode
+        console.log('⚠️ Kie.ai responded OK but no video or taskId found');
+        throw new Error(`Kie.ai responded OK but returned neither video nor taskId. Response: ${JSON.stringify(data)}`);
       } else {
-        throw new Error('No video URL or taskId in sync response');
+        // API returned an error
+        console.log('❌ Kie.ai sync request failed with error');
+        throw new Error(`Kie.ai sync error: ${response.status} - ${JSON.stringify(data)}`);
       }
 
     } catch (syncError) {
-      console.log('⚠️ Synchronous request failed, trying async mode:', syncError);
+      console.log('⚠️ Synchronous request failed, trying async mode:', syncError.message);
 
-      // Fall back to async request without sync parameters
-      requestBody = {
-        prompt: prompt,
-        imageUrls: [accessibleImageUrl],
-        model: "veo3_fast",
-        aspectRatio: "16:9",
-        generationType: "REFERENCE_2_VIDEO",
-        enableFallback: false,
-        enableTranslation: true
-      };
-
-      response = await fetch(grokApiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
-          'Content-Type': 'application/json',
+      // Fall back to async request - try different parameter formats
+      const asyncRequestBodies = [
+        // Try with minimal parameters first
+        {
+          prompt: prompt,
+          imageUrls: [accessibleImageUrl],
+          model: "veo3_fast",
+          aspectRatio: "16:9"
         },
-        body: JSON.stringify(requestBody),
-      });
+        // Try with more parameters
+        {
+          prompt: prompt,
+          imageUrls: [accessibleImageUrl],
+          model: "veo3_fast",
+          aspectRatio: "16:9",
+          generationType: "REFERENCE_2_VIDEO",
+          enableFallback: false,
+          enableTranslation: true
+        },
+        // Try different parameter names
+        {
+          prompt: prompt,
+          image_urls: [accessibleImageUrl],
+          model: "veo3_fast",
+          aspect_ratio: "16:9",
+          generation_type: "REFERENCE_2_VIDEO"
+        }
+      ];
 
-      data = await response.json();
-      console.log('📊 Async Kie.ai response:', JSON.stringify(data, null, 2));
-      console.log('📊 Response status:', response.status);
+      let asyncSuccess = false;
+      let lastError = null;
 
-      if (!response.ok) {
-        console.error('❌ Kie.ai API error response:', {
-          status: response.status,
-          statusText: response.statusText,
-          data: data
-        });
-        throw new Error(`Kie.ai API error: ${response.status} - ${JSON.stringify(data)}`);
+      for (let i = 0; i < asyncRequestBodies.length; i++) {
+        try {
+          console.log(`🔄 Trying async request format ${i + 1}/${asyncRequestBodies.length}`);
+          console.log('📝 Request body:', JSON.stringify(asyncRequestBodies[i], null, 2));
+
+          response = await fetch(grokApiUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(asyncRequestBodies[i]),
+          });
+
+          console.log('📊 Response status:', response.status);
+          console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
+
+          data = await response.json();
+          console.log(`📊 Async response ${i + 1}:`, JSON.stringify(data, null, 2));
+
+          if (!response.ok) {
+            console.log(`❌ Async request ${i + 1} failed with status ${response.status}`);
+            lastError = `Kie.ai API error: ${response.status} - ${JSON.stringify(data)}`;
+            continue;
+          }
+
+          // Check for taskId in various formats
+          const possibleTaskIds = [
+            data.taskId,
+            data.id,
+            data.task_id,
+            data.data?.taskId,
+            data.data?.id,
+            data.jobId,
+            data.job_id,
+            data.requestId,
+            data.request_id,
+            data.generation_id,
+            data.uuid
+          ];
+
+          taskId = possibleTaskIds.find(id => id);
+          console.log('🎯 Extracted taskId:', taskId);
+
+          if (taskId) {
+            console.log(`✅ Async request ${i + 1} succeeded with taskId:`, taskId);
+            asyncSuccess = true;
+            break;
+          } else {
+            console.log(`⚠️ Async request ${i + 1} OK but no taskId found`);
+            lastError = `No taskId in response: ${JSON.stringify(data)}`;
+          }
+        } catch (error) {
+          console.log(`❌ Async request ${i + 1} threw error:`, error.message);
+          lastError = error.message;
+        }
       }
 
-      taskId = data.taskId || data.id || data.task_id;
-      console.log('🎯 Extracted taskId:', taskId);
-
-      if (!taskId) {
-        console.error('❌ No taskId found in response data:', data);
-        throw new Error('No taskId received from Kie.ai API');
+      if (!asyncSuccess) {
+        console.error('❌ All async attempts failed');
+        console.error('📝 Last error:', lastError);
+        throw new Error(`Failed to get taskId from Kie.ai after trying all formats. Last error: ${lastError}`);
       }
     }
 
@@ -369,7 +460,7 @@ export async function POST(request: NextRequest) {
     } else if (grokData.data && Array.isArray(grokData.data) && grokData.data.length > 0) {
       generatedVideoUrl = grokData.data[0];
     }
-
+    
     if (!generatedVideoUrl) {
       console.error('❌ No video URL or taskId found in API response');
       return NextResponse.json(
