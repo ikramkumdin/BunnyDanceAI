@@ -52,61 +52,85 @@ export async function GET(request: NextRequest) {
     const kieApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/veo/generate';
     const baseUrl = kieApiUrl.replace('/api/v1/veo/generate', '');
 
-    // Try common task status endpoints and variations
+    // Also try alternative base URLs in case the API structure is different
+    const alternativeBases = [
+      'https://api.kie.ai',
+      'https://kie.ai/api',
+      'https://app.kie.ai/api',
+      'https://platform.kie.ai/api'
+    ];
+
+    // Try common task status endpoints and variations based on Kie.ai patterns
     const possibleEndpoints = [
-      // Direct task endpoints (most likely)
-      `${baseUrl}/api/v1/task/${taskId}`,
-      `${baseUrl}/api/v1/tasks/${taskId}`,
+      // Kie.ai specific patterns (based on their API structure)
       `${baseUrl}/api/v1/veo/task/${taskId}`,
       `${baseUrl}/api/v1/veo/tasks/${taskId}`,
-
-      // Status endpoints
-      `${baseUrl}/api/v1/task/${taskId}/status`,
-      `${baseUrl}/api/v1/tasks/${taskId}/status`,
-      `${baseUrl}/api/v1/veo/task/${taskId}/status`,
-      `${baseUrl}/api/v1/veo/tasks/${taskId}/status`,
-
-      // Generation endpoints
-      `${baseUrl}/api/v1/generation/${taskId}`,
       `${baseUrl}/api/v1/veo/generation/${taskId}`,
-      `${baseUrl}/api/v1/generation/${taskId}/status`,
-      `${baseUrl}/api/v1/veo/generation/${taskId}/status`,
-
-      // Job endpoints
-      `${baseUrl}/api/v1/job/${taskId}`,
-      `${baseUrl}/api/v1/jobs/${taskId}`,
-      `${baseUrl}/api/v1/veo/job/${taskId}`,
       `${baseUrl}/api/v1/veo/jobs/${taskId}`,
 
+      // Status endpoints
+      `${baseUrl}/api/v1/veo/task/${taskId}/status`,
+      `${baseUrl}/api/v1/veo/tasks/${taskId}/status`,
+      `${baseUrl}/api/v1/veo/generation/${taskId}/status`,
+      `${baseUrl}/api/v1/veo/jobs/${taskId}/status`,
+
+      // Direct endpoints
+      `${baseUrl}/api/v1/task/${taskId}`,
+      `${baseUrl}/api/v1/tasks/${taskId}`,
+      `${baseUrl}/api/v1/generation/${taskId}`,
+      `${baseUrl}/api/v1/jobs/${taskId}`,
+
       // Result endpoints
-      `${baseUrl}/api/v1/task/${taskId}/result`,
-      `${baseUrl}/api/v1/tasks/${taskId}/result`,
       `${baseUrl}/api/v1/veo/task/${taskId}/result`,
       `${baseUrl}/api/v1/veo/tasks/${taskId}/result`,
+      `${baseUrl}/api/v1/veo/generation/${taskId}/result`,
+      `${baseUrl}/api/v1/veo/jobs/${taskId}/result`,
 
-      // Alternative API versions (v1 instead of api/v1)
-      `${baseUrl}/v1/task/${taskId}`,
-      `${baseUrl}/v1/tasks/${taskId}`,
+      // Alternative API versions
       `${baseUrl}/v1/veo/task/${taskId}`,
       `${baseUrl}/v1/veo/tasks/${taskId}`,
+      `${baseUrl}/v1/veo/generation/${taskId}`,
+      `${baseUrl}/v1/veo/jobs/${taskId}`,
 
-      // Root level endpoints
-      `${baseUrl}/task/${taskId}`,
-      `${baseUrl}/tasks/${taskId}`,
+      // Root level (less likely but worth trying)
       `${baseUrl}/veo/task/${taskId}`,
       `${baseUrl}/veo/tasks/${taskId}`,
+      `${baseUrl}/task/${taskId}`,
+      `${baseUrl}/tasks/${taskId}`,
 
       // Query parameter approach
-      `${baseUrl}/api/v1/veo/generate?taskId=${taskId}`,
-      `${baseUrl}/api/v1/generate?taskId=${taskId}`,
-      `${baseUrl}/v1/generate?taskId=${taskId}`,
+      `${baseUrl}/api/v1/veo/generate/status?taskId=${taskId}`,
+      `${baseUrl}/api/v1/veo/generate/result?taskId=${taskId}`,
+      `${baseUrl}/api/v1/generate/status?taskId=${taskId}`,
+
+      // POST request approach (some APIs require POST for status checks)
+      // We'll handle POST requests separately below
+
+      // Alternative patterns
+      `${baseUrl}/api/v1/status/${taskId}`,
+      `${baseUrl}/api/v1/result/${taskId}`,
+      `${baseUrl}/api/v1/queue/${taskId}`,
+      `${baseUrl}/api/v1/progress/${taskId}`,
+
+      // Video generation specific endpoints
+      `${baseUrl}/api/v1/video/${taskId}`,
+      `${baseUrl}/api/v1/video/${taskId}/status`,
+      `${baseUrl}/api/v1/video/${taskId}/result`,
+    ];
+
+    // Also try POST requests to some endpoints (some APIs require POST for status)
+    const postEndpoints = [
+      `${baseUrl}/api/v1/veo/generate/status`,
+      `${baseUrl}/api/v1/generate/status`,
+      `${baseUrl}/api/v1/task/status`,
+      `${baseUrl}/api/v1/status`,
     ];
     
-    // Try each endpoint until one works
+    // Try each GET endpoint until one works
     let lastError: any = null;
     for (const statusUrl of possibleEndpoints) {
       try {
-        console.log(`Trying to poll: ${statusUrl}`);
+        console.log(`Trying GET: ${statusUrl}`);
         const statusResponse = await fetch(statusUrl, {
           method: 'GET',
           headers: {
@@ -117,7 +141,7 @@ export async function GET(request: NextRequest) {
 
         if (statusResponse.ok) {
           const statusData = await statusResponse.json();
-          console.log('Poll response:', JSON.stringify(statusData, null, 2));
+          console.log('✅ Poll response (GET):', JSON.stringify(statusData, null, 2));
           return NextResponse.json(statusData);
         } else {
           // If 404, try next endpoint
@@ -134,8 +158,38 @@ export async function GET(request: NextRequest) {
         }
       } catch (error) {
         lastError = error;
-        console.error(`Error polling ${statusUrl}:`, error);
+        console.error(`Error polling GET ${statusUrl}:`, error);
         // Continue to next endpoint
+        continue;
+      }
+    }
+
+    // Try POST endpoints if GET failed
+    console.log('GET requests failed, trying POST requests...');
+    for (const statusUrl of postEndpoints) {
+      try {
+        console.log(`Trying POST: ${statusUrl}`);
+        const statusResponse = await fetch(statusUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ taskId }),
+        });
+
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          console.log('✅ Poll response (POST):', JSON.stringify(statusData, null, 2));
+          return NextResponse.json(statusData);
+        } else {
+          // Continue to next endpoint even for non-404 errors
+          lastError = { status: statusResponse.status, message: `POST to ${statusUrl} failed` };
+          continue;
+        }
+      } catch (error) {
+        lastError = error;
+        console.error(`Error polling POST ${statusUrl}:`, error);
         continue;
       }
     }

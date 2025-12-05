@@ -148,6 +148,22 @@ export async function POST(request: NextRequest) {
     console.log('✅ API key configured, proceeding with generation...');
     console.log('🔗 API URL:', grokApiUrl);
 
+    // Check if test mode is enabled
+    const isTestMode = process.env.KIE_TEST_MODE === 'true';
+    if (isTestMode) {
+      console.log('🧪 TEST MODE: Simulating video generation...');
+
+      // Simulate async generation with a fake taskId
+      const fakeTaskId = `test-${Date.now()}`;
+      console.log('✅ Test mode: Video generation started with taskId:', fakeTaskId);
+
+      return NextResponse.json({
+        success: true,
+        taskId: fakeTaskId,
+        message: 'Video generation started (TEST MODE)',
+      });
+    }
+
     if (!process.env.GROK_API_KEY) {
       console.error('❌ GROK_API_KEY is not configured in .env.local');
       return NextResponse.json(
@@ -163,15 +179,15 @@ export async function POST(request: NextRequest) {
     // Try synchronous request first (some APIs support this)
     let requestBody: any = {
         prompt: prompt,
-      imageUrls: [accessibleImageUrl],
-      model: "veo3_fast",
-      aspectRatio: "16:9", // Landscape format as required by API
-      generationType: "REFERENCE_2_VIDEO",
-      enableFallback: false,
-      enableTranslation: true,
-      // Try synchronous mode first
-      sync: true,
-      waitForCompletion: true
+        imageUrls: [accessibleImageUrl],
+        model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
+        aspectRatio: "16:9", // Landscape format as required by API
+        generationType: "REFERENCE_2_VIDEO",
+        enableFallback: false,
+        enableTranslation: true,
+        // Try synchronous mode first
+        sync: true,
+        waitForCompletion: true
     };
 
     console.log('🔄 Trying synchronous generation request...');
@@ -256,7 +272,7 @@ export async function POST(request: NextRequest) {
         {
           prompt: prompt,
           imageUrls: [accessibleImageUrl],
-          model: "veo3_fast",
+          model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
           aspectRatio: "16:9",
           generationType: "REFERENCE_2_VIDEO",
           enableFallback: false,
@@ -267,14 +283,14 @@ export async function POST(request: NextRequest) {
         {
           prompt: prompt,
           imageUrls: [accessibleImageUrl],
-          model: "veo3_fast",
+          model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
           aspectRatio: "16:9"
         },
         // Try with more parameters
         {
           prompt: prompt,
           imageUrls: [accessibleImageUrl],
-          model: "veo3_fast",
+          model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
           aspectRatio: "16:9",
           generationType: "REFERENCE_2_VIDEO",
           enableFallback: false,
@@ -284,7 +300,7 @@ export async function POST(request: NextRequest) {
         {
           prompt: prompt,
           image_urls: [accessibleImageUrl],
-          model: "veo3_fast",
+          model: "Veo 3.1 Fast", // Updated to match Kie.ai documentation
           aspect_ratio: "16:9",
           generation_type: "REFERENCE_2_VIDEO"
         }
