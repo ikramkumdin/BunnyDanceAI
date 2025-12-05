@@ -99,23 +99,84 @@ export async function saveVideo(videoData: Omit<GeneratedVideo, 'id'> & { userId
 export async function getUserVideos(userId: string): Promise<GeneratedVideo[]> {
   try {
     const database = await getDb();
-    const q = query(
-      collection(database, VIDEOS_COLLECTION),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        userId: data.userId || userId,
-        createdAt: convertTimestamp(data.createdAt),
-      } as GeneratedVideo;
-    });
+    const isClientSide = typeof window !== 'undefined';
+
+    // For client-side calls, always use the simple query to avoid index requirements
+    if (isClientSide) {
+      console.log('📱 Client-side call, using simple query without ordering');
+      const q = query(
+        collection(database, VIDEOS_COLLECTION),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      const videos = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          userId: data.userId || userId,
+          createdAt: convertTimestamp(data.createdAt),
+        } as GeneratedVideo;
+      });
+
+      // Sort in memory (client-side sorting is fine)
+      return videos.sort((a, b) => {
+        const timeA = new Date(a.createdAt).getTime();
+        const timeB = new Date(b.createdAt).getTime();
+        return timeB - timeA; // Most recent first
+      });
+    }
+
+    // For server-side calls, try ordered query with fallback
+    try {
+      const q = query(
+        collection(database, VIDEOS_COLLECTION),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          userId: data.userId || userId,
+          createdAt: convertTimestamp(data.createdAt),
+        } as GeneratedVideo;
+      });
+    } catch (indexError: any) {
+      // If index error, fall back to unordered query and sort in memory
+      if (indexError.code === 'failed-precondition') {
+        console.warn('📊 Server-side: Firestore index missing, using fallback query');
+
+        const q = query(
+          collection(database, VIDEOS_COLLECTION),
+          where('userId', '==', userId)
+        );
+        const querySnapshot = await getDocs(q);
+
+        const videos = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            userId: data.userId || userId,
+            createdAt: convertTimestamp(data.createdAt),
+          } as GeneratedVideo;
+        });
+
+        // Sort in memory
+        return videos.sort((a, b) => {
+          const timeA = new Date(a.createdAt).getTime();
+          const timeB = new Date(b.createdAt).getTime();
+          return timeB - timeA; // Most recent first
+        });
+      }
+      throw indexError;
+    }
   } catch (error) {
-    console.error('Error getting user videos:', error);
+    console.error('❌ Error getting user videos:', error);
     return [];
   }
 }
