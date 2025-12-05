@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       'https://api.kie.ai/generate'
     ].filter(Boolean);
 
-    const grokApiUrl = possibleApiUrls[0];
+    const grokApiUrl = possibleApiUrls[0] || 'https://api.kie.ai/api/v1/veo/generate';
     console.log('🎯 Using API URL:', grokApiUrl);
     console.log('🔄 Alternative URLs available:', possibleApiUrls.slice(1));
 
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
       }
 
     } catch (syncError) {
-      console.log('⚠️ Synchronous request failed, trying async mode:', syncError.message);
+      console.log('⚠️ Synchronous request failed, trying async mode:', syncError instanceof Error ? syncError.message : String(syncError));
 
       // Fall back to async request - try different parameter formats
       const asyncRequestBodies = [
@@ -335,8 +335,9 @@ export async function POST(request: NextRequest) {
             lastError = `No taskId in response: ${JSON.stringify(data)}`;
           }
         } catch (error) {
-          console.log(`❌ Async request ${i + 1} threw error:`, error.message);
-          lastError = error.message;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.log(`❌ Async request ${i + 1} threw error:`, errorMessage);
+          lastError = errorMessage;
         }
       }
 
