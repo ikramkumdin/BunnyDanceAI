@@ -252,7 +252,18 @@ export async function POST(request: NextRequest) {
 
       // Fall back to async request - try different parameter formats
       const asyncRequestBodies = [
-        // Try with minimal parameters first
+        // Try with callback URL first (if Kie.ai supports it)
+        {
+          prompt: prompt,
+          imageUrls: [accessibleImageUrl],
+          model: "veo3_fast",
+          aspectRatio: "16:9",
+          generationType: "REFERENCE_2_VIDEO",
+          enableFallback: false,
+          enableTranslation: true,
+          callbackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://bunny-dance-ai.vercel.app'}/api/callback?userId=${userId}&templateId=${template.id}&templateName=${encodeURIComponent(template.name)}&thumbnail=${encodeURIComponent(imageUrl)}`
+        },
+        // Try with minimal parameters
         {
           prompt: prompt,
           imageUrls: [accessibleImageUrl],

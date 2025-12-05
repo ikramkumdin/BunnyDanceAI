@@ -15,6 +15,32 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check if this is a test task
+    const isTestMode = process.env.KIE_TEST_MODE === 'true' && taskId.startsWith('test-');
+    if (isTestMode) {
+      console.log('🧪 TEST MODE: Simulating task status check for:', taskId);
+
+      // Simulate task completion after 30 seconds
+      const taskStartTime = parseInt(taskId.replace('test-', ''));
+      const elapsed = Date.now() - taskStartTime;
+
+      if (elapsed > 30000) { // 30 seconds
+        console.log('✅ TEST MODE: Task completed');
+        return NextResponse.json({
+          status: 'completed',
+          videoUrl: 'https://example.com/test-video.mp4',
+          taskId: taskId
+        });
+      } else {
+        console.log('⏳ TEST MODE: Task still processing');
+        return NextResponse.json({
+          status: 'processing',
+          progress: Math.min(95, Math.floor((elapsed / 30000) * 100)),
+          taskId: taskId
+        });
+      }
+    }
+
     if (!process.env.GROK_API_KEY) {
       return NextResponse.json(
         { error: 'GROK_API_KEY is not configured' },
@@ -28,31 +54,52 @@ export async function GET(request: NextRequest) {
 
     // Try common task status endpoints and variations
     const possibleEndpoints = [
-      // Standard REST patterns
+      // Direct task endpoints (most likely)
+      `${baseUrl}/api/v1/task/${taskId}`,
       `${baseUrl}/api/v1/tasks/${taskId}`,
+      `${baseUrl}/api/v1/veo/task/${taskId}`,
       `${baseUrl}/api/v1/veo/tasks/${taskId}`,
-      `${baseUrl}/api/v1/generation/${taskId}`,
-      `${baseUrl}/api/v1/veo/generation/${taskId}`,
-      `${baseUrl}/api/v1/jobs/${taskId}`,
-      `${baseUrl}/api/v1/veo/jobs/${taskId}`,
 
       // Status endpoints
+      `${baseUrl}/api/v1/task/${taskId}/status`,
       `${baseUrl}/api/v1/tasks/${taskId}/status`,
+      `${baseUrl}/api/v1/veo/task/${taskId}/status`,
       `${baseUrl}/api/v1/veo/tasks/${taskId}/status`,
+
+      // Generation endpoints
+      `${baseUrl}/api/v1/generation/${taskId}`,
+      `${baseUrl}/api/v1/veo/generation/${taskId}`,
       `${baseUrl}/api/v1/generation/${taskId}/status`,
       `${baseUrl}/api/v1/veo/generation/${taskId}/status`,
 
-      // Result endpoints
-      `${baseUrl}/api/v1/tasks/${taskId}/result`,
-      `${baseUrl}/api/v1/veo/tasks/${taskId}/result`,
-      `${baseUrl}/api/v1/generation/${taskId}/result`,
-      `${baseUrl}/api/v1/veo/generation/${taskId}/result`,
+      // Job endpoints
+      `${baseUrl}/api/v1/job/${taskId}`,
+      `${baseUrl}/api/v1/jobs/${taskId}`,
+      `${baseUrl}/api/v1/veo/job/${taskId}`,
+      `${baseUrl}/api/v1/veo/jobs/${taskId}`,
 
-      // Alternative API versions
+      // Result endpoints
+      `${baseUrl}/api/v1/task/${taskId}/result`,
+      `${baseUrl}/api/v1/tasks/${taskId}/result`,
+      `${baseUrl}/api/v1/veo/task/${taskId}/result`,
+      `${baseUrl}/api/v1/veo/tasks/${taskId}/result`,
+
+      // Alternative API versions (v1 instead of api/v1)
+      `${baseUrl}/v1/task/${taskId}`,
       `${baseUrl}/v1/tasks/${taskId}`,
+      `${baseUrl}/v1/veo/task/${taskId}`,
       `${baseUrl}/v1/veo/tasks/${taskId}`,
+
+      // Root level endpoints
+      `${baseUrl}/task/${taskId}`,
       `${baseUrl}/tasks/${taskId}`,
+      `${baseUrl}/veo/task/${taskId}`,
       `${baseUrl}/veo/tasks/${taskId}`,
+
+      // Query parameter approach
+      `${baseUrl}/api/v1/veo/generate?taskId=${taskId}`,
+      `${baseUrl}/api/v1/generate?taskId=${taskId}`,
+      `${baseUrl}/v1/generate?taskId=${taskId}`,
     ];
     
     // Try each endpoint until one works
