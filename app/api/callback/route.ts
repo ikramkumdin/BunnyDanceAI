@@ -14,16 +14,20 @@ export async function POST(request: NextRequest) {
     console.log('🎯 Callback received from Kie.ai!');
     console.log('📦 Callback body:', JSON.stringify(body, null, 2));
     console.log('🔗 Callback query params:', Object.fromEntries(searchParams));
-    
+    console.log('🔍 Full request keys:', Object.keys(body));
+
     // Get metadata from query params (passed in callBackUrl)
     const userId = searchParams.get('userId') || body.userId || body.data?.userId;
     const templateId = searchParams.get('templateId') || body.templateId || body.data?.templateId;
     const templateName = searchParams.get('templateName') || body.templateName || body.data?.templateName;
     const thumbnail = searchParams.get('thumbnail') || body.thumbnail || body.data?.thumbnail;
-    
+
     // Handle different callback formats from Kie.ai
     const taskId = body.taskId || body.data?.taskId || body.task_id || searchParams.get('taskId');
-    const videoUrl = body.videoUrl || body.data?.videoUrl || body.url || body.data?.url;
+    const videoUrl = body.videoUrl || body.data?.videoUrl || body.url || body.data?.url || body.video_url || body.data?.video_url ||
+                     body.result?.videoUrl || body.result?.url || body.output?.videoUrl || body.output?.url;
+
+    console.log('🎬 Extracted data:', { userId, templateId, templateName, taskId, videoUrl });
     const status = body.status || body.data?.status;
     
     if (!videoUrl) {
