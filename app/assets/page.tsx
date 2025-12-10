@@ -128,43 +128,69 @@ export default function AssetsPage() {
     setIsImporting(true);
     let successCount = 0;
     let failCount = 0;
+    const failedLines = [];
 
     try {
-      for (const line of lines) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         try {
           // Parse taskId=url format
           const [taskId, url] = line.split('=');
           if (!taskId || !url) {
-            console.error(`Invalid format: ${line}. Use: taskId=url`);
+            console.error(`Line ${i + 1}: Invalid format: ${line}. Use: taskId=url`);
+            failedLines.push(`Line ${i + 1}: Invalid format`);
             failCount++;
             continue;
           }
 
+          const cleanTaskId = taskId.trim();
+          const cleanUrl = url.trim();
+
+          // Validate URL
+          if (!cleanUrl.startsWith('http')) {
+            console.error(`Line ${i + 1}: Invalid URL: ${cleanUrl}`);
+            failedLines.push(`Line ${i + 1}: Invalid URL`);
+            failCount++;
+            continue;
+          }
+
+          console.log(`Importing line ${i + 1}: ${cleanTaskId} → ${cleanUrl}`);
+
           // Sync to cache first
-          await fetch('/api/sync-image-result', {
+          const cacheResponse = await fetch('/api/sync-image-result', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              taskId: taskId.trim(),
-              imageUrl: url.trim(),
+              taskId: cleanTaskId,
+              imageUrl: cleanUrl,
               status: 'SUCCESS'
             })
           });
 
+          if (!cacheResponse.ok) {
+            const errorText = await cacheResponse.text();
+            console.error(`Line ${i + 1}: Cache sync failed:`, errorText);
+            failedLines.push(`Line ${i + 1}: Cache sync failed`);
+            failCount++;
+            continue;
+          }
+
           // Save to assets
           await saveImage({
             userId: user.id,
-            imageUrl: url.trim(),
-            prompt: `Imported from Kie.ai (${taskId.trim()})`,
+            imageUrl: cleanUrl,
+            prompt: `Imported from Kie.ai (${cleanTaskId})`,
             source: 'text-to-image',
             tags: ['photo', 'text-to-image', 'imported'],
             type: 'image',
             createdAt: new Date().toISOString(),
           });
 
+          console.log(`✅ Successfully imported: ${cleanTaskId}`);
           successCount++;
         } catch (error) {
-          console.error(`Error importing line ${line}:`, error);
+          console.error(`Line ${i + 1}: Error importing ${line}:`, error);
+          failedLines.push(`Line ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
           failCount++;
         }
       }
@@ -175,7 +201,15 @@ export default function AssetsPage() {
       setShowImportDialog(false);
       setImportTaskIds('');
 
-      alert(`Import complete!\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`);
+      let message = `Import complete!\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`;
+
+      if (failedLines.length > 0 && failedLines.length <= 5) {
+        message += '\n\nFailed imports:\n' + failedLines.join('\n');
+      } else if (failedLines.length > 5) {
+        message += '\n\nToo many failures to list. Check console for details.';
+      }
+
+      alert(message);
     } catch (error) {
       console.error('Import error:', error);
       alert('Failed to import images. Please try again.');
@@ -206,98 +240,11 @@ export default function AssetsPage() {
         {!isLoading && !userLoading && (
           <div className="mb-4 flex justify-end gap-2">
             <button
-              onClick={async () => {
-                // Direct import using the URLs from user's logs
-                const imagesToImport = [
-                  {
-                    taskId: '1c974e84eaefc545a5adb7d771ee8d2c',
-                    url: 'https://tempfile.aiquickdraw.com/s/1c974e84eaefc545a5adb7d771ee8d2c_0_1765360441_7280.png'
-                  },
-                  {
-                    taskId: 'c92a7430340aa131e54a2e9aadf65487',
-                    url: 'https://tempfile.aiquickdraw.com/s/c92a7430340aa131e54a2e9aadf65487_0_1765368148_3098.png'
-                  },
-                  {
-                    taskId: '1a16c95b9e9f797bc2d1672a3829527a',
-                    url: 'https://tempfile.aiquickdraw.com/s/1a16c95b9e9f797bc2d1672a3829527a_0_1765360444_7280.png'
-                  },
-                  {
-                    taskId: '3119eb850808975c5436defe37fa54e0',
-                    url: 'https://tempfile.aiquickdraw.com/s/3119eb850808975c5436defe37fa54e0_0_1765360447_7280.png'
-                  },
-                  {
-                    taskId: '0d865455705d38bf86c81a81037edab2',
-                    url: 'https://tempfile.aiquickdraw.com/s/0d865455705d38bf86c81a81037edab2_0_1765360449_7280.png'
-                  },
-                  {
-                    taskId: '139392b865de6519fd837319ae6dd4eb',
-                    url: 'https://tempfile.aiquickdraw.com/s/139392b865de6519fd837319ae6dd4eb_0_1765360452_7280.png'
-                  }
-                ];
-
-                if (!user) return;
-
-                setIsImporting(true);
-                let successCount = 0;
-                let failCount = 0;
-
-                try {
-                  for (const img of imagesToImport) {
-                    try {
-                      // Sync to cache first
-                      await fetch('/api/sync-image-result', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          taskId: img.taskId,
-                          imageUrl: img.url,
-                          status: 'SUCCESS'
-                        })
-                      });
-
-                      // Save to assets
-                      await saveImage({
-                        userId: user.id,
-                        imageUrl: img.url,
-                        prompt: `Imported from Kie.ai (${img.taskId})`,
-                        source: 'text-to-image',
-                        tags: ['photo', 'text-to-image', 'imported'],
-                        type: 'image',
-                        createdAt: new Date().toISOString(),
-                      });
-
-                      successCount++;
-                    } catch (error) {
-                      console.error(`Error importing task ${img.taskId}:`, error);
-                      failCount++;
-                    }
-                  }
-
-                  // Reload assets
-                  await loadAssets();
-
-                  alert(`Import complete!\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`);
-                } catch (error) {
-                  console.error('Import error:', error);
-                  alert('Failed to import images. Please try again.');
-                } finally {
-                  setIsImporting(false);
-                }
-              }}
-              disabled={isImporting}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-semibold"
+              onClick={() => setShowImportDialog(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-semibold"
             >
-              {isImporting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4" />
-                  Quick Import (All Logs)
-                </>
-              )}
+              <Plus className="w-4 h-4" />
+              Import from Kie.ai Logs
             </button>
           </div>
         )}
@@ -308,13 +255,24 @@ export default function AssetsPage() {
             <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full">
               <h3 className="text-xl font-bold mb-4">Import Images from Kie.ai</h3>
               <p className="text-sm text-gray-400 mb-4">
-                This dialog is for manual import. Use &quot;Quick Import (All Logs)&quot; button instead for automatic import.
+                Paste your task IDs and URLs from Kie.ai logs (format: taskId=url, one per line).
+                <br />
+                <strong>Get URLs from:</strong> https://kie.ai/logs → find your tasks → copy the image URLs.
               </p>
+              <button
+                onClick={() => {
+                  // Pre-fill with task IDs from user's logs
+                  setImportTaskIds(`1c974e84eaefc545a5adb7d771ee8d2c=\n${importTaskIds}`);
+                }}
+                className="mb-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
+              >
+                Pre-fill Task IDs
+              </button>
               <textarea
                 value={importTaskIds}
                 onChange={(e) => setImportTaskIds(e.target.value)}
-                placeholder="1c974e84eaefc545a5adb7d771ee8d2c=https://tempfile.aiquickdraw.com/s/...&#10;c92a7430340aa131e54a2e9aadf65487=https://tempfile.aiquickdraw.com/s/..."
-                className="w-full h-32 bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm text-white font-mono resize-none"
+                placeholder={`1c974e84eaefc545a5adb7d771ee8d2c=https://tempfile.aiquickdraw.com/s/your-actual-image-url.png\nc92a7430340aa131e54a2e9aadf65487=https://tempfile.aiquickdraw.com/s/another-url.png`}
+                className="w-full h-40 bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm text-white font-mono resize-none"
               />
               <div className="flex gap-3 mt-4">
                 <button
