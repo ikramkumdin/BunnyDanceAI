@@ -9,11 +9,57 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const taskId = searchParams.get('taskId');
     const provider = searchParams.get('provider') || 'kie'; // Default to kie for backward compatibility
+    const forceComplete = searchParams.get('forceComplete') === 'true'; // Emergency manual completion
 
     if (!taskId) {
       return NextResponse.json(
         { error: 'taskId is required' },
         { status: 400 }
+      );
+    }
+
+    // Emergency manual completion for stuck tasks
+    if (forceComplete) {
+      console.log(`🚨 EMERGENCY: Force completing task ${taskId}`);
+
+      // Try to fetch the URL directly
+      try {
+        const fetchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/fetch-kie-image?taskId=${taskId}`);
+        if (fetchResponse.ok) {
+          const fetchData = await fetchResponse.json();
+          if (fetchData.success && fetchData.imageUrl) {
+            console.log('✅ Force completion successful:', fetchData.imageUrl);
+
+            // Update cache
+            storeCallbackResult({
+              taskId,
+              status: 'SUCCESS',
+              resultUrls: [fetchData.imageUrl],
+            });
+
+            return NextResponse.json({
+              code: 200,
+              msg: 'success',
+              imageUrl: fetchData.imageUrl,
+              status: 'completed',
+              data: {
+                taskId,
+                resultUrls: [fetchData.imageUrl],
+                successFlag: 1,
+                status: 'SUCCESS',
+                source: 'force-complete',
+                cacheHit: false
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('❌ Force completion failed:', error);
+      }
+
+      return NextResponse.json(
+        { error: 'Force completion failed - could not fetch image URL' },
+        { status: 500 }
       );
     }
 
