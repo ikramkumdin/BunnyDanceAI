@@ -24,17 +24,28 @@ export async function POST(request: NextRequest) {
     const status = data.status || data.data?.status || 'SUCCESS';
     
     // Try multiple possible locations for result URLs
-    let resultUrls = data.result_urls || data.resultUrls || data.response || data.data?.result_urls || data.data?.resultUrls;
+    // Kie.ai might send: result_urls, resultUrls, response, or directly in the body
+    let resultUrls = data.result_urls || data.resultUrls || data.response || data.data?.result_urls || data.data?.resultUrls || data.image_urls || data.imageUrls;
+    
+    // Handle case where the entire body might be an array (rare but possible)
+    if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'string' && data[0].startsWith('http')) {
+      resultUrls = data;
+      console.log('📋 Found result URLs as direct array in body');
+    }
     
     // If resultUrls is a string, try to parse it as JSON
     if (typeof resultUrls === 'string') {
       try {
         const parsed = JSON.parse(resultUrls);
         resultUrls = Array.isArray(parsed) ? parsed : [parsed];
+        console.log('📋 Parsed resultUrls from JSON string');
       } catch (e) {
         // If it's a URL string, wrap it in array
         if (resultUrls.startsWith('http')) {
           resultUrls = [resultUrls];
+          console.log('📋 Wrapped single URL string into array');
+        } else {
+          resultUrls = null;
         }
       }
     }
@@ -42,6 +53,13 @@ export async function POST(request: NextRequest) {
     // Ensure it's an array
     if (resultUrls && !Array.isArray(resultUrls)) {
       resultUrls = [resultUrls];
+      console.log('📋 Converted single value to array');
+    }
+    
+    // Filter out any non-URL values
+    if (Array.isArray(resultUrls)) {
+      resultUrls = resultUrls.filter(url => typeof url === 'string' && url.startsWith('http'));
+      console.log(`📋 Filtered to ${resultUrls.length} valid URL(s)`);
     }
     
     const error = data.error || data.errorMessage || data.data?.error;

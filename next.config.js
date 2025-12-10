@@ -1,7 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['tempfile.aiquickdraw.com', 's3.amazonaws.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'tempfile.aiquickdraw.com',
+        pathname: '/s/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 's3.amazonaws.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'storage.googleapis.com',
+        pathname: '/**',
+      },
+      // Add any other domains where images might be hosted
+    ],
   },
   experimental: {
     serverActions: {
