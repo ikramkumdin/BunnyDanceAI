@@ -17,11 +17,12 @@ import {
   Firestore
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { User, GeneratedVideo } from '@/types';
+import { User, GeneratedVideo, GeneratedImage } from '@/types';
 
 // User collection
 const USERS_COLLECTION = 'users';
 const VIDEOS_COLLECTION = 'videos';
+const IMAGES_COLLECTION = 'images';
 
 // Use admin SDK for server-side operations, client SDK for client-side
 const getDb = async (): Promise<Firestore> => {
@@ -117,6 +118,7 @@ export async function getUserVideos(userId: string): Promise<GeneratedVideo[]> {
           ...data,
           userId: data.userId || userId,
           createdAt: convertTimestamp(data.createdAt),
+          type: (data.type || 'video') as 'video',
         } as GeneratedVideo;
       });
 
@@ -143,6 +145,7 @@ export async function getUserVideos(userId: string): Promise<GeneratedVideo[]> {
           ...data,
           userId: data.userId || userId,
           createdAt: convertTimestamp(data.createdAt),
+          type: (data.type || 'video') as 'video',
         } as GeneratedVideo;
       });
     } catch (indexError: any) {
@@ -163,6 +166,7 @@ export async function getUserVideos(userId: string): Promise<GeneratedVideo[]> {
             ...data,
             userId: data.userId || userId,
             createdAt: convertTimestamp(data.createdAt),
+            type: (data.type || 'video') as 'video',
           } as GeneratedVideo;
         });
 
@@ -205,6 +209,112 @@ export async function deleteVideo(videoId: string): Promise<void> {
     await deleteDoc(doc(database, VIDEOS_COLLECTION, videoId));
   } catch (error) {
     console.error('Error deleting video:', error);
+    throw error;
+  }
+}
+
+// Image operations
+export async function saveImage(imageData: Omit<GeneratedImage, 'id'> & { userId: string }): Promise<string> {
+  try {
+    const database = await getDb();
+    const imageRef = await addDoc(collection(database, IMAGES_COLLECTION), {
+      ...imageData,
+      type: 'image',
+      createdAt: Timestamp.now(),
+    });
+    return imageRef.id;
+  } catch (error) {
+    console.error('Error saving image:', error);
+    throw error;
+  }
+}
+
+export async function getUserImages(userId: string): Promise<GeneratedImage[]> {
+  try {
+    const database = await getDb();
+    const isClientSide = typeof window !== 'undefined';
+
+    if (isClientSide) {
+      const q = query(
+        collection(database, IMAGES_COLLECTION),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      const images = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          userId: data.userId || userId,
+          createdAt: convertTimestamp(data.createdAt),
+          type: 'image' as const,
+        } as GeneratedImage;
+      });
+
+      return images.sort((a, b) => {
+        const timeA = new Date(a.createdAt).getTime();
+        const timeB = new Date(b.createdAt).getTime();
+        return timeB - timeA; // Most recent first
+      });
+    }
+
+    try {
+      const q = query(
+        collection(database, IMAGES_COLLECTION),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          userId: data.userId || userId,
+          createdAt: convertTimestamp(data.createdAt),
+          type: 'image' as const,
+        } as GeneratedImage;
+      });
+    } catch (indexError: any) {
+      if (indexError.code === 'failed-precondition') {
+        const q = query(
+          collection(database, IMAGES_COLLECTION),
+          where('userId', '==', userId)
+        );
+        const querySnapshot = await getDocs(q);
+
+        const images = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            userId: data.userId || userId,
+            createdAt: convertTimestamp(data.createdAt),
+            type: 'image' as const,
+          } as GeneratedImage;
+        });
+
+        return images.sort((a, b) => {
+          const timeA = new Date(a.createdAt).getTime();
+          const timeB = new Date(b.createdAt).getTime();
+          return timeB - timeA;
+        });
+      }
+      throw indexError;
+    }
+  } catch (error) {
+    console.error('❌ Error getting user images:', error);
+    return [];
+  }
+}
+
+export async function deleteImage(imageId: string): Promise<void> {
+  try {
+    const database = await getDb();
+    await deleteDoc(doc(database, IMAGES_COLLECTION, imageId));
+  } catch (error) {
+    console.error('Error deleting image:', error);
     throw error;
   }
 }

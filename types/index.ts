@@ -26,6 +26,19 @@ export interface GeneratedVideo {
   isWatermarked: boolean;
   tags?: string[];
   userId?: string; // User who generated the video
+  type: 'video'; // Asset type
+}
+
+export interface GeneratedImage {
+  id: string;
+  imageUrl: string;
+  thumbnail?: string;
+  prompt?: string;
+  createdAt: string;
+  tags?: string[];
+  userId?: string; // User who generated the image
+  type: 'image'; // Asset type
+  source?: 'text-to-image' | 'image-to-video'; // How it was generated
 }
 
 export interface User {

@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
           isWatermarked: data.isWatermarked || false,
           tags: data.tags || [],
           userId: data.userId || '',
+          type: 'video' as const,
         };
       });
       
@@ -101,6 +102,7 @@ export async function GET(request: NextRequest) {
             isWatermarked: data.isWatermarked || false,
             tags: data.tags || [],
             userId: data.userId || '',
+            type: 'video' as const,
           };
         });
         

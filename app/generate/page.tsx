@@ -8,6 +8,7 @@ import PhotoUpload from '@/components/PhotoUpload';
 import { useStore } from '@/store/useStore';
 import { useUser } from '@/hooks/useUser';
 import Layout from '@/components/Layout';
+import { saveImage, saveVideo } from '@/lib/firestore';
 
 export default function GeneratePage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -23,6 +24,48 @@ export default function GeneratePage() {
 
   const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
   const { user } = useUser();
+
+  // Save image to assets
+  const saveImageToAssets = async (imageUrl: string, prompt?: string, source: 'text-to-image' | 'image-to-video' = 'text-to-image') => {
+    if (!user) return;
+    
+    try {
+      await saveImage({
+        userId: user.id,
+        imageUrl,
+        prompt: prompt || textPrompt,
+        source,
+        tags: ['photo', source],
+        type: 'image',
+        createdAt: new Date().toISOString(),
+      });
+      console.log('✅ Image saved to assets');
+    } catch (error) {
+      console.error('❌ Error saving image to assets:', error);
+    }
+  };
+
+  // Save video to assets
+  const saveVideoToAssets = async (videoUrl: string, templateName: string, templateId: string, thumbnail?: string) => {
+    if (!user) return;
+    
+    try {
+      await saveVideo({
+        userId: user.id,
+        videoUrl,
+        thumbnail: thumbnail || videoUrl,
+        templateId,
+        templateName,
+        isWatermarked: false,
+        tags: ['video'],
+        type: 'video',
+        createdAt: new Date().toISOString(),
+      });
+      console.log('✅ Video saved to assets');
+    } catch (error) {
+      console.error('❌ Error saving video to assets:', error);
+    }
+  };
 
   // Handle image selection
   const handleImageSelect = (imageData: { gcpUrl: string; base64Url: string }) => {
@@ -73,6 +116,13 @@ export default function GeneratePage() {
               if (saveResponse.ok) {
                 setGeneratedVideo(videoUrl);
                 setIsGenerating(false);
+                // Save to assets
+                if (selectedTemplate) {
+                  saveVideoToAssets(videoUrl, selectedTemplate.name, selectedTemplate.id);
+                } else {
+                  // Text-to-video or unknown source
+                  saveVideoToAssets(videoUrl, 'Text-to-Video', 'text-to-video', videoUrl);
+                }
                 return;
               }
             }
@@ -93,6 +143,13 @@ export default function GeneratePage() {
         console.log('🎬 Video ready from database:', data.videoUrl);
         setGeneratedVideo(data.videoUrl);
         setIsGenerating(false);
+        // Save to assets
+        if (selectedTemplate) {
+          saveVideoToAssets(data.videoUrl, selectedTemplate.name, selectedTemplate.id);
+        } else {
+          // Text-to-video or unknown source
+          saveVideoToAssets(data.videoUrl, 'Text-to-Video', 'text-to-video', data.videoUrl);
+        }
         return;
       }
 
@@ -115,7 +172,7 @@ export default function GeneratePage() {
       setIsGenerating(false);
       alert('Error checking video status. Please try again.');
     }
-  }, [user?.id]);
+  }, [user?.id, selectedTemplate]);
 
   // Handle generation
   const handleGenerate = async () => {
@@ -140,6 +197,10 @@ export default function GeneratePage() {
         if (data.videoUrl) {
           // Immediate result (rare)
           setGeneratedVideo(data.videoUrl);
+          // Save to assets
+          if (selectedTemplate) {
+            saveVideoToAssets(data.videoUrl, selectedTemplate.name, selectedTemplate.id);
+          }
         } else if (data.taskId) {
           // Async generation - start polling
           console.log('🎬 Started async generation, polling for completion...');
@@ -183,6 +244,8 @@ export default function GeneratePage() {
         if (data.videoUrl) {
           // Immediate result (rare)
           setGeneratedVideo(data.videoUrl);
+          // Save to assets
+          saveVideoToAssets(data.videoUrl, 'Text-to-Video', 'text-to-video', data.videoUrl);
         } else if (data.taskId) {
           // Async generation - start polling
           console.log('🎬 Started text-to-video generation, polling for completion...');
@@ -223,6 +286,8 @@ export default function GeneratePage() {
             setBase64Image(imageUrl);
             setImageUrl(imageUrl);
             setIsGenerating(false);
+            // Save to assets
+            saveImageToAssets(imageUrl, textPrompt, 'text-to-image');
             return;
           }
           
@@ -233,6 +298,8 @@ export default function GeneratePage() {
             setBase64Image(imageUrl[0]);
             setImageUrl(imageUrl[0]);
             setIsGenerating(false);
+            // Save to assets
+            saveImageToAssets(imageUrl[0], textPrompt, 'text-to-image');
             return;
           }
 
@@ -274,6 +341,8 @@ export default function GeneratePage() {
               setBase64Image(finalImageUrl);
               setImageUrl(finalImageUrl);
               setIsGenerating(false);
+              // Save to assets
+              saveImageToAssets(finalImageUrl, textPrompt, 'text-to-image');
               return;
             }
           }
@@ -323,6 +392,8 @@ export default function GeneratePage() {
           setBase64Image(data.imageUrl);
           setImageUrl(data.imageUrl);
           setIsGenerating(false);
+          // Save to assets
+          saveImageToAssets(data.imageUrl, textPrompt, 'text-to-image');
         } else if (data.taskId) {
           // Async generation - start polling
           const provider = data.provider || 'kie';

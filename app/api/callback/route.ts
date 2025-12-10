@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
           createdAt: new Date().toISOString(),
           isWatermarked,
           userId,
+          type: 'video',
+          tags: ['video'],
         });
         
         console.log('Video saved successfully:', { videoId, finalVideoUrl });
