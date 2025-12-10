@@ -6,8 +6,8 @@ if (!admin.apps.length) {
     ? JSON.parse(process.env.GCP_SERVICE_ACCOUNT_KEY)
     : null;
 
-  // Use the same project ID as client-side Firebase
-  const projectId = process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'bunnydanceai';
+  // Use bunnydanceai project
+  const projectId = 'bunnydanceai';
 
   if (serviceAccount) {
     admin.initializeApp({
