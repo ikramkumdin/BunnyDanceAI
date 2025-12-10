@@ -147,22 +147,56 @@ export async function GET(request: NextRequest) {
         console.log('✅ Found image URL in data.url field:', foundImageUrl);
       }
 
+      // 5. Check if completeTime exists but successFlag is 0 - might indicate URL is available elsewhere
+      if (!foundImageUrl && statusData.data?.completeTime && statusData.data.successFlag === 0) {
+        console.log('⚠️ CompleteTime exists but successFlag is 0 - checking for URL in unusual places...');
+
+        // Check paramJson field which might contain the result
+        if (statusData.data.paramJson) {
+          try {
+            const params = JSON.parse(statusData.data.paramJson);
+            console.log('📦 Checking paramJson for URL:', JSON.stringify(params, null, 2));
+
+            // Look for any URL fields in paramJson
+            if (params.response) {
+              const paramResponse = typeof params.response === 'string'
+                ? JSON.parse(params.response)
+                : params.response;
+
+              if (Array.isArray(paramResponse) && paramResponse.length > 0 && paramResponse[0].startsWith('http')) {
+                foundImageUrl = paramResponse[0];
+                console.log('✅ Found image URL in paramJson response array:', foundImageUrl);
+              } else if (typeof paramResponse === 'string' && paramResponse.startsWith('http')) {
+                foundImageUrl = paramResponse;
+                console.log('✅ Found image URL in paramJson response string:', foundImageUrl);
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse paramJson:', e);
+          }
+        }
+      }
+
       // Determine status and return result
       let finalStatus = 'processing';
       let successFlag = 0;
 
       if (statusData.data?.successFlag !== undefined) {
         const flag = statusData.data.successFlag;
-        console.log(`🏁 Success flag: ${flag}`);
+        const completeTime = statusData.data.completeTime;
+        const statusField = statusData.data.status;
+        console.log(`🏁 Success flag: ${flag}, Complete time: ${completeTime}, Status: ${statusField}`);
 
-        if (flag === 0) {
-          finalStatus = 'processing';
-          successFlag = 0;
-          console.log('⏳ Still processing...');
-        } else if (flag === 1) {
+        // Check if completed based on multiple indicators
+        const isCompleted = flag === 1 ||
+                           (completeTime && completeTime !== null) ||
+                           (statusField && statusField.toUpperCase() === 'SUCCESS') ||
+                           foundImageUrl; // If we found URL, consider it completed
+
+        if (isCompleted) {
           finalStatus = 'completed';
           successFlag = 1;
-          console.log('✅ Generation completed');
+          console.log('✅ Generation completed (based on flag/completeTime/status/URL)');
 
           // If we found an image URL, update cache
           if (foundImageUrl) {
@@ -173,6 +207,10 @@ export async function GET(request: NextRequest) {
               resultUrls: [foundImageUrl],
             });
           }
+        } else if (flag === 0 && !completeTime) {
+          finalStatus = 'processing';
+          successFlag = 0;
+          console.log('⏳ Still processing...');
         } else if (flag === 2 || flag === 3) {
           finalStatus = 'failed';
           successFlag = flag;
@@ -180,13 +218,20 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // If we found an image URL, always mark as completed
+      // If we found an image URL, always mark as completed (most important check)
       if (foundImageUrl) {
         finalStatus = 'completed';
         successFlag = 1;
         statusData.imageUrl = foundImageUrl;
         statusData.status = 'completed';
         console.log('✅ Image generation completed with URL:', foundImageUrl);
+
+        // Update cache
+        storeCallbackResult({
+          taskId,
+          status: 'SUCCESS',
+          resultUrls: [foundImageUrl],
+        });
       }
 
       // Return the response
