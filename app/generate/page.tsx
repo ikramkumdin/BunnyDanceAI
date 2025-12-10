@@ -172,7 +172,7 @@ export default function GeneratePage() {
       setIsGenerating(false);
       alert('Error checking video status. Please try again.');
     }
-  }, [user?.id, selectedTemplate]);
+  }, [user?.id, selectedTemplate, saveVideoToAssets]);
 
   // Handle generation
   const handleGenerate = async () => {
@@ -363,7 +363,7 @@ export default function GeneratePage() {
       setIsGenerating(false);
       alert('Error checking image status. Please try again.');
     }
-  }, []);
+  }, [saveImageToAssets, textPrompt]);
 
   // Handle text-to-image generation
   const handleTextToImage = async () => {

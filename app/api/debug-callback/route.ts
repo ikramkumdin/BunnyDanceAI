@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCacheStats } from '@/lib/imageCallbackCache';
 
 export const dynamic = 'force-dynamic';

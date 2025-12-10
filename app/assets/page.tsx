@@ -22,12 +22,6 @@ export default function AssetsPage() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importTaskIds, setImportTaskIds] = useState('');
 
-  useEffect(() => {
-    if (user && !userLoading) {
-      loadAssets();
-    }
-  }, [user, userLoading]);
-
   const loadAssets = async () => {
     if (!user) return;
     
@@ -45,6 +39,12 @@ export default function AssetsPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (user && !userLoading) {
+      loadAssets();
+    }
+  }, [user, userLoading]);
 
   const handleDownload = (videoUrl: string, videoId: string) => {
     const link = document.createElement('a');
@@ -308,7 +308,7 @@ export default function AssetsPage() {
             <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full">
               <h3 className="text-xl font-bold mb-4">Import Images from Kie.ai</h3>
               <p className="text-sm text-gray-400 mb-4">
-                This dialog is for manual import. Use "Quick Import (All Logs)" button instead for automatic import.
+                This dialog is for manual import. Use &quot;Quick Import (All Logs)&quot; button instead for automatic import.
               </p>
               <textarea
                 value={importTaskIds}
