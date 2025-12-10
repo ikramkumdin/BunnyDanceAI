@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getCallbackResult, getCacheStats } from '@/lib/imageCallbackCache';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,6 +16,42 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Check cache first (for Kie.ai callbacks) - this is MUCH faster!
+    console.log(`🔍 Checking callback cache for task: ${taskId}`);
+    const cachedResult = getCallbackResult(taskId);
+    
+    if (cachedResult) {
+      console.log('🎯 ✨ FOUND RESULT IN CALLBACK CACHE! ✨');
+      console.log('📦 Cached result:', JSON.stringify(cachedResult, null, 2));
+      
+      // Return cached result with proper format
+      const imageUrl = cachedResult.resultUrls && cachedResult.resultUrls.length > 0 
+        ? cachedResult.resultUrls[0] 
+        : null;
+      
+      console.log(`🖼️ Image URL from cache: ${imageUrl}`);
+      
+      return NextResponse.json({
+        code: 200,
+        msg: 'success',
+        imageUrl: imageUrl,
+        status: cachedResult.status === 'SUCCESS' ? 'completed' : 'failed',
+        data: {
+          taskId: cachedResult.taskId,
+          resultUrls: cachedResult.resultUrls,
+          successFlag: cachedResult.status === 'SUCCESS' ? 1 : 2,
+          status: cachedResult.status,
+          error: cachedResult.error,
+          source: 'callback-cache',
+          cacheHit: true
+        }
+      });
+    }
+    
+    console.log('⚠️ Not in cache, falling back to API polling...');
+    const stats = getCacheStats();
+    console.log('📊 Cache stats:', stats);
 
     // Handle Replicate polling (more reliable)
     if (provider === 'replicate') {
