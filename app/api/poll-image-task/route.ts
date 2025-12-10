@@ -17,81 +17,217 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check cache first (for Kie.ai callbacks) - this is MUCH faster!
+    // Check cache first (for Kie.ai callbacks) - but always verify with API
     console.log(`🔍 Checking callback cache for task: ${taskId}`);
     const cachedResult = getCallbackResult(taskId);
 
-    if (cachedResult) {
-      console.log('🎯 ✨ FOUND RESULT IN CALLBACK CACHE! ✨');
-      console.log('📦 Cached result:', JSON.stringify(cachedResult, null, 2));
+    // Always try to get fresh data from Kie.ai API, but use cache as hint
+    console.log('🔄 Always fetching fresh data from Kie.ai API...');
 
-      // Return cached result with proper format
+    // Handle Kie.ai polling (get the actual result)
+    if (!process.env.GROK_API_KEY) {
+      return NextResponse.json(
+        { error: 'GROK_API_KEY is not configured' },
+        { status: 500 }
+      );
+    }
+
+    const statusUrl = `https://api.kie.ai/api/v1/gpt4o-image/record-info?taskId=${taskId}`;
+
+    console.log(`📸 Fetching fresh data from Kie.ai: ${statusUrl}`);
+
+    const statusResponse = await fetch(statusUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (statusResponse.ok) {
+      let statusData = await statusResponse.json();
+      console.log('✅ Fresh Kie.ai response:', JSON.stringify(statusData, null, 2));
+
+      // Log ALL data fields to debug
+      if (statusData.data) {
+        console.log('📋 All data fields:', Object.keys(statusData.data));
+        console.log('📋 data.response type:', typeof statusData.data.response, 'value:', statusData.data.response);
+        console.log('📋 data.resultUrls type:', typeof statusData.data.resultUrls, 'value:', statusData.data.resultUrls);
+        console.log('📋 data.successFlag:', statusData.data.successFlag);
+        console.log('📋 data.status:', statusData.data.status);
+      }
+
+      // Handle Kie.ai API wrapper response
+      if (statusData.code && statusData.code !== 200) {
+        console.log(`⚠️ Response returned code ${statusData.code}`);
+        return NextResponse.json(statusData);
+      }
+
+      // Extract image URL using the same logic as before
+      let foundImageUrl = null;
+
+      // 1. Check data.response field (might be JSON string, array, or object with result_urls)
+      if (statusData.data?.response && statusData.data.response !== null) {
+        console.log('🔍 Checking data.response field:', typeof statusData.data.response, 'value:', statusData.data.response);
+        try {
+          let response = statusData.data.response;
+
+          // Handle array format like ["https://..."]
+          if (Array.isArray(response) && response.length > 0) {
+            if (typeof response[0] === 'string' && response[0].startsWith('http')) {
+              foundImageUrl = response[0];
+              console.log('✅ Found image URL in response array:', foundImageUrl);
+            }
+          }
+          // Handle JSON string that needs parsing
+          else if (typeof response === 'string') {
+            // Check if it's already a URL
+            if (response.startsWith('http')) {
+              foundImageUrl = response;
+              console.log('✅ Found image URL as direct string:', foundImageUrl);
+            } else {
+              // Try to parse as JSON
+              try {
+                response = JSON.parse(response);
+                console.log('📦 Parsed response object:', JSON.stringify(response, null, 2));
+              } catch (parseError) {
+                console.error('Failed to parse response as JSON:', parseError);
+              }
+            }
+          }
+
+          // If response is now an object, extract URL from it
+          if (!foundImageUrl && typeof response === 'object' && response !== null && !Array.isArray(response)) {
+            // Check for result_urls (standard Kie.ai 4o Image response format)
+            if (response.result_urls && Array.isArray(response.result_urls) && response.result_urls.length > 0) {
+              foundImageUrl = response.result_urls[0];
+              console.log('✅ Found image URL in response.result_urls:', foundImageUrl);
+            }
+            // Check for url field in response object
+            else if (response.url && typeof response.url === 'string' && response.url.startsWith('http')) {
+              foundImageUrl = response.url;
+              console.log('✅ Found image URL in response.url:', foundImageUrl);
+            }
+          }
+
+        } catch (e) {
+          console.error('Failed to parse response field:', e);
+        }
+      }
+
+      // 2. Check data.resultUrls field
+      if (!foundImageUrl && statusData.data?.resultUrls) {
+        console.log('🔍 Checking data.resultUrls field:', typeof statusData.data.resultUrls);
+        try {
+          const urls = typeof statusData.data.resultUrls === 'string'
+            ? JSON.parse(statusData.data.resultUrls)
+            : statusData.data.resultUrls;
+
+          if (Array.isArray(urls) && urls.length > 0) {
+            foundImageUrl = urls[0];
+            console.log('✅ Found image URL in resultUrls array:', foundImageUrl);
+          } else if (typeof urls === 'string' && urls.startsWith('http')) {
+            foundImageUrl = urls;
+            console.log('✅ Found image URL in resultUrls string:', foundImageUrl);
+          }
+        } catch (e) {
+          console.error('Failed to parse resultUrls:', e);
+        }
+      }
+
+      // 3. Check data.imageUrl field (direct field)
+      if (!foundImageUrl && statusData.data?.imageUrl) {
+        foundImageUrl = statusData.data.imageUrl;
+        console.log('✅ Found image URL in data.imageUrl field:', foundImageUrl);
+      }
+
+      // 4. Check data.url field (alternative)
+      if (!foundImageUrl && statusData.data?.url) {
+        foundImageUrl = statusData.data.url;
+        console.log('✅ Found image URL in data.url field:', foundImageUrl);
+      }
+
+      // Determine status and return result
+      let finalStatus = 'processing';
+      let successFlag = 0;
+
+      if (statusData.data?.successFlag !== undefined) {
+        const flag = statusData.data.successFlag;
+        console.log(`🏁 Success flag: ${flag}`);
+
+        if (flag === 0) {
+          finalStatus = 'processing';
+          successFlag = 0;
+          console.log('⏳ Still processing...');
+        } else if (flag === 1) {
+          finalStatus = 'completed';
+          successFlag = 1;
+          console.log('✅ Generation completed');
+
+          // If we found an image URL, update cache
+          if (foundImageUrl) {
+            console.log('💾 Updating cache with found URL');
+            storeCallbackResult({
+              taskId,
+              status: 'SUCCESS',
+              resultUrls: [foundImageUrl],
+            });
+          }
+        } else if (flag === 2 || flag === 3) {
+          finalStatus = 'failed';
+          successFlag = flag;
+          console.log('❌ Generation failed');
+        }
+      }
+
+      // If we found an image URL, always mark as completed
+      if (foundImageUrl) {
+        finalStatus = 'completed';
+        successFlag = 1;
+        statusData.imageUrl = foundImageUrl;
+        statusData.status = 'completed';
+        console.log('✅ Image generation completed with URL:', foundImageUrl);
+      }
+
+      // Return the response
+      return NextResponse.json({
+        code: 200,
+        msg: 'success',
+        imageUrl: foundImageUrl,
+        status: finalStatus,
+        data: {
+          taskId,
+          resultUrls: foundImageUrl ? [foundImageUrl] : null,
+          successFlag,
+          status: finalStatus.toUpperCase(),
+          source: 'kie-api-direct',
+          cacheHit: cachedResult ? true : false
+        }
+      });
+    }
+
+    // If Kie.ai API fails, fall back to cache if available
+    if (cachedResult) {
+      console.log('⚠️ Kie.ai API failed, using cache as fallback');
       const imageUrl = cachedResult.resultUrls && cachedResult.resultUrls.length > 0
         ? cachedResult.resultUrls[0]
         : null;
 
-      console.log(`🖼️ Image URL from cache: ${imageUrl}`);
-
-      // If we have a successful cache hit with URLs, return it immediately
-      if (imageUrl && cachedResult.status === 'SUCCESS') {
-        return NextResponse.json({
-          code: 200,
-          msg: 'success',
-          imageUrl: imageUrl,
-          status: 'completed',
-          data: {
-            taskId: cachedResult.taskId,
-            resultUrls: cachedResult.resultUrls,
-            successFlag: 1,
-            status: cachedResult.status,
-            error: cachedResult.error,
-            source: 'callback-cache',
-            cacheHit: true
-          }
-        });
-      }
-
-      // If cache hit but no URL yet, try direct fetch as fallback
-      if (!imageUrl && cachedResult.status === 'SUCCESS') {
-        console.log('🔄 Cache shows success but no URL - trying direct fetch from Kie.ai...');
-        try {
-          const fetchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/fetch-kie-image?taskId=${taskId}`);
-          if (fetchResponse.ok) {
-            const fetchData = await fetchResponse.json();
-            if (fetchData.success && fetchData.imageUrl) {
-              console.log('✅ Got image URL from direct fetch:', fetchData.imageUrl);
-              // Update cache with the fetched URL
-              storeCallbackResult({
-                taskId: cachedResult.taskId,
-                status: cachedResult.status,
-                resultUrls: [fetchData.imageUrl],
-                error: cachedResult.error
-              });
-
-              return NextResponse.json({
-                code: 200,
-                msg: 'success',
-                imageUrl: fetchData.imageUrl,
-                status: 'completed',
-                data: {
-                  taskId: cachedResult.taskId,
-                  resultUrls: [fetchData.imageUrl],
-                  successFlag: 1,
-                  status: cachedResult.status,
-                  error: cachedResult.error,
-                  source: 'fetch-fallback',
-                  cacheHit: true
-                }
-              });
-            }
-          }
-        } catch (fetchError) {
-          console.error('❌ Direct fetch fallback failed:', fetchError);
+      return NextResponse.json({
+        code: 200,
+        msg: 'success',
+        imageUrl: imageUrl,
+        status: cachedResult.status === 'SUCCESS' ? 'completed' : 'failed',
+        data: {
+          taskId: cachedResult.taskId,
+          resultUrls: cachedResult.resultUrls,
+          successFlag: cachedResult.status === 'SUCCESS' ? 1 : 2,
+          status: cachedResult.status,
+          error: cachedResult.error,
+          source: 'cache-fallback',
+          cacheHit: true
         }
-      }
-
-      // If cache hit but no URL yet, fall through to API polling (callback might be pending)
-      console.log('⚠️ Cache hit but no image URL found - falling back to API polling');
+      });
     }
     
     console.log('⚠️ Not in cache, falling back to API polling...');
@@ -152,182 +288,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Handle Kie.ai polling (less reliable, but fallback option)
-    if (!process.env.GROK_API_KEY) {
-      return NextResponse.json(
-        { error: 'GROK_API_KEY is not configured' },
-        { status: 500 }
-      );
-    }
-
-    const statusUrl = `https://api.kie.ai/api/v1/gpt4o-image/record-info?taskId=${taskId}`;
-    
-    console.log(`📸 Polling Kie.ai image task: ${statusUrl}`);
-    
-    const statusResponse = await fetch(statusUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (statusResponse.ok) {
-      let statusData = await statusResponse.json();
-      console.log('✅ Image poll response:', JSON.stringify(statusData, null, 2));
-      
-      // Log ALL data fields to debug
-      if (statusData.data) {
-        console.log('📋 All data fields:', Object.keys(statusData.data));
-        console.log('📋 data.response type:', typeof statusData.data.response, 'value:', statusData.data.response);
-        console.log('📋 data.resultUrls type:', typeof statusData.data.resultUrls, 'value:', statusData.data.resultUrls);
-        console.log('📋 data.successFlag:', statusData.data.successFlag);
-        console.log('📋 data.status:', statusData.data.status);
-      }
-      
-      // Handle Kie.ai API wrapper response
-      if (statusData.code && statusData.code !== 200) {
-        console.log(`⚠️ Response returned code ${statusData.code}`);
-        return NextResponse.json(statusData);
-      }
-      
-      // Check for image URLs in multiple possible locations
-      let foundImageUrl = null;
-      
-      // 1. Check data.response field (might be JSON string, array, or object with result_urls)
-      if (statusData.data?.response && statusData.data.response !== null) {
-        console.log('🔍 Checking data.response field:', typeof statusData.data.response, 'value:', statusData.data.response);
-        try {
-          let response = statusData.data.response;
-
-          // Handle array format like ["https://..."]
-          if (Array.isArray(response) && response.length > 0) {
-            if (typeof response[0] === 'string' && response[0].startsWith('http')) {
-              foundImageUrl = response[0];
-              console.log('✅ Found image URL in response array:', foundImageUrl);
-            }
-          }
-          // Handle JSON string that needs parsing
-          else if (typeof response === 'string') {
-            // Check if it's already a URL
-            if (response.startsWith('http')) {
-              foundImageUrl = response;
-              console.log('✅ Found image URL as direct string:', foundImageUrl);
-            } else {
-              // Try to parse as JSON
-              try {
-                response = JSON.parse(response);
-                console.log('📦 Parsed response object:', JSON.stringify(response, null, 2));
-              } catch (parseError) {
-                console.error('Failed to parse response as JSON:', parseError);
-              }
-            }
-          }
-
-          // If response is now an object, extract URL from it
-          if (!foundImageUrl && typeof response === 'object' && response !== null && !Array.isArray(response)) {
-            // Check for result_urls (standard Kie.ai 4o Image response format)
-            if (response.result_urls && Array.isArray(response.result_urls) && response.result_urls.length > 0) {
-              foundImageUrl = response.result_urls[0];
-              console.log('✅ Found image URL in response.result_urls:', foundImageUrl);
-            }
-            // Check for url field in response object
-            else if (response.url && typeof response.url === 'string' && response.url.startsWith('http')) {
-              foundImageUrl = response.url;
-              console.log('✅ Found image URL in response.url:', foundImageUrl);
-            }
-          }
-
-        } catch (e) {
-          console.error('Failed to parse response field:', e);
-        }
-      }
-      
-      // 2. Check data.resultUrls field
-      if (!foundImageUrl && statusData.data?.resultUrls) {
-        console.log('🔍 Checking data.resultUrls field:', typeof statusData.data.resultUrls);
-        try {
-          const urls = typeof statusData.data.resultUrls === 'string' 
-            ? JSON.parse(statusData.data.resultUrls) 
-            : statusData.data.resultUrls;
-          
-          if (Array.isArray(urls) && urls.length > 0) {
-            foundImageUrl = urls[0];
-            console.log('✅ Found image URL in resultUrls array:', foundImageUrl);
-          } else if (typeof urls === 'string' && urls.startsWith('http')) {
-            foundImageUrl = urls;
-            console.log('✅ Found image URL in resultUrls string:', foundImageUrl);
-          }
-        } catch (e) {
-          console.error('Failed to parse resultUrls:', e);
-        }
-      }
-      
-      // 3. Check data.imageUrl field (direct field)
-      if (!foundImageUrl && statusData.data?.imageUrl) {
-        foundImageUrl = statusData.data.imageUrl;
-        console.log('✅ Found image URL in data.imageUrl field:', foundImageUrl);
-      }
-      
-      // 4. Check data.url field (alternative)
-      if (!foundImageUrl && statusData.data?.url) {
-        foundImageUrl = statusData.data.url;
-        console.log('✅ Found image URL in data.url field:', foundImageUrl);
-      }
-      
-      // Map successFlag from record-info endpoint
-      // 0: Generating, 1: Success, 2/3: Failed
-      if (statusData.data?.successFlag !== undefined) {
-        const flag = statusData.data.successFlag;
-        const completeTime = statusData.data.completeTime;
-        console.log(`🏁 Success flag: ${flag}, Complete time: ${completeTime}`);
-        
-        // If we found an image URL, mark as completed regardless of successFlag
-        if (foundImageUrl) {
-          statusData.imageUrl = foundImageUrl;
-          statusData.status = 'completed';
-          console.log('✅ Image generation completed with URL:', foundImageUrl);
-        } else {
-          // No image URL yet, check successFlag
-          if (flag === 0) {
-            // Still generating - but check if completeTime is set (API inconsistency?)
-            if (completeTime) {
-              console.log('⚠️ CompleteTime is set but successFlag still 0 - Kie.ai API lag detected');
-              console.log('🔄 Trying alternative approach: checking paramJson for result...');
-              
-              // Try parsing paramJson to see if result is embedded there
-              if (statusData.data.paramJson) {
-                try {
-                  const params = JSON.parse(statusData.data.paramJson);
-                  console.log('📦 Parsed paramJson:', JSON.stringify(params, null, 2));
-                } catch (e) {
-                  console.error('Failed to parse paramJson:', e);
-                }
-              }
-            }
-            statusData.status = 'processing';
-            console.log('⏳ Still processing... will keep polling');
-          } else if (flag === 1) {
-            statusData.status = 'completed';
-            console.log('⚠️ Success flag = 1 but no image URL found! This should not happen.');
-            console.log('📋 Full response data:', JSON.stringify(statusData.data, null, 2));
-          } else if (flag === 2 || flag === 3) {
-            statusData.status = 'failed';
-            statusData.error = statusData.data.failReason || statusData.data.errorMessage || 'Image generation failed';
-            console.log('❌ Generation failed:', statusData.error);
-          }
-        }
-      }
-
-      return NextResponse.json(statusData);
-    }
-
-    const errorText = await statusResponse.text();
-    return NextResponse.json(
-      { error: 'Failed to check task status', details: errorText },
-      { status: statusResponse.status }
-    );
-
   } catch (error) {
     console.error('Poll image task error:', error);
     return NextResponse.json(
@@ -336,4 +296,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
