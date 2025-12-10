@@ -19,17 +19,41 @@ export async function POST(request: NextRequest) {
     //   "error": "error message" or null
     // }
     
-    const taskId = data.taskId || data.task_id;
-    const status = data.status;
-    const resultUrls = data.result_urls || data.resultUrls || data.response;
-    const error = data.error || data.errorMessage;
+    // Handle different possible formats from Kie.ai
+    const taskId = data.taskId || data.task_id || data.data?.taskId;
+    const status = data.status || data.data?.status || 'SUCCESS';
+    
+    // Try multiple possible locations for result URLs
+    let resultUrls = data.result_urls || data.resultUrls || data.response || data.data?.result_urls || data.data?.resultUrls;
+    
+    // If resultUrls is a string, try to parse it as JSON
+    if (typeof resultUrls === 'string') {
+      try {
+        const parsed = JSON.parse(resultUrls);
+        resultUrls = Array.isArray(parsed) ? parsed : [parsed];
+      } catch (e) {
+        // If it's a URL string, wrap it in array
+        if (resultUrls.startsWith('http')) {
+          resultUrls = [resultUrls];
+        }
+      }
+    }
+    
+    // Ensure it's an array
+    if (resultUrls && !Array.isArray(resultUrls)) {
+      resultUrls = [resultUrls];
+    }
+    
+    const error = data.error || data.errorMessage || data.data?.error;
     
     console.log('📋 Task ID:', taskId);
     console.log('📋 Status:', status);
     console.log('📋 Result URLs:', resultUrls);
+    console.log('📋 Full callback data keys:', Object.keys(data));
 
     if (!taskId) {
       console.error('⚠️ No taskId in callback data');
+      console.error('📋 Full data received:', JSON.stringify(data, null, 2));
       return NextResponse.json({
         success: false,
         error: 'Missing taskId in callback data'
@@ -39,8 +63,8 @@ export async function POST(request: NextRequest) {
     // Store the callback result in cache
     storeCallbackResult({
       taskId,
-      status,
-      resultUrls: Array.isArray(resultUrls) ? resultUrls : (resultUrls ? [resultUrls] : undefined),
+      status: status.toUpperCase(),
+      resultUrls: resultUrls,
       error
     });
 

@@ -260,8 +260,34 @@ export default function GeneratePage() {
       } else {
         console.log(`⏰ Image generation timeout after ${maxMinutes} minutes`);
         console.log('💡 The image might still be generating. Check Kie.ai dashboard: https://kie.ai/logs');
+        
+        // Try one last check of the cache (in case callback arrived during timeout)
+        if (taskId && provider === 'kie') {
+          console.log('🔄 Doing final cache check before timeout...');
+          const finalCheck = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
+          if (finalCheck.ok) {
+            const finalData = await finalCheck.json();
+            const finalImageUrl = finalData.imageUrl || finalData.data?.imageUrl;
+            if (finalImageUrl && typeof finalImageUrl === 'string' && finalImageUrl.startsWith('http')) {
+              console.log('🎉 Found image in final cache check!', finalImageUrl);
+              setUploadedImage(finalImageUrl);
+              setBase64Image(finalImageUrl);
+              setImageUrl(finalImageUrl);
+              setIsGenerating(false);
+              return;
+            }
+          }
+        }
+        
         setIsGenerating(false);
-        alert(`Image generation timed out after ${maxMinutes} minutes. The image might still be processing - check https://kie.ai/logs with task ID: ${taskId}`);
+        const message = `Image generation timed out after ${maxMinutes} minutes.\n\n` +
+          `Task ID: ${taskId}\n\n` +
+          `The image might still be processing. Please:\n` +
+          `1. Go to https://kie.ai/logs\n` +
+          `2. Find task ID: ${taskId}\n` +
+          `3. If it shows "SUCCESS", click "Retry Callback" button\n` +
+          `4. Then refresh this page and try again`;
+        alert(message);
       }
     } catch (error) {
       console.error('Image polling error:', error);
