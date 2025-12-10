@@ -100,11 +100,69 @@ export async function GET(request: NextRequest) {
 
       const records = historyData.data?.records || [];
 
+      // Analyze concurrent usage
+      const uniqueUsers = new Set(records.map((r: any) => r.userId).filter(Boolean));
+      const recentTasks = records.filter((r: any) => {
+        const createTime = r.createTime || r.createdAt;
+        if (!createTime) return false;
+        const taskAge = Date.now() - new Date(createTime).getTime();
+        return taskAge <= 5 * 60 * 1000; // Last 5 minutes
+      });
+
+      console.log(`📊 Concurrent usage: ${uniqueUsers.size} active users, ${recentTasks.length} tasks in last 5 minutes`);
+
       // Find our specific task in the history
-      const targetRecord = records.find((r: any) => r.taskId === taskId);
+      console.log(`🔍 Looking for taskId: ${taskId} among ${records.length} records`);
+      console.log('📋 TaskIds in response:', records.map(r => r.taskId));
+
+      // Filter to only recent tasks (last 30 minutes) to avoid confusion with old tasks
+      const recentRecords = records.filter((r: any) => {
+        const createTime = r.createTime || r.createdAt;
+        if (!createTime) return true; // Include if no timestamp
+
+        const taskAge = Date.now() - new Date(createTime).getTime();
+        const maxAge = 30 * 60 * 1000; // 30 minutes
+        return taskAge <= maxAge;
+      });
+
+      console.log(`⏰ Filtered to ${recentRecords.length} recent records`);
+
+      let targetRecord = recentRecords.find((r: any) => r.taskId === taskId);
+
+      // If not found in recent records, try all records as fallback
+      if (!targetRecord) {
+        targetRecord = records.find((r: any) => r.taskId === taskId);
+        if (targetRecord) {
+          console.log('⚠️ Task not found in recent records, but found in older records - using as fallback');
+        }
+      }
 
       if (targetRecord) {
         console.log(`🎯 Found task in history: Status ${targetRecord.successFlag}`);
+        console.log(`👤 Task belongs to user: ${targetRecord.userId || 'unknown'}`);
+        console.log(`📅 Created: ${targetRecord.createTime || targetRecord.createdAt || 'unknown'}`);
+        console.log(`🏷️ Task prompt: ${targetRecord.prompt || targetRecord.paramJson || 'unknown'}`);
+
+        // Additional verification - check if task was created recently (within last 15 minutes)
+        const now = Date.now();
+        const createTime = targetRecord.createTime || targetRecord.createdAt;
+        if (createTime) {
+          const taskAge = now - new Date(createTime).getTime();
+          const maxAge = 15 * 60 * 1000; // 15 minutes
+          if (taskAge > maxAge) {
+            console.log(`⚠️ Task is ${Math.round(taskAge/60000)} minutes old - this might be a different user's task with same ID!`);
+            console.log('🔄 Continuing anyway, but this could be a collision...');
+          } else {
+            console.log(`✅ Task age: ${Math.round(taskAge/1000)} seconds - looks correct`);
+          }
+        } else {
+          console.log('⚠️ No creation timestamp - cannot verify task age');
+        }
+
+        // Verify task belongs to this API key/user (if userId is available)
+        if (targetRecord.userId) {
+          console.log(`🔐 Task user verification: ${targetRecord.userId}`);
+        }
 
         // Parse the resultJson string (double-encoded JSON)
         let foundImageUrl = null;
