@@ -252,9 +252,9 @@ export async function GET(request: NextRequest) {
         console.log(`🏁 Success flag: ${flag}, Complete time: ${completeTime}, Status: ${statusField}`);
 
         // Check if completed based on multiple indicators
-        const isCompleted = flag === 1 ||
-                           (statusField && statusField.toUpperCase() === 'SUCCESS') ||
-                           foundImageUrl; // If we found URL, consider it completed
+        let isCompleted = flag === 1 ||
+                         (statusField && statusField.toUpperCase() === 'SUCCESS') ||
+                         foundImageUrl; // If we found URL, consider it completed
 
         // Special case: if completeTime exists, assume completed (Kie.ai API lag)
         const hasCompleteTime = completeTime && completeTime !== null;
