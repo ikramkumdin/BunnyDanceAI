@@ -405,7 +405,7 @@ export default function GeneratePage() {
       setIsGenerating(false);
       alert('Error checking image status. Please try again.');
     }
-  }, [saveImageToAssets, textPrompt]);
+  }, [saveImageToAssets, textPrompt, router]);
 
   // Handle text-to-image generation
   const handleTextToImage = async () => {
