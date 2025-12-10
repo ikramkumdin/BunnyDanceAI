@@ -299,13 +299,6 @@ export default function AssetsPage() {
                 </>
               )}
             </button>
-            <button
-              onClick={() => setShowImportDialog(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors text-sm font-semibold"
-            >
-              <Plus className="w-4 h-4" />
-              Import from Kie.ai
-            </button>
           </div>
         )}
 
@@ -315,7 +308,7 @@ export default function AssetsPage() {
             <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full">
               <h3 className="text-xl font-bold mb-4">Import Images from Kie.ai</h3>
               <p className="text-sm text-gray-400 mb-4">
-                Enter task IDs and URLs from Kie.ai logs (format: taskId=url, one per line):
+                This dialog is for manual import. Use "Quick Import (All Logs)" button instead for automatic import.
               </p>
               <textarea
                 value={importTaskIds}
@@ -353,7 +346,7 @@ export default function AssetsPage() {
         )}
 
         {isLoading || userLoading ? (
-          <div className="flex justify-center items-center py-12">
+            <div className="flex justify-center items-center py-12">
             <LoadingSpinner size="lg" text="Loading assets..." />
             </div>
           ) : (
