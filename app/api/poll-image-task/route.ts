@@ -149,10 +149,28 @@ export async function GET(request: NextRequest) {
 
       // 5. Check if completeTime exists but successFlag is 0 - might indicate URL is available elsewhere
       if (!foundImageUrl && statusData.data?.completeTime && statusData.data.successFlag === 0) {
-        console.log('⚠️ CompleteTime exists but successFlag is 0 - checking for URL in unusual places...');
+        console.log('⚠️ CompleteTime exists but successFlag is 0 - this is a Kie.ai API lag! Trying to fetch URL directly...');
 
-        // Check paramJson field which might contain the result
-        if (statusData.data.paramJson) {
+        // This is a known Kie.ai issue: completeTime is set but successFlag stays 0
+        // Try to fetch the URL using our fetch-kie-image endpoint
+        try {
+          console.log('🔄 Attempting direct fetch from Kie.ai...');
+          const fetchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/fetch-kie-image?taskId=${taskId}`);
+          if (fetchResponse.ok) {
+            const fetchData = await fetchResponse.json();
+            if (fetchData.success && fetchData.imageUrl) {
+              foundImageUrl = fetchData.imageUrl;
+              console.log('✅ Found image URL via direct fetch:', foundImageUrl);
+            }
+          } else {
+            console.log('❌ Direct fetch failed:', fetchResponse.status);
+          }
+        } catch (fetchError) {
+          console.error('❌ Direct fetch error:', fetchError);
+        }
+
+        // If direct fetch didn't work, check paramJson as fallback
+        if (!foundImageUrl && statusData.data.paramJson) {
           try {
             const params = JSON.parse(statusData.data.paramJson);
             console.log('📦 Checking paramJson for URL:', JSON.stringify(params, null, 2));
@@ -189,9 +207,23 @@ export async function GET(request: NextRequest) {
 
         // Check if completed based on multiple indicators
         const isCompleted = flag === 1 ||
-                           (completeTime && completeTime !== null) ||
                            (statusField && statusField.toUpperCase() === 'SUCCESS') ||
                            foundImageUrl; // If we found URL, consider it completed
+
+        // Special case: if completeTime exists, assume completed (Kie.ai API lag)
+        const hasCompleteTime = completeTime && completeTime !== null;
+        if (hasCompleteTime) {
+          console.log('🎯 CompleteTime detected - treating as completed despite successFlag');
+          isCompleted = true;
+        }
+
+        // Emergency fallback: if we've been polling for > 3 minutes and completeTime exists, force completion
+        const taskAge = Date.now() - (completeTime || Date.now());
+        const isOldTask = taskAge > (3 * 60 * 1000); // 3 minutes
+        if (hasCompleteTime && isOldTask && !isCompleted) {
+          console.log('🚨 Emergency override: Task is old with completeTime - forcing completion');
+          isCompleted = true;
+        }
 
         if (isCompleted) {
           finalStatus = 'completed';
