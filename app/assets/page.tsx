@@ -8,7 +8,7 @@ import { getUserVideos, deleteVideo, getUserImages, deleteImage, saveImage } fro
 import { GeneratedVideo, GeneratedImage } from '@/types';
 import { Download, Trash2, Image as ImageIcon, Share2, Plus, Loader2 } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { saveImage } from '@/lib/firestore';
+
 
 type AssetType = 'all' | 'video' | 'image';
 
