@@ -16,7 +16,13 @@ export async function GET(request: NextRequest) {
         nodeEnv: process.env.NODE_ENV,
         hasFirebaseKey: !!process.env.GCP_SERVICE_ACCOUNT_KEY,
         hasFirebaseProject: !!process.env.GCP_PROJECT_ID,
-        firebaseProjectId: process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        firebaseProjectId: process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'bunnydanceai',
+        envVars: {
+          GCP_PROJECT_ID: process.env.GCP_PROJECT_ID,
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+          NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? 'SET' : 'NOT SET',
+          GROK_API_KEY: process.env.GROK_API_KEY ? 'SET' : 'NOT SET',
+        }
       }
     });
 
