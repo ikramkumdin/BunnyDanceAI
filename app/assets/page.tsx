@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import VideoPlayer from '@/components/VideoPlayer';
 import { useUser } from '@/hooks/useUser';
-import { getUserVideos, deleteVideo, getUserImages, deleteImage } from '@/lib/firestore';
+import { getUserVideos, deleteVideo, getUserImages, deleteImage, saveImage } from '@/lib/firestore';
 import { GeneratedVideo, GeneratedImage } from '@/types';
 import { Download, Trash2, Image as ImageIcon, Share2, Plus, Loader2 } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -115,13 +115,13 @@ export default function AssetsPage() {
   const handleImportImages = async () => {
     if (!user || !importTaskIds.trim()) return;
 
-    const taskIds = importTaskIds
+    const lines = importTaskIds
       .split('\n')
-      .map(id => id.trim())
-      .filter(id => id.length > 0);
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
 
-    if (taskIds.length === 0) {
-      alert('Please enter at least one task ID');
+    if (lines.length === 0) {
+      alert('Please enter task IDs in format: taskId=url (one per line)');
       return;
     }
 
@@ -130,19 +130,12 @@ export default function AssetsPage() {
     let failCount = 0;
 
     try {
-      for (const taskId of taskIds) {
+      for (const line of lines) {
         try {
-          // Fetch image from Kie.ai
-          const fetchResponse = await fetch(`/api/fetch-kie-image?taskId=${taskId}`);
-          if (!fetchResponse.ok) {
-            console.error(`Failed to fetch image for task ${taskId}`);
-            failCount++;
-            continue;
-          }
-
-          const fetchData = await fetchResponse.json();
-          if (!fetchData.imageUrl) {
-            console.error(`No image URL found for task ${taskId}`);
+          // Parse taskId=url format
+          const [taskId, url] = line.split('=');
+          if (!taskId || !url) {
+            console.error(`Invalid format: ${line}. Use: taskId=url`);
             failCount++;
             continue;
           }
@@ -152,17 +145,17 @@ export default function AssetsPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              taskId,
-              imageUrl: fetchData.imageUrl,
-              status: 'SUCCESS',
-            }),
+              taskId: taskId.trim(),
+              imageUrl: url.trim(),
+              status: 'SUCCESS'
+            })
           });
 
           // Save to assets
           await saveImage({
             userId: user.id,
-            imageUrl: fetchData.imageUrl,
-            prompt: `Imported from Kie.ai (${taskId})`,
+            imageUrl: url.trim(),
+            prompt: `Imported from Kie.ai (${taskId.trim()})`,
             source: 'text-to-image',
             tags: ['photo', 'text-to-image', 'imported'],
             type: 'image',
@@ -171,17 +164,17 @@ export default function AssetsPage() {
 
           successCount++;
         } catch (error) {
-          console.error(`Error importing task ${taskId}:`, error);
+          console.error(`Error importing line ${line}:`, error);
           failCount++;
         }
       }
 
       // Reload assets
       await loadAssets();
-      
+
       setShowImportDialog(false);
       setImportTaskIds('');
-      
+
       alert(`Import complete!\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`);
     } catch (error) {
       console.error('Import error:', error);
@@ -213,15 +206,98 @@ export default function AssetsPage() {
         {!isLoading && !userLoading && (
           <div className="mb-4 flex justify-end gap-2">
             <button
-              onClick={() => {
-                // Pre-fill with the task IDs from user's logs
-                setImportTaskIds('1c974e84eaefc545a5adb7d771ee8d2c\nc92a7430340aa131e54a2e9aadf65487\n1a16c95b9e9f797bc2d1672a3829527a\n3119eb850808975c5436defe37fa54e0\n0d865455705d38bf86c81a81037edab2\n139392b865de6519fd837319ae6dd4eb');
-                setShowImportDialog(true);
+              onClick={async () => {
+                // Direct import using the URLs from user's logs
+                const imagesToImport = [
+                  {
+                    taskId: '1c974e84eaefc545a5adb7d771ee8d2c',
+                    url: 'https://tempfile.aiquickdraw.com/s/1c974e84eaefc545a5adb7d771ee8d2c_0_1765360441_7280.png'
+                  },
+                  {
+                    taskId: 'c92a7430340aa131e54a2e9aadf65487',
+                    url: 'https://tempfile.aiquickdraw.com/s/c92a7430340aa131e54a2e9aadf65487_0_1765368148_3098.png'
+                  },
+                  {
+                    taskId: '1a16c95b9e9f797bc2d1672a3829527a',
+                    url: 'https://tempfile.aiquickdraw.com/s/1a16c95b9e9f797bc2d1672a3829527a_0_1765360444_7280.png'
+                  },
+                  {
+                    taskId: '3119eb850808975c5436defe37fa54e0',
+                    url: 'https://tempfile.aiquickdraw.com/s/3119eb850808975c5436defe37fa54e0_0_1765360447_7280.png'
+                  },
+                  {
+                    taskId: '0d865455705d38bf86c81a81037edab2',
+                    url: 'https://tempfile.aiquickdraw.com/s/0d865455705d38bf86c81a81037edab2_0_1765360449_7280.png'
+                  },
+                  {
+                    taskId: '139392b865de6519fd837319ae6dd4eb',
+                    url: 'https://tempfile.aiquickdraw.com/s/139392b865de6519fd837319ae6dd4eb_0_1765360452_7280.png'
+                  }
+                ];
+
+                if (!user) return;
+
+                setIsImporting(true);
+                let successCount = 0;
+                let failCount = 0;
+
+                try {
+                  for (const img of imagesToImport) {
+                    try {
+                      // Sync to cache first
+                      await fetch('/api/sync-image-result', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          taskId: img.taskId,
+                          imageUrl: img.url,
+                          status: 'SUCCESS'
+                        })
+                      });
+
+                      // Save to assets
+                      await saveImage({
+                        userId: user.id,
+                        imageUrl: img.url,
+                        prompt: `Imported from Kie.ai (${img.taskId})`,
+                        source: 'text-to-image',
+                        tags: ['photo', 'text-to-image', 'imported'],
+                        type: 'image',
+                        createdAt: new Date().toISOString(),
+                      });
+
+                      successCount++;
+                    } catch (error) {
+                      console.error(`Error importing task ${img.taskId}:`, error);
+                      failCount++;
+                    }
+                  }
+
+                  // Reload assets
+                  await loadAssets();
+
+                  alert(`Import complete!\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`);
+                } catch (error) {
+                  console.error('Import error:', error);
+                  alert('Failed to import images. Please try again.');
+                } finally {
+                  setIsImporting(false);
+                }
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-semibold"
+              disabled={isImporting}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-semibold"
             >
-              <Plus className="w-4 h-4" />
-              Quick Import (All Logs)
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Quick Import (All Logs)
+                </>
+              )}
             </button>
             <button
               onClick={() => setShowImportDialog(true)}
@@ -239,12 +315,12 @@ export default function AssetsPage() {
             <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full">
               <h3 className="text-xl font-bold mb-4">Import Images from Kie.ai</h3>
               <p className="text-sm text-gray-400 mb-4">
-                Enter task IDs from Kie.ai logs (one per line):
+                Enter task IDs and URLs from Kie.ai logs (format: taskId=url, one per line):
               </p>
               <textarea
                 value={importTaskIds}
                 onChange={(e) => setImportTaskIds(e.target.value)}
-                placeholder="1c974e84eaefc545a5adb7d771ee8d2c&#10;c92a7430340aa131e54a2e9aadf65487&#10;1a16c95b9e9f797bc2d1672a3829527a"
+                placeholder="1c974e84eaefc545a5adb7d771ee8d2c=https://tempfile.aiquickdraw.com/s/...&#10;c92a7430340aa131e54a2e9aadf65487=https://tempfile.aiquickdraw.com/s/..."
                 className="w-full h-32 bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm text-white font-mono resize-none"
               />
               <div className="flex gap-3 mt-4">
@@ -279,9 +355,9 @@ export default function AssetsPage() {
         {isLoading || userLoading ? (
           <div className="flex justify-center items-center py-12">
             <LoadingSpinner size="lg" text="Loading assets..." />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {!hasAssets ? (
               <div className="col-span-full text-center py-12">
                 <p className="text-gray-400 text-lg">No assets yet</p>
@@ -293,20 +369,20 @@ export default function AssetsPage() {
               <>
                 {/* Videos */}
                 {filteredVideos.map((video) => (
-                  <div key={video.id} className="space-y-2">
-                    <VideoPlayer
-                      videoUrl={video.videoUrl}
-                      thumbnail={video.thumbnail}
-                      isWatermarked={video.isWatermarked}
-                    />
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold">{video.templateName}</p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(video.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
+                <div key={video.id} className="space-y-2">
+                  <VideoPlayer
+                    videoUrl={video.videoUrl}
+                    thumbnail={video.thumbnail}
+                    isWatermarked={video.isWatermarked}
+                  />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">{video.templateName}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(video.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
                         <button
                           onClick={() => handleShare(video.videoUrl, 'video', video.templateName)}
                           className="p-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors"
@@ -314,23 +390,23 @@ export default function AssetsPage() {
                         >
                           <Share2 className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleDownload(video.videoUrl, video.id)}
-                          className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-                          title="Download"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                        <button
+                      <button
+                        onClick={() => handleDownload(video.videoUrl, video.id)}
+                        className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                        title="Download"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button
                           onClick={() => handleDeleteVideo(video.id)}
-                          className="p-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                        className="p-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
+                </div>
                 ))}
 
                 {/* Images */}
@@ -358,8 +434,8 @@ export default function AssetsPage() {
                           <p className="text-xs text-gray-600 mt-1">
                             {image.source === 'text-to-image' ? 'Text-to-Image' : 'Image-to-Video'}
                           </p>
-                        )}
-                      </div>
+              )}
+            </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleShare(image.imageUrl, 'image', image.prompt)}
