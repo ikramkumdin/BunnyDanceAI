@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const taskId = searchParams.get('taskId');
     const provider = searchParams.get('provider') || 'kie'; // Default to kie for backward compatibility
     const forceComplete = searchParams.get('forceComplete') === 'true'; // Emergency manual completion
+    const debug = searchParams.get('debug') === 'true'; // Debug mode
 
     if (!taskId) {
       return NextResponse.json(
@@ -349,7 +350,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Return the response
-      return NextResponse.json({
+      const response = {
         code: 200,
         msg: 'success',
         imageUrl: foundImageUrl,
@@ -362,7 +363,21 @@ export async function GET(request: NextRequest) {
           source: 'kie-api-direct',
           cacheHit: cachedResult ? true : false
         }
-      });
+      };
+
+      // Add debug info if requested
+      if (debug) {
+        response.debug = {
+          rawKieResponse: statusData,
+          foundImageUrl,
+          finalStatus,
+          hasCompleteTime: !!statusData.data?.completeTime,
+          taskAge: Date.now() - (statusData.data?.completeTime || Date.now()),
+          aggressiveFallbackTriggered: (Date.now() - (statusData.data?.completeTime || (Date.now() - 30000))) > 30000
+        };
+      }
+
+      return NextResponse.json(response);
     }
 
     // If Kie.ai API fails, fall back to cache if available
