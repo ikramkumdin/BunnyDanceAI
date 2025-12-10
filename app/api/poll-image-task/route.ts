@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCallbackResult, getCacheStats } from '@/lib/imageCallbackCache';
+import { getCallbackResult, getCacheStats, storeCallbackResult } from '@/lib/imageCallbackCache';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,33 +20,78 @@ export async function GET(request: NextRequest) {
     // Check cache first (for Kie.ai callbacks) - this is MUCH faster!
     console.log(`🔍 Checking callback cache for task: ${taskId}`);
     const cachedResult = getCallbackResult(taskId);
-    
+
     if (cachedResult) {
       console.log('🎯 ✨ FOUND RESULT IN CALLBACK CACHE! ✨');
       console.log('📦 Cached result:', JSON.stringify(cachedResult, null, 2));
-      
+
       // Return cached result with proper format
-      const imageUrl = cachedResult.resultUrls && cachedResult.resultUrls.length > 0 
-        ? cachedResult.resultUrls[0] 
+      const imageUrl = cachedResult.resultUrls && cachedResult.resultUrls.length > 0
+        ? cachedResult.resultUrls[0]
         : null;
-      
+
       console.log(`🖼️ Image URL from cache: ${imageUrl}`);
-      
-      return NextResponse.json({
-        code: 200,
-        msg: 'success',
-        imageUrl: imageUrl,
-        status: cachedResult.status === 'SUCCESS' ? 'completed' : 'failed',
-        data: {
-          taskId: cachedResult.taskId,
-          resultUrls: cachedResult.resultUrls,
-          successFlag: cachedResult.status === 'SUCCESS' ? 1 : 2,
-          status: cachedResult.status,
-          error: cachedResult.error,
-          source: 'callback-cache',
-          cacheHit: true
+
+      // If we have a successful cache hit with URLs, return it immediately
+      if (imageUrl && cachedResult.status === 'SUCCESS') {
+        return NextResponse.json({
+          code: 200,
+          msg: 'success',
+          imageUrl: imageUrl,
+          status: 'completed',
+          data: {
+            taskId: cachedResult.taskId,
+            resultUrls: cachedResult.resultUrls,
+            successFlag: 1,
+            status: cachedResult.status,
+            error: cachedResult.error,
+            source: 'callback-cache',
+            cacheHit: true
+          }
+        });
+      }
+
+      // If cache hit but no URL yet, try direct fetch as fallback
+      if (!imageUrl && cachedResult.status === 'SUCCESS') {
+        console.log('🔄 Cache shows success but no URL - trying direct fetch from Kie.ai...');
+        try {
+          const fetchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/fetch-kie-image?taskId=${taskId}`);
+          if (fetchResponse.ok) {
+            const fetchData = await fetchResponse.json();
+            if (fetchData.success && fetchData.imageUrl) {
+              console.log('✅ Got image URL from direct fetch:', fetchData.imageUrl);
+              // Update cache with the fetched URL
+              storeCallbackResult({
+                taskId: cachedResult.taskId,
+                status: cachedResult.status,
+                resultUrls: [fetchData.imageUrl],
+                error: cachedResult.error
+              });
+
+              return NextResponse.json({
+                code: 200,
+                msg: 'success',
+                imageUrl: fetchData.imageUrl,
+                status: 'completed',
+                data: {
+                  taskId: cachedResult.taskId,
+                  resultUrls: [fetchData.imageUrl],
+                  successFlag: 1,
+                  status: cachedResult.status,
+                  error: cachedResult.error,
+                  source: 'fetch-fallback',
+                  cacheHit: true
+                }
+              });
+            }
+          }
+        } catch (fetchError) {
+          console.error('❌ Direct fetch fallback failed:', fetchError);
         }
-      });
+      }
+
+      // If cache hit but no URL yet, fall through to API polling (callback might be pending)
+      console.log('⚠️ Cache hit but no image URL found - falling back to API polling');
     }
     
     console.log('⚠️ Not in cache, falling back to API polling...');
