@@ -6,11 +6,10 @@ import { getStorage, FirebaseStorage } from "firebase/storage";
 import { getAuth, Auth } from "firebase/auth";
 
 // Your web app's Firebase configuration
-// Use environment variables, with fallbacks for voice-app-d19d8 project
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCQ_9asSsYO1fksIvVLJ3llr-JdrIPwXNM",
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "bunnydanceai.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GCP_PROJECT_ID || "voice-app-d19d8",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GCP_PROJECT_ID || "bunnydanceai",
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "bunnydanceai.firebasestorage.app",
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "983659160954",
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:983659160954:web:035a8df84d2113e99c62c3",

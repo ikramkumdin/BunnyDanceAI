@@ -7,7 +7,7 @@ if (!admin.apps.length) {
     : null;
 
   // Use the same project ID as client-side Firebase
-  const projectId = process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'voice-app-d19d8';
+  const projectId = process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'bunnydanceai';
 
   if (serviceAccount) {
     admin.initializeApp({
