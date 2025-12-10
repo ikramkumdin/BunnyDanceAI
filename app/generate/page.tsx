@@ -18,6 +18,8 @@ export default function GeneratePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [textPrompt, setTextPrompt] = useState<string>('');
+  const [activeMode, setActiveMode] = useState<'image-to-video' | 'text-to-video' | 'text-to-image'>('image-to-video');
 
   const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
   const { user } = useUser();
@@ -99,10 +101,12 @@ export default function GeneratePage() {
       const elapsedMinutes = Math.round(elapsed / (60 * 1000));
       console.log(`⏳ Polling... ${elapsedMinutes}/15 minutes elapsed`);
 
-      if (elapsed < 15 * 60 * 1000) { // 15 minutes
-        setTimeout(() => pollVideoStatus(startTime, taskId), 10000); // Check every 10 seconds
+      // Increase max polling time to 20 minutes (Kie.ai can be slow)
+      // Check every 10 seconds
+      if (elapsed < 20 * 60 * 1000) { 
+        setTimeout(() => pollVideoStatus(startTime, taskId), 10000); 
       } else {
-        console.log('⏰ Video generation timeout after 15 minutes');
+        console.log('⏰ Video generation timeout after 20 minutes');
         setIsGenerating(false);
         alert('Video generation is taking longer than expected. The video may still complete - please refresh the page in a few minutes to check.');
       }
@@ -155,6 +159,164 @@ export default function GeneratePage() {
     }
   };
 
+  // Handle text-to-video generation
+  const handleTextToVideo = async () => {
+    if (!textPrompt || !user) {
+      alert('Please enter a prompt for your video');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/generate-text-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: textPrompt,
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.videoUrl) {
+          // Immediate result (rare)
+          setGeneratedVideo(data.videoUrl);
+        } else if (data.taskId) {
+          // Async generation - start polling
+          console.log('🎬 Started text-to-video generation, polling for completion...');
+          pollVideoStatus(Date.now(), data.taskId);
+        } else {
+          alert('Generation started but no task ID received. Please check back later.');
+          setIsGenerating(false);
+        }
+      } else {
+        alert('Generation failed: ' + (data.error || 'Unknown error'));
+        setIsGenerating(false);
+      }
+    } catch (error) {
+      console.error('Text-to-video error:', error);
+      alert('Failed to generate video. Please try again.');
+      setIsGenerating(false);
+    }
+  };
+
+  // Poll for image status
+  const pollImageStatus = useCallback(async (startTime = Date.now(), taskId = null, provider = 'kie') => {
+    try {
+      if (taskId) {
+        console.log(`🔍 Polling for image status (${provider})...`);
+        const pollResponse = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
+        
+        if (pollResponse.ok) {
+          const pollData = await pollResponse.json();
+          console.log('📊 Image poll response:', pollData);
+
+          // Check if image is ready - be flexible with where URL might be
+          const imageUrl = pollData.imageUrl || pollData.data?.imageUrl || pollData.data?.response;
+          console.log('🔍 Extracted image URL:', imageUrl);
+          
+          if (imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
+            console.log('🎨 Image ready:', imageUrl);
+            setUploadedImage(imageUrl);
+            setBase64Image(imageUrl);
+            setImageUrl(imageUrl);
+            setIsGenerating(false);
+            return;
+          }
+          
+          // If we have an image URL in an array
+          if (Array.isArray(imageUrl) && imageUrl.length > 0 && imageUrl[0].startsWith('http')) {
+            console.log('🎨 Image ready (from array):', imageUrl[0]);
+            setUploadedImage(imageUrl[0]);
+            setBase64Image(imageUrl[0]);
+            setImageUrl(imageUrl[0]);
+            setIsGenerating(false);
+            return;
+          }
+
+          // Check for explicit failure
+          if (pollData.status === 'failed' || pollData.data?.status === 'FAILED') {
+            console.error('❌ Image generation failed:', pollData.error || pollData.data?.errorMessage);
+            alert('Image generation failed: ' + (pollData.error || pollData.data?.errorMessage || 'Unknown error'));
+            setIsGenerating(false);
+            return;
+          }
+        }
+      }
+
+      // Continue polling if not ready (max 10 minutes for Kie.ai images - they're slow!)
+      const elapsed = Date.now() - startTime;
+      const elapsedMinutes = Math.round(elapsed / (60 * 1000));
+      const maxMinutes = provider === 'replicate' ? 5 : 10; // Kie.ai needs more time
+      
+      console.log(`⏳ Polling image (${provider})... ${elapsedMinutes}/${maxMinutes} minutes elapsed`);
+
+      if (elapsed < maxMinutes * 60 * 1000) { 
+        // Poll every 5 seconds for first 2 minutes, then every 10 seconds
+        const pollInterval = elapsed < 2 * 60 * 1000 ? 5000 : 10000;
+        setTimeout(() => pollImageStatus(startTime, taskId, provider), pollInterval);
+      } else {
+        console.log(`⏰ Image generation timeout after ${maxMinutes} minutes`);
+        console.log('💡 The image might still be generating. Check Kie.ai dashboard: https://kie.ai/logs');
+        setIsGenerating(false);
+        alert(`Image generation timed out after ${maxMinutes} minutes. The image might still be processing - check https://kie.ai/logs with task ID: ${taskId}`);
+      }
+    } catch (error) {
+      console.error('Image polling error:', error);
+      setIsGenerating(false);
+      alert('Error checking image status. Please try again.');
+    }
+  }, []);
+
+  // Handle text-to-image generation
+  const handleTextToImage = async () => {
+    if (!textPrompt || !user) {
+      alert('Please enter a prompt for your image');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/generate-text-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: textPrompt,
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.imageUrl) {
+          // Immediate result (rare)
+          setUploadedImage(data.imageUrl);
+          setBase64Image(data.imageUrl);
+          setImageUrl(data.imageUrl);
+          setIsGenerating(false);
+        } else if (data.taskId) {
+          // Async generation - start polling
+          const provider = data.provider || 'kie';
+          console.log(`🎨 Started image generation with ${provider}, polling for completion...`);
+          pollImageStatus(Date.now(), data.taskId, provider);
+        } else {
+          alert('Generation started but no task ID received.');
+          setIsGenerating(false);
+        }
+      } else {
+        alert('Generation failed: ' + (data.error || 'Unknown error'));
+        setIsGenerating(false);
+      }
+    } catch (error) {
+      console.error('Text-to-image error:', error);
+      alert('Failed to generate image. Please try again.');
+      setIsGenerating(false);
+    }
+  };
+
   const filteredTemplates = templates.filter((template) => {
     // Filter out hidden templates
     if (template.isHidden) return false;
@@ -176,9 +338,48 @@ export default function GeneratePage() {
   return (
     <Layout>
       <div className="flex flex-col gap-4 p-6">
-        {/* Upload Area - Same size as templates, above tags */}
+        {/* Mode Toggle - Trending Style Tabs */}
+        <div className="flex gap-4 border-b border-gray-800 pb-2 mb-2">
+          <button
+            onClick={() => setActiveMode('image-to-video')}
+            className={`px-4 py-2 font-semibold transition-colors ${
+              activeMode === 'image-to-video'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            IMAGE TO VIDEO
+          </button>
+          <button
+            onClick={() => setActiveMode('text-to-video')}
+            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${
+              activeMode === 'text-to-video'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            TEXT TO VIDEO
+          </button>
+          <button
+            onClick={() => setActiveMode('text-to-image')}
+            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${
+              activeMode === 'text-to-image'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            TEXT TO IMAGE
+          </button>
+        </div>
+
+        {/* Main Content Area - Same size as templates */}
         <div className="flex justify-center">
           <div className="relative aspect-[9/16] w-80 bg-gray-800 rounded-lg overflow-hidden">
+            {/* Image-to-Video Mode: Show uploader */}
+            {activeMode === 'image-to-video' && (
+              <>
             {uploadedImage ? (
               <div className="w-full h-full relative bg-gray-800 rounded-lg overflow-hidden">
                 <img
@@ -221,14 +422,115 @@ export default function GeneratePage() {
                 >
                   <X className="w-4 h-4 text-white" />
                 </button>
-
               </div>
               ) : (
                 <PhotoUpload onImageSelect={handleImageSelect} />
               )}
+              </>
+            )}
 
-              {/* Selected Template Preview in Left Corner - Always visible when template selected */}
-              {selectedTemplate && (
+            {/* Text-to-Video Mode: Show text area with preview */}
+            {activeMode === 'text-to-video' && (
+              <div className="w-full h-full flex flex-col p-4 gap-3">
+                <div className="flex-1 flex flex-col gap-2">
+                  <label className="text-white font-semibold text-sm">Describe your video:</label>
+                  <textarea
+                    value={textPrompt}
+                    onChange={(e) => setTextPrompt(e.target.value)}
+                    placeholder="A person dancing in a park with autumn leaves, cinematic lighting, 4K quality..."
+                    className="flex-1 bg-gray-900 text-white px-3 py-3 rounded-lg text-sm border border-gray-700 focus:border-primary focus:outline-none resize-none"
+                  />
+                  
+                  {textPrompt && (
+                    <div className="bg-gray-900/80 border border-gray-700 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 mb-1">Preview:</p>
+                      <p className="text-sm text-white line-clamp-4">{textPrompt}</p>
+                    </div>
+                  )}
+                </div>
+
+                {!isGenerating ? (
+                  <button
+                    onClick={handleTextToVideo}
+                    disabled={!textPrompt}
+                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Generate Video
+                  </button>
+                ) : (
+                  <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
+                    <div className="animate-spin rounded-full w-8 h-8 border-t-2 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                    <p className="text-white text-sm font-semibold">Generating your video...</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Text-to-Image Mode: Show text area with preview */}
+            {activeMode === 'text-to-image' && (
+              <div className="w-full h-full flex flex-col p-4 gap-3">
+                {!uploadedImage ? (
+                  <>
+                    <div className="flex-1 flex flex-col gap-2">
+                      <label className="text-white font-semibold text-sm">Describe your image:</label>
+                      <textarea
+                        value={textPrompt}
+                        onChange={(e) => setTextPrompt(e.target.value)}
+                        placeholder="A beautiful sunset over mountains, photorealistic, highly detailed, 4K..."
+                        className="flex-1 bg-gray-900 text-white px-3 py-3 rounded-lg text-sm border border-gray-700 focus:border-primary focus:outline-none resize-none"
+                      />
+                      
+                      {textPrompt && (
+                        <div className="bg-gray-900/80 border border-gray-700 rounded-lg p-3">
+                          <p className="text-xs text-gray-400 mb-1">Preview:</p>
+                          <p className="text-sm text-white line-clamp-4">{textPrompt}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {!isGenerating ? (
+                      <button
+                        onClick={handleTextToImage}
+                        disabled={!textPrompt}
+                        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm flex items-center justify-center gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Generate Image
+                      </button>
+                    ) : (
+                      <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
+                        <div className="animate-spin rounded-full w-8 h-8 border-t-2 border-b-2 border-green-600 mx-auto mb-2"></div>
+                        <p className="text-white text-sm font-semibold">Generating your image...</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="w-full h-full relative">
+                    <img
+                      src={uploadedImage}
+                      alt="Generated image"
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                    <button
+                      onClick={() => {
+                        setUploadedImage(null);
+                        setTextPrompt('');
+                      }}
+                      className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                    <div className="absolute bottom-2 left-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-2">
+                      <p className="text-xs text-white">✨ Image generated! You can now use it for video generation.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+              {/* Selected Template Preview in Left Corner - Only for image-to-video mode */}
+              {activeMode === 'image-to-video' && selectedTemplate && (
                 <div className="absolute top-2 left-2 w-20 h-24 bg-gray-800 rounded-lg overflow-hidden border-2 border-primary z-50 shadow-lg">
                   <div className="absolute top-0 left-0 right-0 bg-primary text-white px-1 py-0.5 text-[6px] font-semibold text-center z-10">
                     Template
@@ -250,8 +552,8 @@ export default function GeneratePage() {
                 </div>
               )}
 
-              {/* Generate Button Below Main Preview Area */}
-              {selectedTemplate && uploadedImage && (
+              {/* Image-to-Video Mode: Generate Button */}
+              {activeMode === 'image-to-video' && selectedTemplate && uploadedImage && (
                 <div className="absolute bottom-4 left-4 right-4">
                   {isGenerating ? (
                     <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
@@ -273,7 +575,8 @@ export default function GeneratePage() {
             </div>
         </div>
 
-        {/* Template Selection - Always visible for browsing */}
+        {/* Template Selection - Only show for image-to-video mode */}
+        {activeMode === 'image-to-video' && (
         <div className="space-y-4">
           {/* Search and Category Tags in Same Row */}
           <div className="flex gap-2 flex-wrap">
@@ -349,6 +652,7 @@ export default function GeneratePage() {
         </div>
 
         </div>
+        )}
       </div>
     </Layout>
   );

@@ -9,3 +9,6 @@ console.log('GROK_API_URL:', process.env.GROK_API_URL);
 
 console.log('');
 console.log('If GCP variables are NOT SET, check your .env.local file format!');
+
+
+

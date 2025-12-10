@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       const url = new URL(filePath);
       // Remove bucket name from path
       const pathParts = url.pathname.split('/').filter(p => p);
-      const bucketName = process.env.GCP_STORAGE_BUCKET || 'voice-app-storage';
+      const bucketName = process.env.GCP_STORAGE_BUCKET || 'bunnydanceai-storage';
       if (pathParts[0] === bucketName) {
         gcsPath = pathParts.slice(1).join('/');
       } else {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const signedUrl = await getSignedUrl(gcsPath, 3600); // 1 hour expiry
+    const signedUrl = await getSignedUrl(gcsPath, 86400); // 24 hour expiry (for Kie.ai to access)
 
     return NextResponse.json({
       url: signedUrl,

@@ -29,3 +29,6 @@ console.log('\n📝 Next steps:');
 console.log('- Make GCP bucket public in Google Cloud Console');
 console.log('- Or fix GCP_SERVICE_ACCOUNT_KEY format in .env.local');
 console.log('- Restart server after changes');
+
+
+

@@ -114,3 +114,6 @@ async function reuploadTemplateVideos() {
   console.log('\n📝 Template URLs have been updated in memory.');
   console.log('🔄 The templates.ts file has already been updated with correct bucket name.');
 }
+
+
+

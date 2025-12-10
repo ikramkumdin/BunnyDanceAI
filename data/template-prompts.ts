@@ -83,3 +83,6 @@ export function getPromptsByCategory(category: string) {
 export function getPromptsByIntensity(intensity: string) {
   return Object.values(templatePrompts).filter(prompt => prompt.intensity === intensity);
 }
+
+
+

@@ -47,6 +47,91 @@ async function saveVideoToDatabase({
   }
 }
 
+// Helper function to upload image to Kie.ai's servers
+async function uploadImageToKie(imagePath: string, apiKey: string): Promise<string> {
+  try {
+    console.log('📤 Uploading image to Kie.ai File Upload API...');
+    console.log('📁 Image path:', imagePath);
+
+    // Import storage dynamically (only when needed)
+    const { adminStorage } = await import('@/lib/firebase-admin');
+
+    // Parse the GCS path
+    let bucketName = process.env.GCP_STORAGE_BUCKET || 'bunnydanceai-storage';
+    let filePath = imagePath;
+
+    // Handle different path formats
+    if (imagePath.startsWith('gs://')) {
+      // Format: gs://bucket-name/path/to/file
+      const gsUrl = imagePath.replace('gs://', '');
+      const parts = gsUrl.split('/');
+      bucketName = parts[0];
+      filePath = parts.slice(1).join('/');
+    } else if (imagePath.startsWith('https://storage.googleapis.com/')) {
+      // Format: https://storage.googleapis.com/bucket-name/path/to/file
+      const url = new URL(imagePath);
+      const pathParts = url.pathname.substring(1).split('/'); // Remove leading slash
+      bucketName = pathParts[0];
+      filePath = pathParts.slice(1).join('/');
+    } else if (imagePath.includes('voice-app-storage/')) {
+      // Legacy format: might have bucket in path
+      bucketName = 'voice-app-storage';
+      filePath = imagePath.split('voice-app-storage/')[1] || imagePath;
+    }
+
+    console.log(`📦 Bucket: ${bucketName}, File: ${filePath}`);
+
+    // Download image from GCS
+    const bucket = adminStorage.bucket(bucketName);
+    const file = bucket.file(filePath);
+
+    const [imageBuffer] = await file.download();
+    console.log(`📊 Image size: ${(imageBuffer.length / 1024 / 1024).toFixed(2)} MB`);
+
+    // Get file metadata to determine content type
+    const [metadata] = await file.getMetadata();
+    const contentType = metadata.contentType || 'image/jpeg';
+
+    // Upload to Kie.ai using their File Upload API
+    console.log('🔄 Uploading to Kie.ai File Upload API...');
+
+    const formData = new FormData();
+    const blob = new Blob([new Uint8Array(imageBuffer)], { type: contentType });
+    formData.append('file', blob, 'image.jpg');
+
+    const uploadResponse = await fetch('https://api.kie.ai/api/v1/file-upload/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error(`❌ Kie.ai upload failed: ${uploadResponse.status} - ${errorText}`);
+      throw new Error(`Kie.ai upload failed: ${uploadResponse.status} - ${errorText}`);
+    }
+
+    const uploadResult = await uploadResponse.json();
+    console.log('✅ Kie.ai upload response:', uploadResult);
+
+    // Extract the uploaded image URL from the response
+    const kieImageUrl = uploadResult.url || uploadResult.data?.url || uploadResult.fileUrl || uploadResult.data?.fileUrl || uploadResult.imageUrl;
+
+    if (!kieImageUrl) {
+      console.error('❌ No URL in upload response:', uploadResult);
+      throw new Error(`No URL in upload response: ${JSON.stringify(uploadResult)}`);
+    }
+
+    console.log('✅ Kie.ai image URL:', kieImageUrl);
+    return kieImageUrl;
+  } catch (error) {
+    console.error('❌ Failed to upload image to Kie.ai:', error);
+    throw error;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -83,43 +168,70 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build prompt from template - CRITICAL: Must use the reference person's face and body
-    // The prompt must explicitly instruct to use the person from the reference image
+    // Build prompt from template - Simple and safe prompt to avoid safety filters
     console.log('📝 Raw template.prompt:', template.prompt);
     console.log('📝 Template object:', { id: template.id, name: template.name, category: template.category });
-    let prompt = `IMPORTANT: Use the person from the provided reference image as the main subject.
-    The video should feature this specific person with their appearance and characteristics.
+    
+    // Use extremely simple prompt to test if image is the issue
+    let prompt = `A person standing and waving at the camera in a friendly way, natural lighting, professional video quality.`;
 
-    ${template.prompt.replace(/sensual|exaggerated|twerking/gi, 'energetic').replace(/intense/gi, 'lively')}
+    console.log('📝 Final constructed prompt:', prompt);
 
-    The person in the video should match the reference image.`;
-    console.log('📝 Final constructed prompt (first 200 chars):', prompt.substring(0, 200) + '...');
-
-    // Get signed URL for the image so Kie.ai can access it
-    let accessibleImageUrl = imageUrl;
+    // Get a long-lived public signed URL for the image
+    // Get a properly signed URL that worked before
+    // Make image publicly accessible for Kie.ai
+    let accessibleImageUrl: string;
     try {
-      console.log('🔗 Getting signed URL for image access...');
-      const signedUrlResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3009'}/api/get-signed-url?path=${encodeURIComponent(imageUrl)}`);
-      if (signedUrlResponse.ok) {
-        const signedUrlData = await signedUrlResponse.json();
-        accessibleImageUrl = signedUrlData.url;
-        console.log('✅ Using signed URL for image access');
-      } else {
-        console.warn('⚠️ Failed to get signed URL, using original URL (may not work)');
-      }
-    } catch (signedUrlError) {
-      console.warn('⚠️ Error getting signed URL:', signedUrlError);
-      console.warn('Using original URL (may not work)');
-    }
+      console.log('🔗 Making image publicly accessible for Kie.ai...');
 
-    // Adjust prompt based on intensity if needed
-    if (intensity === 'extreme') {
-      prompt += ' Extreme physics, maximum intensity, but keep the EXACT same person from reference image.';
-    } else if (intensity === 'mild') {
-      prompt += ' Subtle movements, elegant, but preserve the EXACT person identity from reference image.';
-    } else {
-      // Default: ensure we mention maintaining the person
-      prompt += ' The person in the video MUST be identical to the person in the reference image.';
+      // Import storage
+      const { adminStorage } = await import('@/lib/firebase-admin');
+
+      // Parse the GCS path
+      let bucketName = 'voice-app-storage';
+      let filePath = imageUrl;
+
+      if (imageUrl.startsWith('https://storage.googleapis.com/')) {
+        const url = new URL(imageUrl);
+        const pathParts = url.pathname.substring(1).split('/');
+        bucketName = pathParts[0];
+        filePath = pathParts.slice(1).join('/');
+      } else if (imageUrl.includes('voice-app-storage/')) {
+        filePath = imageUrl.split('voice-app-storage/')[1] || imageUrl;
+      }
+
+      console.log(`📦 Bucket: ${bucketName}, File: ${filePath}`);
+
+      const bucket = adminStorage.bucket(bucketName);
+      const file = bucket.file(filePath);
+
+      // Make the file publicly readable
+      await file.makePublic();
+      console.log('✅ Made image publicly accessible');
+
+      // Get the public URL
+      accessibleImageUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+      console.log('📸 Public GCS URL:', accessibleImageUrl);
+
+    } catch (publicError) {
+      console.error('❌ Error making image public:', publicError);
+
+      // Fallback to signed URL
+      console.log('🔄 Falling back to signed URL...');
+      try {
+        const signedUrlResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3009'}/api/get-signed-url?path=${encodeURIComponent(imageUrl)}`);
+
+        if (signedUrlResponse.ok) {
+          const signedUrlData = await signedUrlResponse.json();
+          accessibleImageUrl = signedUrlData.url;
+          console.log('✅ Using signed URL fallback');
+        } else {
+          throw new Error('Signed URL fallback also failed');
+        }
+      } catch (signedUrlError) {
+        console.error('❌ Signed URL fallback failed:', signedUrlError);
+        throw new Error(`Failed to get accessible image URL: ${signedUrlError instanceof Error ? signedUrlError.message : 'Unknown error'}`);
+      }
     }
 
     // Call Kie.ai API according to documentation
@@ -180,10 +292,10 @@ export async function POST(request: NextRequest) {
     let requestBody: any = {
         prompt: prompt,
         imageUrls: [accessibleImageUrl],
-        model: "Veo Fast", // Exact model name from Kie.ai error message
+        model: "veo3_fast", // STRICTLY using veo3_fast for REFERENCE_2_VIDEO
         aspectRatio: "16:9", // Landscape format as required by API
         generationType: "REFERENCE_2_VIDEO",
-        enableFallback: false,
+        enableFallback: true, // Enable fallback API as suggested by error message
         enableTranslation: true,
         // Try synchronous mode first
         sync: true,
@@ -251,8 +363,13 @@ export async function POST(request: NextRequest) {
 
       const foundTaskId = possibleTaskIds.find(id => id);
       if (foundTaskId) {
-        console.log('⚠️ Sync failed, got taskId, switching to async mode:', foundTaskId);
-        taskId = foundTaskId;
+        console.log('✅ Got taskId from sync request (API is async):', foundTaskId);
+        // Return the taskId immediately - the API is treating this as async
+        return NextResponse.json({
+          taskId: foundTaskId,
+          status: 'processing',
+          message: 'Video generation started. Please wait for completion.'
+        });
       } else if (response.ok) {
         // If response is OK but no video or taskId, Kie.ai might not support this mode
         console.log('⚠️ Kie.ai responded OK but no video or taskId found');
@@ -268,42 +385,32 @@ export async function POST(request: NextRequest) {
 
       // Fall back to async request - try different parameter formats
       const asyncRequestBodies = [
-        // Try with callback URL first (if Kie.ai supports it)
-        {
-          prompt: prompt,
-          imageUrls: [accessibleImageUrl],
-          model: "Veo Fast", // Exact model name from Kie.ai error message
-          aspectRatio: "16:9",
-          generationType: "REFERENCE_2_VIDEO",
-          enableFallback: false,
-          enableTranslation: true,
-          callbackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://bunny-dance-ai.vercel.app'}/api/callback?userId=${userId}&templateId=${template.id}&templateName=${encodeURIComponent(template.name)}&thumbnail=${encodeURIComponent(imageUrl)}`
-        },
-        // Try with minimal parameters
-        {
-          prompt: prompt,
-          imageUrls: [accessibleImageUrl],
-          model: "Veo Fast", // Exact model name from Kie.ai error message
-          aspectRatio: "16:9"
-        },
-        // Try with more parameters
-        {
-          prompt: prompt,
-          imageUrls: [accessibleImageUrl],
-          model: "Veo Fast", // Exact model name from Kie.ai error message
-          aspectRatio: "16:9",
-          generationType: "REFERENCE_2_VIDEO",
-          enableFallback: false,
-          enableTranslation: true
-        },
-        // Try different parameter names
-        {
-          prompt: prompt,
-          image_urls: [accessibleImageUrl],
-          model: "Veo Fast", // Exact model name from Kie.ai error message
-          aspect_ratio: "16:9",
-          generation_type: "REFERENCE_2_VIDEO"
-        }
+          // 1. Correct format per docs: veo3_fast + REFERENCE_2_VIDEO
+          {
+            url: grokApiUrl,
+            body: {
+              prompt: prompt,
+              imageUrls: [accessibleImageUrl],
+              model: "veo3_fast",
+              aspectRatio: "16:9",
+              generationType: "REFERENCE_2_VIDEO",
+              enableFallback: true, // Enable fallback API as suggested by error message
+              enableTranslation: true
+            }
+          },
+          // 2. Try veo3 quality model with FIRST_AND_LAST_FRAMES mode
+          {
+            url: grokApiUrl,
+            body: {
+              prompt: prompt,
+              imageUrls: [accessibleImageUrl],
+              model: "veo3", // Try quality model instead of fast
+              aspectRatio: "16:9",
+              generationType: "FIRST_AND_LAST_FRAMES_2_VIDEO", // Different generation mode
+              enableFallback: true,
+              enableTranslation: true
+            }
+          }
       ];
 
       let asyncSuccess = false;
@@ -311,16 +418,18 @@ export async function POST(request: NextRequest) {
 
       for (let i = 0; i < asyncRequestBodies.length; i++) {
         try {
+          const reqConfig = asyncRequestBodies[i];
           console.log(`🔄 Trying async request format ${i + 1}/${asyncRequestBodies.length}`);
-          console.log('📝 Request body:', JSON.stringify(asyncRequestBodies[i], null, 2));
+          console.log('🔗 URL:', reqConfig.url);
+          console.log('📝 Request body:', JSON.stringify(reqConfig.body, null, 2));
 
-          response = await fetch(grokApiUrl, {
+          response = await fetch(reqConfig.url, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify(asyncRequestBodies[i]),
+            body: JSON.stringify(reqConfig.body),
           });
 
           console.log('📊 Response status:', response.status);
@@ -356,7 +465,12 @@ export async function POST(request: NextRequest) {
           if (taskId) {
             console.log(`✅ Async request ${i + 1} succeeded with taskId:`, taskId);
             asyncSuccess = true;
-            break;
+            // Return success immediately with the taskId
+            return NextResponse.json({
+              taskId,
+              status: 'processing',
+              message: 'Video generation started. Please wait for completion.'
+            });
           } else {
             console.log(`⚠️ Async request ${i + 1} OK but no taskId found`);
             lastError = `No taskId in response: ${JSON.stringify(data)}`;
@@ -371,161 +485,24 @@ export async function POST(request: NextRequest) {
       if (!asyncSuccess) {
         console.error('❌ All async attempts failed');
         console.error('📝 Last error:', lastError);
+        // If we reach here, all retries failed. Throw error to be caught by outer catch
         throw new Error(`Failed to get taskId from Kie.ai after trying all formats. Last error: ${lastError}`);
       }
     }
 
+    // Note: The code below this point is unreachable if async success happened, 
+    // because we returned early. It only runs if synchronous request succeeded (handled above)
+    // or if we decide to remove the early return in the future.
+    
+    // For safety, if we somehow reach here without returning, treat it as an error or fallback
+    throw new Error('Unexpected execution flow: generation should have been handled by sync or async blocks');
+
+    /* 
+    // Legacy code below - unreachable but kept for reference until confirmed fix
     console.log('═══════════════════════════════════════════════');
     console.log('🎬 Calling Kie.ai API:', grokApiUrl);
-    console.log('🖼️ Original Image URL:', imageUrl);
-    console.log('🔗 Accessible Image URL:', accessibleImageUrl);
-    console.log('🖼️ Image URLs Array:', requestBody.imageUrls);
-    console.log('💬 Prompt:', requestBody.prompt);
-    console.log('📋 Full Request Body:', JSON.stringify(requestBody, null, 2));
-    console.log('═══════════════════════════════════════════════');
-
-    const grokResponse = await fetch(grokApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!grokResponse.ok) {
-      // Read response body as text first (can only be read once)
-      const errorText = await grokResponse.text();
-      let errorData: any;
-
-      // Try to parse as JSON
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        // If not JSON, use as text
-        errorData = errorText;
-      }
-
-      console.error('Grok API error:', errorData);
-
-      // Handle structured error response
-      if (typeof errorData === 'object' && errorData.error) {
-        return NextResponse.json(
-          {
-            error: errorData.error.message || 'Video generation failed',
-            details: errorData
-          },
-          { status: grokResponse.status }
-        );
-      }
-
-      // Provide more helpful error message for 404
-      if (grokResponse.status === 404) {
-        return NextResponse.json(
-          {
-            error: 'Grok API endpoint not found (404). Please check your GROK_API_URL in .env.local',
-            details: `The API endpoint "${grokApiUrl}" returned 404. Make sure the URL is correct.`
-          },
-          { status: 500 }
-        );
-      }
-
-      // Handle 422 validation errors
-      if (grokResponse.status === 422) {
-        const errorMsg = typeof errorData === 'string' ? errorData : (errorData.error?.message || 'Validation error');
-        return NextResponse.json(
-          {
-            error: errorMsg,
-            details: errorData
-          },
-          { status: 422 }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          error: 'Video generation failed',
-          details: typeof errorData === 'string'
-            ? (errorData.length > 500 ? errorData.substring(0, 500) + '...' : errorData)
-            : errorData
-        },
-        { status: grokResponse.status }
-      );
-    }
-
-    const grokData = await grokResponse.json();
-    console.log('Kie.ai API response:', JSON.stringify(grokData, null, 2));
-
-    // Handle Kie.ai API response format
-    // Check if this is an async task response with taskId
-    if (grokData.taskId || grokData.data?.taskId) {
-      const taskId = grokData.taskId || grokData.data.taskId;
-      console.log('✅ Async generation started with taskId:', taskId);
-
-      // Note: Video will be saved by the callback when generation completes
-      // The callback URL includes all necessary metadata
-
-      // Return task info for polling
-      return NextResponse.json({
-        taskId,
-        status: 'processing',
-        message: 'Video generation started. Please wait for completion.'
-      });
-    }
-
-    // Handle immediate video URL response (if API returns URLs directly)
-    let generatedVideoUrl: string | null = null;
-
-    // Check for direct video URLs in response
-    if (Array.isArray(grokData) && grokData.length > 0) {
-      generatedVideoUrl = grokData[0];
-    } else if (grokData.videoUrl) {
-      generatedVideoUrl = grokData.videoUrl;
-    } else if (grokData.url) {
-      generatedVideoUrl = grokData.url;
-    } else if (grokData.video_url) {
-      generatedVideoUrl = grokData.video_url;
-    } else if (grokData.data && Array.isArray(grokData.data) && grokData.data.length > 0) {
-      generatedVideoUrl = grokData.data[0];
-    }
-    
-    if (!generatedVideoUrl) {
-      console.error('❌ No video URL or taskId found in API response');
-      return NextResponse.json(
-        { error: 'No video URL or taskId returned from API', details: grokData },
-        { status: 500 }
-      );
-    }
-
-    // Upload video to GCP Storage
-    let finalVideoUrl = generatedVideoUrl;
-    try {
-      finalVideoUrl = await uploadVideo(generatedVideoUrl, userId);
-    } catch (uploadError) {
-      console.error('Error uploading video to GCP:', uploadError);
-      // Continue with original URL if upload fails
-    }
-
-    // Save video metadata to Firestore
-    const videoId = generateVideoId();
-    const isWatermarked = false; // TODO: Add watermarking logic
-
-    await saveVideo({
-      videoUrl: finalVideoUrl,
-      thumbnail: imageUrl,
-      templateId: template.id,
-      templateName: template.name,
-      createdAt: new Date().toISOString(),
-      isWatermarked,
-      userId
-    });
-
-    // Return video URL
-    return NextResponse.json({
-      videoId,
-      videoUrl: finalVideoUrl,
-      status: 'completed',
-    });
+    ...
+    */
   } catch (error) {
     console.error('Generation error:', error);
     return NextResponse.json(

@@ -49,73 +49,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Try different possible endpoints for task status
+    // Based on search results and common Kie.ai patterns
     const kieApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/veo/generate';
-    const baseUrl = kieApiUrl.replace('/api/v1/veo/generate', '');
-
-    // Also try alternative base URLs in case the API structure is different
-    const alternativeBases = [
-      'https://api.kie.ai',
-      'https://kie.ai/api',
-      'https://app.kie.ai/api',
-      'https://platform.kie.ai/api'
-    ];
+    const baseUrl = kieApiUrl.includes('/api/v1') 
+      ? kieApiUrl.split('/api/v1')[0] 
+      : 'https://api.kie.ai';
 
     // Try common task status endpoints and variations based on Kie.ai patterns
     const possibleEndpoints = [
-      // Kie.ai specific patterns (based on their API structure)
-      `${baseUrl}/api/v1/veo/task/${taskId}`,
-      `${baseUrl}/api/v1/veo/tasks/${taskId}`,
-      `${baseUrl}/api/v1/veo/generation/${taskId}`,
-      `${baseUrl}/api/v1/veo/jobs/${taskId}`,
-
-      // Status endpoints
-      `${baseUrl}/api/v1/veo/task/${taskId}/status`,
-      `${baseUrl}/api/v1/veo/tasks/${taskId}/status`,
-      `${baseUrl}/api/v1/veo/generation/${taskId}/status`,
-      `${baseUrl}/api/v1/veo/jobs/${taskId}/status`,
-
-      // Direct endpoints
+      // Correct endpoint for Veo task status per documentation search
+      // Note the hyphen in 'record-info'
+      `${baseUrl}/api/v1/veo/record-info?taskId=${taskId}`,
+      
+      // Fallback: older endpoint style
+      `${baseUrl}/api/v1/jobs/recordInfo?taskId=${taskId}`,
+      
+      // Fallback: direct task endpoint
       `${baseUrl}/api/v1/task/${taskId}`,
-      `${baseUrl}/api/v1/tasks/${taskId}`,
-      `${baseUrl}/api/v1/generation/${taskId}`,
-      `${baseUrl}/api/v1/jobs/${taskId}`,
-
-      // Result endpoints
-      `${baseUrl}/api/v1/veo/task/${taskId}/result`,
-      `${baseUrl}/api/v1/veo/tasks/${taskId}/result`,
-      `${baseUrl}/api/v1/veo/generation/${taskId}/result`,
-      `${baseUrl}/api/v1/veo/jobs/${taskId}/result`,
-
-      // Alternative API versions
-      `${baseUrl}/v1/veo/task/${taskId}`,
-      `${baseUrl}/v1/veo/tasks/${taskId}`,
-      `${baseUrl}/v1/veo/generation/${taskId}`,
-      `${baseUrl}/v1/veo/jobs/${taskId}`,
-
-      // Root level (less likely but worth trying)
-      `${baseUrl}/veo/task/${taskId}`,
-      `${baseUrl}/veo/tasks/${taskId}`,
-      `${baseUrl}/task/${taskId}`,
-      `${baseUrl}/tasks/${taskId}`,
-
-      // Query parameter approach
-      `${baseUrl}/api/v1/veo/generate/status?taskId=${taskId}`,
-      `${baseUrl}/api/v1/veo/generate/result?taskId=${taskId}`,
-      `${baseUrl}/api/v1/generate/status?taskId=${taskId}`,
-
-      // POST request approach (some APIs require POST for status checks)
-      // We'll handle POST requests separately below
-
-      // Alternative patterns
-      `${baseUrl}/api/v1/status/${taskId}`,
-      `${baseUrl}/api/v1/result/${taskId}`,
-      `${baseUrl}/api/v1/queue/${taskId}`,
-      `${baseUrl}/api/v1/progress/${taskId}`,
-
-      // Video generation specific endpoints
-      `${baseUrl}/api/v1/video/${taskId}`,
-      `${baseUrl}/api/v1/video/${taskId}/status`,
-      `${baseUrl}/api/v1/video/${taskId}/result`,
     ];
 
     // Also try POST requests to some endpoints (some APIs require POST for status)
@@ -140,13 +90,106 @@ export async function GET(request: NextRequest) {
         });
 
         if (statusResponse.ok) {
-          const statusData = await statusResponse.json();
+          let statusData = await statusResponse.json();
           console.log('✅ Poll response (GET):', JSON.stringify(statusData, null, 2));
+          
+          // Handle Kie.ai API wrapper response (code 200/422 in the body)
+          if (statusData.code === 422) {
+            // This endpoint returned 422 "recordInfo is null" - task might still be processing or endpoint is wrong
+            console.log(`⚠️ Endpoint ${statusUrl} returned code 422 in body, trying next...`);
+            lastError = { status: 422, message: statusData.msg || 'recordInfo is null' };
+            continue;
+          }
+          
+          // If code is not 200, skip to next endpoint
+          if (statusData.code && statusData.code !== 200) {
+            console.log(`⚠️ Endpoint ${statusUrl} returned code ${statusData.code}, trying next...`);
+            lastError = { status: statusData.code, message: statusData.msg };
+            continue;
+          }
+          
+          // Normalize response for frontend
+          // Map 'state' to 'status' (Kie.ai uses 'state' sometimes)
+          if (statusData.state && !statusData.status) {
+            statusData.status = statusData.state;
+          }
+          
+          // Map 'successFlag' from record-info endpoint
+          // 0: Generating, 1: Success, 2/3: Failed
+          if (statusData.data?.successFlag !== undefined) {
+            const flag = statusData.data.successFlag;
+            
+            // Check if response field has video URLs (task might be complete even if flag is 0)
+            let hasVideoUrl = false;
+            if (statusData.data.response) {
+              try {
+                const response = typeof statusData.data.response === 'string' 
+                  ? JSON.parse(statusData.data.response) 
+                  : statusData.data.response;
+                
+                // Check if response is an array of URLs
+                if (Array.isArray(response) && response.length > 0 && response[0].startsWith('http')) {
+                  statusData.videoUrl = response[0];
+                  statusData.status = 'completed';
+                  hasVideoUrl = true;
+                  console.log('✅ Found video URL in response field:', statusData.videoUrl);
+                }
+              } catch (e) {
+                console.error('Failed to parse response field:', e);
+              }
+            }
+            
+            // Only check successFlag if we didn't find a video URL in response
+            if (!hasVideoUrl) {
+              if (flag === 0) {
+                statusData.status = 'processing';
+              } else if (flag === 1) {
+                statusData.status = 'completed';
+                
+                // Extract result URLs if available
+                if (statusData.data.resultUrls) {
+                  try {
+                    const urls = typeof statusData.data.resultUrls === 'string' 
+                      ? JSON.parse(statusData.data.resultUrls) 
+                      : statusData.data.resultUrls;
+                    statusData.videoUrl = Array.isArray(urls) ? urls[0] : urls;
+                  } catch (e) {
+                    console.error('Failed to parse resultUrls:', e);
+                    // Try direct assignment if it's already a string URL
+                    if (typeof statusData.data.resultUrls === 'string' && statusData.data.resultUrls.startsWith('http')) {
+                      statusData.videoUrl = statusData.data.resultUrls;
+                    }
+                  }
+                }
+              } else if (flag === 2 || flag === 3) {
+                statusData.status = 'failed';
+                statusData.error = statusData.data.failReason || 'Video generation failed';
+              }
+            }
+          }
+          
+          // Ensure status is lowercase for comparison
+          if (statusData.status) {
+            statusData.status = statusData.status.toLowerCase();
+          }
+
+          // Extract video URL if nested and not already found
+          if (!statusData.videoUrl) {
+             statusData.videoUrl = statusData.url || 
+                                  statusData.result?.videoUrl || 
+                                  statusData.output?.videoUrl || 
+                                  statusData.data?.videoUrl ||
+                                  statusData.data?.url ||
+                                  statusData.result?.url ||
+                                  statusData.output?.url;
+          }
+
           return NextResponse.json(statusData);
         } else {
-          // If 404, try next endpoint
+          // If 404 (task not found for this endpoint), try next endpoint
           if (statusResponse.status === 404) {
-            lastError = { status: 404, message: `Endpoint ${statusUrl} not found` };
+            lastError = { status: statusResponse.status, message: `Endpoint ${statusUrl} returned ${statusResponse.status}` };
+            console.log(`⚠️ Endpoint ${statusUrl} returned ${statusResponse.status}, trying next...`);
             continue;
           }
           // For other errors, return immediately
@@ -179,8 +222,27 @@ export async function GET(request: NextRequest) {
         });
 
         if (statusResponse.ok) {
-          const statusData = await statusResponse.json();
+          let statusData = await statusResponse.json();
           console.log('✅ Poll response (POST):', JSON.stringify(statusData, null, 2));
+          
+          // Normalize response for frontend
+          if (statusData.state && !statusData.status) {
+            statusData.status = statusData.state;
+          }
+          
+          if (statusData.status) {
+            statusData.status = statusData.status.toLowerCase();
+          }
+
+          if (!statusData.videoUrl) {
+             statusData.videoUrl = statusData.url || 
+                                  statusData.result?.videoUrl || 
+                                  statusData.output?.videoUrl || 
+                                  statusData.data?.videoUrl ||
+                                  statusData.result?.url ||
+                                  statusData.output?.url;
+          }
+
           return NextResponse.json(statusData);
         } else {
           // Continue to next endpoint even for non-404 errors

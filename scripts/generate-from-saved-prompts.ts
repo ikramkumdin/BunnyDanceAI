@@ -53,3 +53,6 @@ console.log(JSON.stringify(generationData, null, 2));
 
 console.log('\n✅ Ready to generate video!');
 console.log('💡 Next: Integrate this with your video generation API endpoint');
+
+
+

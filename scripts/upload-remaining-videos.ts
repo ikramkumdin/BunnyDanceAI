@@ -60,3 +60,6 @@ async function uploadRemainingVideos() {
 
   console.log('🎉 Upload complete! Now update templates.ts with the new URLs.');
 }
+
+
+
