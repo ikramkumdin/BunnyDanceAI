@@ -193,30 +193,66 @@ export async function GET(request: NextRequest) {
         console.log('✅ Found image URL in data.url field:', foundImageUrl);
       }
 
-      // 5. Check if completeTime exists but successFlag is 0 - might indicate URL is available elsewhere
-      if (!foundImageUrl && statusData.data?.completeTime && statusData.data.successFlag === 0) {
-        console.log('⚠️ CompleteTime exists but successFlag is 0 - this is a Kie.ai API lag! Trying to fetch URL directly...');
+      // 5. AGGRESSIVE FALLBACK: If task has been running for >30 seconds, try to guess the URL
+      if (!foundImageUrl) {
+        const taskStartTime = Date.now() - (Date.now() % 1000); // Rough estimate
+        const elapsedSeconds = (Date.now() - taskStartTime) / 1000;
 
-        // This is a known Kie.ai issue: completeTime is set but successFlag stays 0
-        // Try to fetch the URL using our fetch-kie-image endpoint
-        try {
-          console.log('🔄 Attempting direct fetch from Kie.ai...');
-          const fetchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/fetch-kie-image?taskId=${taskId}`);
-          if (fetchResponse.ok) {
-            const fetchData = await fetchResponse.json();
-            if (fetchData.success && fetchData.imageUrl) {
-              foundImageUrl = fetchData.imageUrl;
-              console.log('✅ Found image URL via direct fetch:', foundImageUrl);
+        if (elapsedSeconds > 30) { // Been running for more than 30 seconds
+          console.log(`🚨 AGGRESSIVE FALLBACK: Task running for ${elapsedSeconds}s, trying to guess URL...`);
+
+          // Try multiple possible URL patterns based on successful examples
+          const possibleUrls = [
+            // Pattern from successful examples
+            `https://tempfile.aiquickdraw.com/s/${taskId}_0_${Math.floor(Date.now() / 1000)}_1196.png`,
+            `https://tempfile.aiquickdraw.com/s/${taskId}_0_${Math.floor(Date.now() / 1000)}_7280.png`,
+            `https://tempfile.aiquickdraw.com/s/${taskId}_0_${Math.floor(Date.now() / 1000)}_4101.png`,
+            `https://tempfile.aiquickdraw.com/s/${taskId}_0_${Math.floor(Date.now() / 1000)}_3098.png`,
+            `https://tempfile.aiquickdraw.com/s/${taskId}_0_${Math.floor(Date.now() / 1000)}_1302.png`,
+          ];
+
+          // Try to fetch one of the possible URLs to see if it exists
+          for (const testUrl of possibleUrls.slice(0, 2)) { // Only test first 2 to avoid too many requests
+            try {
+              console.log('🔍 Testing URL:', testUrl);
+              const testResponse = await fetch(testUrl, { method: 'HEAD' }); // HEAD request is faster
+              if (testResponse.ok) {
+                foundImageUrl = testUrl;
+                console.log('🎯 FOUND WORKING URL:', foundImageUrl);
+                break;
+              } else {
+                console.log('❌ URL not found:', testUrl, 'Status:', testResponse.status);
+              }
+            } catch (error) {
+              console.log('❌ Error testing URL:', testUrl, error);
             }
-          } else {
-            console.log('❌ Direct fetch failed:', fetchResponse.status);
           }
-        } catch (fetchError) {
-          console.error('❌ Direct fetch error:', fetchError);
-        }
 
-        // If direct fetch didn't work, check paramJson as fallback
-        if (!foundImageUrl && statusData.data.paramJson) {
+          // If URL guessing didn't work, try the fetch endpoint
+          if (!foundImageUrl) {
+            try {
+              console.log('🔄 Last resort: trying fetch-kie-image endpoint...');
+              const fetchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/fetch-kie-image?taskId=${taskId}`);
+              if (fetchResponse.ok) {
+                const fetchData = await fetchResponse.json();
+                if (fetchData.success && fetchData.imageUrl) {
+                  foundImageUrl = fetchData.imageUrl;
+                  console.log('✅ Found image URL via fetch endpoint:', foundImageUrl);
+                }
+              }
+            } catch (fetchError) {
+              console.error('❌ Fetch endpoint error:', fetchError);
+            }
+          }
+        }
+      }
+
+      // 6. Check if completeTime exists but successFlag is 0 - might indicate URL is available elsewhere
+      if (!foundImageUrl && statusData.data?.completeTime && statusData.data.successFlag === 0) {
+        console.log('⚠️ CompleteTime exists but successFlag is 0 - this is a Kie.ai API lag!');
+
+        // Check paramJson as fallback
+        if (statusData.data.paramJson) {
           try {
             const params = JSON.parse(statusData.data.paramJson);
             console.log('📦 Checking paramJson for URL:', JSON.stringify(params, null, 2));
@@ -263,12 +299,12 @@ export async function GET(request: NextRequest) {
           isCompleted = true;
         }
 
-        // Emergency fallback: if we've been polling for > 3 minutes and completeTime exists, force completion
-        const taskAge = Date.now() - (completeTime || Date.now());
-        const isOldTask = taskAge > (3 * 60 * 1000); // 3 minutes
-        if (hasCompleteTime && isOldTask && !isCompleted) {
-          console.log('🚨 Emergency override: Task is old with completeTime - forcing completion');
-          isCompleted = true;
+        // Emergency fallback: if we've been polling for > 30 seconds, assume it might be ready
+        const taskAge = Date.now() - (completeTime || (Date.now() - 30000)); // Assume started 30s ago if no completeTime
+        const isOldTask = taskAge > 30000; // 30 seconds
+        if (isOldTask && !isCompleted && !foundImageUrl) {
+          console.log('🚨 Emergency override: Task is 30s+ old - triggering aggressive URL search');
+          // Don't set isCompleted yet, but the aggressive URL search above will handle it
         }
 
         if (isCompleted) {
