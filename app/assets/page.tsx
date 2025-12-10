@@ -6,8 +6,9 @@ import VideoPlayer from '@/components/VideoPlayer';
 import { useUser } from '@/hooks/useUser';
 import { getUserVideos, deleteVideo, getUserImages, deleteImage } from '@/lib/firestore';
 import { GeneratedVideo, GeneratedImage } from '@/types';
-import { Download, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Download, Trash2, Image as ImageIcon, Share2, Plus, Loader2 } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { saveImage } from '@/lib/firestore';
 
 type AssetType = 'all' | 'video' | 'image';
 
@@ -17,6 +18,9 @@ export default function AssetsPage() {
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importTaskIds, setImportTaskIds] = useState('');
 
   useEffect(() => {
     if (user && !userLoading) {
@@ -80,6 +84,113 @@ export default function AssetsPage() {
     link.click();
   };
 
+  const handleShare = async (url: string, type: 'video' | 'image', title?: string) => {
+    const shareData = {
+      title: title || 'Bunny Dance AI',
+      text: `Check out this ${type} generated with Bunny Dance AI!`,
+      url: url,
+    };
+
+    // Try native share API first
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        // User cancelled or error occurred
+        console.log('Share cancelled or failed');
+      }
+    }
+
+    // Fallback: copy to clipboard
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('Link copied to clipboard!');
+    } catch (err) {
+      // Final fallback: show URL
+      prompt('Copy this link:', url);
+    }
+  };
+
+  const handleImportImages = async () => {
+    if (!user || !importTaskIds.trim()) return;
+
+    const taskIds = importTaskIds
+      .split('\n')
+      .map(id => id.trim())
+      .filter(id => id.length > 0);
+
+    if (taskIds.length === 0) {
+      alert('Please enter at least one task ID');
+      return;
+    }
+
+    setIsImporting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const taskId of taskIds) {
+        try {
+          // Fetch image from Kie.ai
+          const fetchResponse = await fetch(`/api/fetch-kie-image?taskId=${taskId}`);
+          if (!fetchResponse.ok) {
+            console.error(`Failed to fetch image for task ${taskId}`);
+            failCount++;
+            continue;
+          }
+
+          const fetchData = await fetchResponse.json();
+          if (!fetchData.imageUrl) {
+            console.error(`No image URL found for task ${taskId}`);
+            failCount++;
+            continue;
+          }
+
+          // Sync to cache first
+          await fetch('/api/sync-image-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              taskId,
+              imageUrl: fetchData.imageUrl,
+              status: 'SUCCESS',
+            }),
+          });
+
+          // Save to assets
+          await saveImage({
+            userId: user.id,
+            imageUrl: fetchData.imageUrl,
+            prompt: `Imported from Kie.ai (${taskId})`,
+            source: 'text-to-image',
+            tags: ['photo', 'text-to-image', 'imported'],
+            type: 'image',
+            createdAt: new Date().toISOString(),
+          });
+
+          successCount++;
+        } catch (error) {
+          console.error(`Error importing task ${taskId}:`, error);
+          failCount++;
+        }
+      }
+
+      // Reload assets
+      await loadAssets();
+      
+      setShowImportDialog(false);
+      setImportTaskIds('');
+      
+      alert(`Import complete!\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`);
+    } catch (error) {
+      console.error('Import error:', error);
+      alert('Failed to import images. Please try again.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // Filter assets based on active tab
   const filteredVideos = activeTab === 'all' || activeTab === 'video' ? videos : [];
   const filteredImages = activeTab === 'all' || activeTab === 'image' ? images : [];
@@ -98,6 +209,73 @@ export default function AssetsPage() {
       onTabChange={(tab) => setActiveTab(tab as AssetType)}
     >
       <div className="p-6">
+        {/* Import Button */}
+        {!isLoading && !userLoading && (
+          <div className="mb-4 flex justify-end gap-2">
+            <button
+              onClick={() => {
+                // Pre-fill with the task IDs from user's logs
+                setImportTaskIds('1c974e84eaefc545a5adb7d771ee8d2c\nc92a7430340aa131e54a2e9aadf65487\n1a16c95b9e9f797bc2d1672a3829527a\n3119eb850808975c5436defe37fa54e0\n0d865455705d38bf86c81a81037edab2\n139392b865de6519fd837319ae6dd4eb');
+                setShowImportDialog(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-semibold"
+            >
+              <Plus className="w-4 h-4" />
+              Quick Import (All Logs)
+            </button>
+            <button
+              onClick={() => setShowImportDialog(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors text-sm font-semibold"
+            >
+              <Plus className="w-4 h-4" />
+              Import from Kie.ai
+            </button>
+          </div>
+        )}
+
+        {/* Import Dialog */}
+        {showImportDialog && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full">
+              <h3 className="text-xl font-bold mb-4">Import Images from Kie.ai</h3>
+              <p className="text-sm text-gray-400 mb-4">
+                Enter task IDs from Kie.ai logs (one per line):
+              </p>
+              <textarea
+                value={importTaskIds}
+                onChange={(e) => setImportTaskIds(e.target.value)}
+                placeholder="1c974e84eaefc545a5adb7d771ee8d2c&#10;c92a7430340aa131e54a2e9aadf65487&#10;1a16c95b9e9f797bc2d1672a3829527a"
+                className="w-full h-32 bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm text-white font-mono resize-none"
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={handleImportImages}
+                  disabled={isImporting || !importTaskIds.trim()}
+                  className="flex-1 bg-primary hover:bg-primary-dark disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors font-semibold flex items-center justify-center gap-2"
+                >
+                  {isImporting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    'Import'
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImportDialog(false);
+                    setImportTaskIds('');
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isLoading || userLoading ? (
           <div className="flex justify-center items-center py-12">
             <LoadingSpinner size="lg" text="Loading assets..." />
@@ -129,6 +307,13 @@ export default function AssetsPage() {
                         </p>
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShare(video.videoUrl, 'video', video.templateName)}
+                          className="p-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors"
+                          title="Share"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => handleDownload(video.videoUrl, video.id)}
                           className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -176,6 +361,13 @@ export default function AssetsPage() {
                         )}
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          onClick={() => handleShare(image.imageUrl, 'image', image.prompt)}
+                          className="p-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors"
+                          title="Share"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => handleDownloadImage(image.imageUrl, image.id)}
                           className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
