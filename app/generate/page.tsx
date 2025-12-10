@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { templates } from '@/data/templates';
 import { Template } from '@/types';
 import { X, Search, Sparkles } from 'lucide-react';
@@ -11,6 +12,7 @@ import Layout from '@/components/Layout';
 import { saveImage, saveVideo } from '@/lib/firestore';
 
 export default function GeneratePage() {
+  const router = useRouter();
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -277,29 +279,69 @@ export default function GeneratePage() {
           console.log('📊 Image poll response:', pollData);
 
           // Check if image is ready - be flexible with where URL might be
-          const imageUrl = pollData.imageUrl || pollData.data?.imageUrl || pollData.data?.response;
+          let imageUrl = pollData.imageUrl || pollData.data?.imageUrl;
+
+          // Check data.response field (might be JSON string or object)
+          if (!imageUrl && pollData.data?.response) {
+            try {
+              const response = typeof pollData.data.response === 'string'
+                ? JSON.parse(pollData.data.response)
+                : pollData.data.response;
+
+              // Check for result_urls array
+              if (response.result_urls && Array.isArray(response.result_urls) && response.result_urls.length > 0) {
+                imageUrl = response.result_urls[0];
+              }
+              // Check if response is directly an array of URLs
+              else if (Array.isArray(response) && response.length > 0 && typeof response[0] === 'string' && response[0].startsWith('http')) {
+                imageUrl = response[0];
+              }
+              // Check if response is directly a URL string
+              else if (typeof response === 'string' && response.startsWith('http')) {
+                imageUrl = response;
+              }
+            } catch (e) {
+              console.error('Failed to parse data.response:', e);
+            }
+          }
+
+          // Check data.resultUrls field
+          if (!imageUrl && pollData.data?.resultUrls) {
+            try {
+              const urls = typeof pollData.data.resultUrls === 'string'
+                ? JSON.parse(pollData.data.resultUrls)
+                : pollData.data.resultUrls;
+
+              if (Array.isArray(urls) && urls.length > 0) {
+                imageUrl = urls[0];
+              } else if (typeof urls === 'string' && urls.startsWith('http')) {
+                imageUrl = urls;
+              }
+            } catch (e) {
+              console.error('Failed to parse data.resultUrls:', e);
+            }
+          }
+
+          // Check data.url field as fallback
+          if (!imageUrl && pollData.data?.url) {
+            imageUrl = pollData.data.url;
+          }
+
           console.log('🔍 Extracted image URL:', imageUrl);
-          
+          console.log('📊 Full pollData for debugging:', JSON.stringify(pollData, null, 2));
+
           if (imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
             console.log('🎨 Image ready:', imageUrl);
             setUploadedImage(imageUrl);
             setBase64Image(imageUrl);
             setImageUrl(imageUrl);
             setIsGenerating(false);
-            // Save to assets
+            // Save to assets automatically
             saveImageToAssets(imageUrl, textPrompt, 'text-to-image');
-            return;
-          }
-          
-          // If we have an image URL in an array
-          if (Array.isArray(imageUrl) && imageUrl.length > 0 && imageUrl[0].startsWith('http')) {
-            console.log('🎨 Image ready (from array):', imageUrl[0]);
-            setUploadedImage(imageUrl[0]);
-            setBase64Image(imageUrl[0]);
-            setImageUrl(imageUrl[0]);
-            setIsGenerating(false);
-            // Save to assets
-            saveImageToAssets(imageUrl[0], textPrompt, 'text-to-image');
+            // Redirect to Assets page to show the new image
+            setTimeout(() => {
+              router.push('/assets?tab=image');
+            }, 1000); // Small delay to ensure save completes
             return;
           }
 
@@ -394,6 +436,10 @@ export default function GeneratePage() {
           setIsGenerating(false);
           // Save to assets
           saveImageToAssets(data.imageUrl, textPrompt, 'text-to-image');
+          // Redirect to Assets page to show the new image
+          setTimeout(() => {
+            router.push('/assets?tab=image');
+          }, 1000);
         } else if (data.taskId) {
           // Async generation - start polling
           const provider = data.provider || 'kie';

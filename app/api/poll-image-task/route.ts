@@ -151,34 +151,48 @@ export async function GET(request: NextRequest) {
       
       // 1. Check data.response field (might be JSON string, array, or object with result_urls)
       if (statusData.data?.response && statusData.data.response !== null) {
-        console.log('🔍 Checking data.response field:', typeof statusData.data.response);
+        console.log('🔍 Checking data.response field:', typeof statusData.data.response, 'value:', statusData.data.response);
         try {
-          const response = typeof statusData.data.response === 'string' 
-            ? JSON.parse(statusData.data.response) 
-            : statusData.data.response;
-          
-          console.log('📦 Parsed response object:', JSON.stringify(response, null, 2));
-          
-          // Check for result_urls (standard Kie.ai 4o Image response format)
-          if (response.result_urls && Array.isArray(response.result_urls) && response.result_urls.length > 0) {
-            foundImageUrl = response.result_urls[0];
-            console.log('✅ Found image URL in response.result_urls:', foundImageUrl);
+          let response = statusData.data.response;
+
+          // Handle array format like ["https://..."]
+          if (Array.isArray(response) && response.length > 0) {
+            if (typeof response[0] === 'string' && response[0].startsWith('http')) {
+              foundImageUrl = response[0];
+              console.log('✅ Found image URL in response array:', foundImageUrl);
+            }
           }
-          // Check if response is directly an array of URLs
-          else if (Array.isArray(response) && response.length > 0 && typeof response[0] === 'string' && response[0].startsWith('http')) {
-            foundImageUrl = response[0];
-            console.log('✅ Found image URL in response array:', foundImageUrl);
+          // Handle JSON string that needs parsing
+          else if (typeof response === 'string') {
+            // Check if it's already a URL
+            if (response.startsWith('http')) {
+              foundImageUrl = response;
+              console.log('✅ Found image URL as direct string:', foundImageUrl);
+            } else {
+              // Try to parse as JSON
+              try {
+                response = JSON.parse(response);
+                console.log('📦 Parsed response object:', JSON.stringify(response, null, 2));
+              } catch (parseError) {
+                console.error('Failed to parse response as JSON:', parseError);
+              }
+            }
           }
-          // Check if response is directly a URL string
-          else if (typeof response === 'string' && response.startsWith('http')) {
-            foundImageUrl = response;
-            console.log('✅ Found image URL in response string:', foundImageUrl);
+
+          // If response is now an object, extract URL from it
+          if (!foundImageUrl && typeof response === 'object' && response !== null && !Array.isArray(response)) {
+            // Check for result_urls (standard Kie.ai 4o Image response format)
+            if (response.result_urls && Array.isArray(response.result_urls) && response.result_urls.length > 0) {
+              foundImageUrl = response.result_urls[0];
+              console.log('✅ Found image URL in response.result_urls:', foundImageUrl);
+            }
+            // Check for url field in response object
+            else if (response.url && typeof response.url === 'string' && response.url.startsWith('http')) {
+              foundImageUrl = response.url;
+              console.log('✅ Found image URL in response.url:', foundImageUrl);
+            }
           }
-          // Check for url field in response object
-          else if (response.url && typeof response.url === 'string' && response.url.startsWith('http')) {
-            foundImageUrl = response.url;
-            console.log('✅ Found image URL in response.url:', foundImageUrl);
-          }
+
         } catch (e) {
           console.error('Failed to parse response field:', e);
         }
