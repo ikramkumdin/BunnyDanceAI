@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
 
       // Find our specific task in the history
       console.log(`🔍 Looking for taskId: ${taskId} among ${records.length} records`);
-      console.log('📋 TaskIds in response:', records.map(r => r.taskId));
+      console.log('📋 TaskIds in response:', records.map((r: any) => r.taskId));
 
       // Filter to only recent tasks (last 30 minutes) to avoid confusion with old tasks
       const recentRecords = records.filter((r: any) => {
