@@ -176,25 +176,101 @@ export async function GET(request: NextRequest) {
         currentPage++;
       }
 
-      const records = allRecords;
+      let records = allRecords;
       console.log(`📊 Found ${records.length} total records across ${currentPage} pages (expected: ${totalRecords})`);
 
-      // Find our specific task
-      let targetRecord = records.find((r: any) => r.taskId === taskId);
+      // DEBUG: Log ALL taskIds we're checking
+      const allTaskIds = records.map((r: any) => r.taskId || r.task_id || 'NO_TASK_ID');
+      console.log(`🔍 Looking for taskId: ${taskId}`);
+      console.log(`📋 All taskIds in records (first 10):`, allTaskIds.slice(0, 10));
+      console.log(`📋 TaskId in list?`, allTaskIds.includes(taskId));
+      
+      // Try multiple field name variations
+      let targetRecord = records.find((r: any) => 
+        r.taskId === taskId || 
+        r.task_id === taskId ||
+        String(r.id) === String(taskId)
+      );
 
       if (targetRecord) {
         // Log full record structure for debugging
         console.log(`🎯 Found task ${taskId}! Full record structure:`, JSON.stringify(targetRecord, null, 2));
         console.log(`📋 Record fields:`, Object.keys(targetRecord));
         console.log(`📊 successFlag: ${targetRecord.successFlag}, resultJson: ${targetRecord.resultJson ? 'exists' : 'null'}, response: ${targetRecord.response ? 'exists' : 'null'}`);
+      } else {
+        // Show what we DID find
+        console.log(`❌ Task ${taskId} NOT found. Sample record structure:`, records.length > 0 ? JSON.stringify(records[0], null, 2) : 'No records');
       }
 
       if (!targetRecord) {
-        console.log(`❌ Task ${taskId} not found after ${records.length} records, trying record-info fallback...`);
+        console.log(`❌ Task ${taskId} not found after ${records.length} records`);
+        console.log(`📊 Total reported: ${totalRecords}, Records fetched: ${records.length}`);
+        
+        // If we got fewer records than total, or if this is a very recent task, try fetching page 1 again
+        // Sometimes new tasks take a moment to appear in the paginated results
+        if (records.length < totalRecords || (Date.now() - parseInt(taskId.slice(0, 8), 16) * 1000) < 60000) {
+          console.log(`🔄 Task might be very recent, trying to fetch page 1 again with fresh request...`);
+          try {
+            const retryResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
+              method: 'POST',
+              headers: {
+                'Authorization': authToken,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Origin': 'https://kie.ai',
+                'Referer': 'https://kie.ai/',
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+                'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"macOS"',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-site',
+                'uniqueid': '80ee02e0ac69022f3ed8fcf09f636808',
+                'priority': 'u=1, i',
+              },
+              body: JSON.stringify({
+                pageNum: 1,
+                pageSize: 20 // Check more records on retry
+              })
+            });
 
-        // As final fallback, try to get the image directly from Kie.ai's record-info endpoint
-        console.log(`🔄 Trying direct Kie.ai record-info API as final fallback...`);
-        try {
+            if (retryResponse.ok) {
+              const retryData = await retryResponse.json();
+              const retryRecords = retryData.data?.records || [];
+              const retryTotal = retryData.data?.total || 0;
+              console.log(`🔄 Retry found ${retryRecords.length} records (total: ${retryTotal})`);
+              
+              // Check if total increased
+              if (retryTotal > totalRecords) {
+                console.log(`📈 Total increased from ${totalRecords} to ${retryTotal} - new task likely appeared!`);
+              }
+              
+              // Try to find the task in retry results
+              targetRecord = retryRecords.find((r: any) => 
+                r.taskId === taskId || 
+                r.task_id === taskId ||
+                String(r.id) === String(taskId)
+              );
+              
+              if (targetRecord) {
+                console.log(`✅ Found task in retry!`);
+                // Update records to use retry results
+                records = retryRecords;
+                totalRecords = retryTotal;
+              }
+            }
+          } catch (retryError) {
+            console.error('❌ Retry failed:', retryError);
+          }
+        }
+
+        if (!targetRecord) {
+          console.log(`❌ Task still not found, trying record-info fallback...`);
+          // As final fallback, try to get the image directly from Kie.ai's record-info endpoint
+          console.log(`🔄 Trying direct Kie.ai record-info API as final fallback...`);
+          try {
           const recordResponse = await fetch(`https://api.kie.ai/api/v1/gpt4o-image/record-info?taskId=${taskId}`, {
             headers: {
               'Authorization': authToken,
@@ -291,7 +367,8 @@ export async function GET(request: NextRequest) {
             console.log(`❌ Error verifying manual URL: ${error}`);
           }
         }
-      }
+        } // Close the nested if (!targetRecord) at line 269
+      } // Close the first if (!targetRecord) at line 205
 
       if (!targetRecord) {
         console.log(`❌ Task ${taskId} not found in history`);
