@@ -83,16 +83,24 @@ export async function GET(request: NextRequest) {
     console.log(`📸 Using Golden Endpoint for task ${taskId}`);
 
     // Try Golden Endpoint with appropriate authentication
-    // The /client/v1/ endpoint might need a user token instead of API key
+    // The /client/v1/ endpoint uses raw token without "Bearer" prefix
     const authToken = process.env.KIE_USER_TOKEN || process.env.GROK_API_KEY;
 
     console.log(`🔐 Using ${process.env.KIE_USER_TOKEN ? 'user token' : 'API key'} for Golden Endpoint`);
+    console.log(`🔑 Auth token: ${authToken?.substring(0, 10)}...`);
 
     const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${authToken}`,
+        'Authorization': authToken, // Raw token without "Bearer" prefix
         'Content-Type': 'application/json',
+        'Accept': 'application/json, text/plain, */*',
+        'Origin': 'https://kie.ai',
+        'Referer': 'https://kie.ai/',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-site',
       },
       body: JSON.stringify({
         pageNum: 1,
@@ -390,7 +398,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Return the response
-      const response = {
+      const response: any = {
         code: 200,
         msg: 'success',
         imageUrl: foundImageUrl,
