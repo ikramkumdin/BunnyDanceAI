@@ -476,11 +476,14 @@ export default function GeneratePage() {
             router.push('/assets?tab=image');
           }, 1000);
         } else if (data.taskId) {
-          // Async generation - start polling
+          // Async generation - wait for callback first, then poll as backup
           const provider = data.provider || 'kie';
-          console.log(`🎨 Started image generation with ${provider}, polling for completion...`);
-          // Wait 3 seconds before starting polling to let Kie.ai register the task
-          setTimeout(() => pollImageStatus(Date.now(), data.taskId, provider), 3000);
+          console.log(`🎨 Started image generation with ${provider}, waiting for callback...`);
+          // Wait 15 seconds for callback, then start polling as backup (new tasks need time to index)
+          setTimeout(() => {
+            console.log('⏰ Callback timeout reached, starting polling as backup...');
+            pollImageStatus(Date.now(), data.taskId, provider);
+          }, 15000); // 15 seconds to let new tasks get indexed in Golden Endpoint
         } else {
           alert('Generation started but no task ID received.');
           setIsGenerating(false);

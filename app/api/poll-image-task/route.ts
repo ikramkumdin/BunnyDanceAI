@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 
     try {
       while (currentPage <= maxPages) {
-        console.log(`🚀 CALLING GOLDEN ENDPOINT page ${currentPage} (pageSize: 10 - API limited)...`);
+        console.log(`🚀 CALLING GOLDEN ENDPOINT page ${currentPage} (pageSize: 20 - testing limit)...`);
 
         const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
           method: 'POST',
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
           },
           body: JSON.stringify({
             pageNum: currentPage,
-            pageSize: 10 // API limits to 10 records per page, we'll fetch all pages
+            pageSize: 20 // Try 20 per page to see if API accepts it, fallback to pagination
           })
         });
 
