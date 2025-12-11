@@ -86,11 +86,11 @@ export async function GET(request: NextRequest) {
     let allRecords = [];
     let totalRecords = 0;
     let currentPage = 1;
-    const maxPages = 5; // Don't fetch more than 5 pages to avoid infinite loops
+    let maxPages = 5; // Don't fetch more than 5 pages to avoid infinite loops
 
     try {
       while (currentPage <= maxPages) {
-        console.log(`🚀 CALLING GOLDEN ENDPOINT page ${currentPage} (pageSize: 100)...`);
+        console.log(`🚀 CALLING GOLDEN ENDPOINT page ${currentPage} (pageSize: 10 - API limited)...`);
 
         const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
           method: 'POST',
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
           },
           body: JSON.stringify({
             pageNum: currentPage,
-            pageSize: 100 // Check last 100 images per page
+            pageSize: 10 // API limits to 10 records per page, we'll fetch all pages
           })
         });
 
@@ -150,14 +150,17 @@ export async function GET(request: NextRequest) {
 
         if (currentPage === 1) {
           totalRecords = pageTotal;
-          console.log(`📊 Response structure: total=${totalRecords}, pages=${pageData.data?.pages || 1}`);
+          const totalPages = pageData.data?.pages || 1;
+          console.log(`📊 Response structure: total=${totalRecords}, pages=${totalPages}`);
+          // Update maxPages based on API response
+          maxPages = Math.min(maxPages, totalPages);
         }
 
         allRecords = allRecords.concat(pageRecords);
         console.log(`📄 Page ${currentPage}: ${pageRecords.length} records (total so far: ${allRecords.length})`);
 
         // Check if we have all records or if this is the last page
-        if (allRecords.length >= totalRecords || pageRecords.length === 0) {
+        if (allRecords.length >= totalRecords || pageRecords.length === 0 || currentPage >= maxPages) {
           break;
         }
 
