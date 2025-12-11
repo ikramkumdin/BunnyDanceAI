@@ -289,6 +289,45 @@ export async function GET(request: NextRequest) {
         }
 
         console.log(`💔 All fallback methods failed for task ${taskId}`);
+
+        // Final fallback: allow manual URL injection via query parameter
+        const manualUrl = searchParams.get('manualUrl');
+        if (manualUrl && manualUrl.startsWith('https://tempfile.aiquickdraw.com/')) {
+          console.log(`🔧 Manual URL provided: ${manualUrl}`);
+
+          // Verify the URL exists
+          try {
+            const headResponse = await fetch(manualUrl, { method: 'HEAD' });
+            if (headResponse.ok) {
+              console.log(`✅ Manual URL verified and working: ${manualUrl}`);
+
+              storeCallbackResult({
+                taskId,
+                status: 'SUCCESS',
+                resultUrls: [manualUrl],
+              });
+
+              return NextResponse.json({
+                code: 200,
+                msg: 'success',
+                imageUrl: manualUrl,
+                status: 'completed',
+                data: {
+                  taskId,
+                  resultUrls: [manualUrl],
+                  successFlag: 1,
+                  status: 'SUCCESS',
+                  source: 'manual-url-injection',
+                  cacheHit: false
+                }
+              });
+            } else {
+              console.log(`❌ Manual URL not accessible: ${manualUrl}`);
+            }
+          } catch (error) {
+            console.log(`❌ Error verifying manual URL: ${error}`);
+          }
+        }
       }
 
       if (!targetRecord) {
