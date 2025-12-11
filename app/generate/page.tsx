@@ -18,6 +18,7 @@ export default function GeneratePage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -271,9 +272,16 @@ export default function GeneratePage() {
   const pollImageStatus = useCallback(async (startTime = Date.now(), taskId = null, provider = 'kie') => {
     try {
       if (taskId) {
-        console.log(`🔍 Polling for image status (${provider})...`);
+        const elapsed = Date.now() - startTime;
+        const elapsedSeconds = Math.round(elapsed / 1000);
+        const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+        const remainingSeconds = elapsedSeconds % 60;
+
+        const timeStr = elapsedMinutes > 0 ? `${elapsedMinutes}:${remainingSeconds.toString().padStart(2, '0')}` : `${elapsedSeconds}s`;
+        setGenerationProgress(`Generating... ${timeStr} elapsed`);
+        console.log(`🔍 Polling for image status (${provider})... ${timeStr} elapsed`);
         const pollResponse = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
-        
+
         if (pollResponse.ok) {
           const pollData = await pollResponse.json();
           console.log('📊 Image poll response:', pollData);
@@ -336,6 +344,7 @@ export default function GeneratePage() {
             setBase64Image(imageUrl);
             setImageUrl(imageUrl);
             setIsGenerating(false);
+            setGenerationProgress('');
             // Save to assets automatically
             saveImageToAssets(imageUrl, textPrompt, 'text-to-image');
             // Redirect to Assets page to show the new image
@@ -350,6 +359,7 @@ export default function GeneratePage() {
             console.error('❌ Image generation failed:', pollData.error || pollData.data?.errorMessage);
             alert('Image generation failed: ' + (pollData.error || pollData.data?.errorMessage || 'Unknown error'));
             setIsGenerating(false);
+            setGenerationProgress('');
             return;
           }
         }
@@ -383,14 +393,16 @@ export default function GeneratePage() {
               setBase64Image(finalImageUrl);
               setImageUrl(finalImageUrl);
               setIsGenerating(false);
+              setGenerationProgress('');
               // Save to assets
               saveImageToAssets(finalImageUrl, textPrompt, 'text-to-image');
               return;
             }
           }
         }
-        
+
         setIsGenerating(false);
+        setGenerationProgress('');
         const message = `Image generation timed out after ${maxMinutes} minutes.\n\n` +
           `Task ID: ${taskId}\n\n` +
           `The image might still be processing. Please:\n` +
@@ -403,6 +415,7 @@ export default function GeneratePage() {
     } catch (error) {
       console.error('Image polling error:', error);
       setIsGenerating(false);
+      setGenerationProgress('');
       alert('Error checking image status. Please try again.');
     }
   }, [saveImageToAssets, textPrompt, router]);
@@ -415,6 +428,7 @@ export default function GeneratePage() {
     }
 
     setIsGenerating(true);
+    setGenerationProgress('Starting generation...');
     try {
       const response = await fetch('/api/generate-text-image', {
         method: 'POST',
@@ -645,6 +659,9 @@ export default function GeneratePage() {
                       <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
                         <div className="animate-spin rounded-full w-8 h-8 border-t-2 border-b-2 border-green-600 mx-auto mb-2"></div>
                         <p className="text-white text-sm font-semibold">Generating your image...</p>
+                        {generationProgress && (
+                          <p className="text-white/70 text-xs mt-1">{generationProgress}</p>
+                        )}
                       </div>
                     )}
                   </>
