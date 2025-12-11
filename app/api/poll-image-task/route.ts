@@ -82,10 +82,16 @@ export async function GET(request: NextRequest) {
 
     console.log(`📸 Using Golden Endpoint for task ${taskId}`);
 
+    // Try Golden Endpoint with appropriate authentication
+    // The /client/v1/ endpoint might need a user token instead of API key
+    const authToken = process.env.KIE_USER_TOKEN || process.env.GROK_API_KEY;
+
+    console.log(`🔐 Using ${process.env.KIE_USER_TOKEN ? 'user token' : 'API key'} for Golden Endpoint`);
+
     const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+        'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -96,7 +102,17 @@ export async function GET(request: NextRequest) {
 
     if (historyResponse.ok) {
       const historyData = await historyResponse.json();
-      console.log('✅ Golden Endpoint response:', JSON.stringify(historyData, null, 2));
+      console.log('✅ Golden Endpoint response received');
+      console.log('📊 Response structure:', {
+        hasData: !!historyData.data,
+        recordsCount: historyData.data?.records?.length || 0,
+        records: historyData.data?.records?.map((r: any) => ({
+          taskId: r.taskId,
+          successFlag: r.successFlag,
+          status: r.status,
+          hasResultJson: !!r.resultJson
+        })) || []
+      });
 
       const records = historyData.data?.records || [];
 
@@ -224,7 +240,187 @@ export async function GET(request: NextRequest) {
       console.error('❌ Golden Endpoint failed:', historyResponse.status);
     }
 
-    // If Golden Endpoint fails or task not found, return processing status
+    // If Golden Endpoint fails completely, try the old polling method as fallback
+    console.log('⚠️ Golden Endpoint failed, falling back to old polling method...');
+
+    // FALLBACK: Use the old record-info endpoint
+    const statusUrl = `https://api.kie.ai/api/v1/gpt4o-image/record-info?taskId=${taskId}`;
+
+    console.log(`📸 Fallback: Using old polling for task ${taskId}`);
+
+    const statusResponse = await fetch(statusUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (statusResponse.ok) {
+      let statusData = await statusResponse.json();
+      console.log('✅ Old polling response:', JSON.stringify(statusData, null, 2));
+
+      // Handle Kie.ai API wrapper response
+      if (statusData.code && statusData.code !== 200) {
+        console.log(`⚠️ Old polling returned code ${statusData.code}`);
+        return NextResponse.json(statusData);
+      }
+
+      // Extract image URL using the same logic as before
+      let foundImageUrl = null;
+
+      // 1. Check data.response field (might be JSON string, array, or object with result_urls)
+      if (statusData.data?.response && statusData.data.response !== null) {
+        console.log('🔍 Checking data.response field:', typeof statusData.data.response, 'value:', statusData.data.response);
+        try {
+          let response = statusData.data.response;
+
+          // Handle array format like ["https://..."]
+          if (Array.isArray(response) && response.length > 0) {
+            if (typeof response[0] === 'string' && response[0].startsWith('http')) {
+              foundImageUrl = response[0];
+              console.log('✅ Found image URL in response array:', foundImageUrl);
+            }
+          }
+          // Handle JSON string that needs parsing
+          else if (typeof response === 'string') {
+            // Check if it's already a URL
+            if (response.startsWith('http')) {
+              foundImageUrl = response;
+              console.log('✅ Found image URL as direct string:', foundImageUrl);
+            } else {
+              // Try to parse as JSON
+              try {
+                response = JSON.parse(response);
+                console.log('📦 Parsed response object:', JSON.stringify(response, null, 2));
+              } catch (parseError) {
+                console.error('Failed to parse response as JSON:', parseError);
+              }
+            }
+          }
+
+          // If response is now an object, extract URL from it
+          if (!foundImageUrl && typeof response === 'object' && response !== null && !Array.isArray(response)) {
+            // Check for result_urls (standard Kie.ai 4o Image response format)
+            if (response.result_urls && Array.isArray(response.result_urls) && response.result_urls.length > 0) {
+              foundImageUrl = response.result_urls[0];
+              console.log('✅ Found image URL in response.result_urls:', foundImageUrl);
+            }
+            // Check for url field in response object
+            else if (response.url && typeof response.url === 'string' && response.url.startsWith('http')) {
+              foundImageUrl = response.url;
+              console.log('✅ Found image URL in response.url:', foundImageUrl);
+            }
+          }
+
+        } catch (e) {
+          console.error('Failed to parse response field:', e);
+        }
+      }
+
+      // Determine status and return result
+      let finalStatus = 'processing';
+      let successFlag = 0;
+
+      if (statusData.data?.successFlag !== undefined) {
+        const flag = statusData.data.successFlag;
+        const completeTime = statusData.data.completeTime;
+        const statusField = statusData.data.status;
+        console.log(`🏁 Success flag: ${flag}, Complete time: ${completeTime}, Status: ${statusField}`);
+
+        // Check if completed based on multiple indicators
+        let isCompleted = flag === 1 ||
+                         (statusField && statusField.toUpperCase() === 'SUCCESS') ||
+                         foundImageUrl; // If we found URL, consider it completed
+
+        // Special case: if completeTime exists, assume completed (Kie.ai API lag)
+        const hasCompleteTime = completeTime && completeTime !== null;
+        if (hasCompleteTime) {
+          console.log('🎯 CompleteTime detected - treating as completed despite successFlag');
+          isCompleted = true;
+        }
+
+        // Emergency fallback: if we've been polling for > 30 seconds, assume it might be ready
+        const taskAge = Date.now() - (completeTime || (Date.now() - 30000)); // Assume started 30s ago if no completeTime
+        const isOldTask = taskAge > 30000; // 30 seconds
+        if (isOldTask && !isCompleted && !foundImageUrl) {
+          console.log('🚨 Emergency override: Task is 30s+ old - triggering aggressive URL search');
+          // Don't set isCompleted yet, but the aggressive URL search above will handle it
+        }
+
+        if (isCompleted) {
+          finalStatus = 'completed';
+          successFlag = 1;
+          console.log('✅ Generation completed (based on flag/completeTime/status/URL)');
+
+          // If we found an image URL, update cache
+          if (foundImageUrl) {
+            console.log('💾 Updating cache with found URL');
+            storeCallbackResult({
+              taskId,
+              status: 'SUCCESS',
+              resultUrls: [foundImageUrl],
+            });
+          }
+        } else if (flag === 0 && !completeTime) {
+          finalStatus = 'processing';
+          successFlag = 0;
+          console.log('⏳ Still processing...');
+        } else if (flag === 2 || flag === 3) {
+          finalStatus = 'failed';
+          successFlag = flag;
+          console.log('❌ Generation failed');
+        }
+      }
+
+      // If we found an image URL, always mark as completed (most important check)
+      if (foundImageUrl) {
+        finalStatus = 'completed';
+        successFlag = 1;
+        statusData.imageUrl = foundImageUrl;
+        statusData.status = 'completed';
+        console.log('✅ Image generation completed with URL:', foundImageUrl);
+
+        // Update cache
+        storeCallbackResult({
+          taskId,
+          status: 'SUCCESS',
+          resultUrls: [foundImageUrl],
+        });
+      }
+
+      // Return the response
+      const response = {
+        code: 200,
+        msg: 'success',
+        imageUrl: foundImageUrl,
+        status: finalStatus,
+        data: {
+          taskId,
+          resultUrls: foundImageUrl ? [foundImageUrl] : null,
+          successFlag,
+          status: finalStatus.toUpperCase(),
+          source: 'fallback-old-polling',
+          cacheHit: cachedResult ? true : false
+        }
+      };
+
+      // Add debug info if requested
+      if (debug) {
+        response.debug = {
+          rawKieResponse: statusData,
+          foundImageUrl,
+          finalStatus,
+          hasCompleteTime: !!statusData.data?.completeTime,
+          taskAge: Date.now() - (statusData.data?.completeTime || Date.now()),
+          aggressiveFallbackTriggered: (Date.now() - (statusData.data?.completeTime || (Date.now() - 30000))) > 30000
+        };
+      }
+
+      return NextResponse.json(response);
+    }
+
+    // If both methods fail, return processing status
     return NextResponse.json({
       code: 200,
       msg: 'processing',
@@ -235,7 +431,7 @@ export async function GET(request: NextRequest) {
         resultUrls: null,
         successFlag: 0,
         status: 'PROCESSING',
-        source: 'golden-endpoint-processing',
+        source: 'all-methods-failed',
         cacheHit: false
       }
     });

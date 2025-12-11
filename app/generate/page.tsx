@@ -355,10 +355,10 @@ export default function GeneratePage() {
         }
       }
 
-      // Continue polling if not ready (max 10 minutes for Kie.ai images - they're slow!)
+      // Continue polling if not ready (max 5 minutes for Kie.ai text-to-image - takes ~3 minutes)
       const elapsed = Date.now() - startTime;
       const elapsedMinutes = Math.round(elapsed / (60 * 1000));
-      const maxMinutes = provider === 'replicate' ? 5 : 10; // Kie.ai needs more time
+      const maxMinutes = provider === 'replicate' ? 5 : 5; // Kie.ai text-to-image takes ~3 minutes
       
       console.log(`⏳ Polling image (${provider})... ${elapsedMinutes}/${maxMinutes} minutes elapsed`);
 
