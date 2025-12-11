@@ -228,6 +228,67 @@ export async function GET(request: NextRequest) {
         }
 
         console.log(`❌ No valid URLs found for task ${taskId}`);
+
+        // As final fallback, try to get the image directly from Kie.ai's record-info endpoint
+        console.log(`🔄 Trying direct Kie.ai record-info API as final fallback...`);
+        try {
+          const recordResponse = await fetch(`https://api.kie.ai/api/v1/gpt4o-image/record-info?taskId=${taskId}`, {
+            headers: {
+              'Authorization': authToken,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (recordResponse.ok) {
+            const recordData = await recordResponse.json();
+            console.log('📋 Record-info response:', JSON.stringify(recordData, null, 2));
+
+            if (recordData.code === 200 && recordData.data) {
+              const record = recordData.data;
+
+              // Check if task is completed
+              if (record.successFlag === 1 && record.response) {
+                try {
+                  const responseData = typeof record.response === 'string' ?
+                    JSON.parse(record.response) : record.response;
+
+                  if (responseData.result_urls && responseData.result_urls.length > 0) {
+                    const imageUrl = responseData.result_urls[0];
+                    console.log(`✅ Found image via record-info: ${imageUrl}`);
+
+                    // Store and return success
+                    storeCallbackResult({
+                      taskId,
+                      status: 'SUCCESS',
+                      resultUrls: [imageUrl],
+                    });
+
+                    return NextResponse.json({
+                      code: 200,
+                      msg: 'success',
+                      imageUrl: imageUrl,
+                      status: 'completed',
+                      data: {
+                        taskId,
+                        resultUrls: [imageUrl],
+                        successFlag: 1,
+                        status: 'SUCCESS',
+                        source: 'record-info-fallback',
+                        cacheHit: false
+                      }
+                    });
+                  }
+                } catch (parseError) {
+                  console.log('❌ Error parsing record-info response');
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.log('❌ Record-info API failed:', error);
+        }
+
+        console.log(`💔 All fallback methods failed for task ${taskId}`);
       }
 
       if (!targetRecord) {
