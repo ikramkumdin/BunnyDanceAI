@@ -278,8 +278,13 @@ export default function GeneratePage() {
         const remainingSeconds = elapsedSeconds % 60;
 
         const timeStr = elapsedMinutes > 0 ? `${elapsedMinutes}:${remainingSeconds.toString().padStart(2, '0')}` : `${elapsedSeconds}s`;
-        setGenerationProgress(`Generating... ${timeStr} elapsed`);
-        console.log(`🔍 Polling for image status (${provider})... ${timeStr} elapsed`);
+        const phase = elapsed < 1 * 60 * 1000 ? 'frequent checks' :
+                     elapsed < 3 * 60 * 1000 ? 'regular polling' : 'slow polling';
+        const statusMsg = elapsed < 2 * 60 * 1000 ?
+          `Generating... ${timeStr} elapsed (${phase})` :
+          `Still generating... ${timeStr} elapsed. If Kie.ai dashboard shows complete, API usually catches up in 1-2 min`;
+        setGenerationProgress(statusMsg);
+        console.log(`🔍 Polling for image status (${provider})... ${timeStr} elapsed - ${phase}`);
 
         // Call the polling endpoint twice with a small delay for robustness
         let pollResponse;
@@ -382,8 +387,15 @@ export default function GeneratePage() {
       console.log(`⏳ Polling image (${provider})... ${elapsedMinutes}/${maxMinutes} minutes elapsed`);
 
       if (elapsed < maxMinutes * 60 * 1000) {
-        // Poll every 8 seconds for first 2 minutes, then every 15 seconds (more relaxed)
-        const pollInterval = elapsed < 2 * 60 * 1000 ? 8000 : 15000;
+        // Poll aggressively early, then relax: 5s for first minute, 8s for next 2, 15s after
+        let pollInterval;
+        if (elapsed < 1 * 60 * 1000) {
+          pollInterval = 5000; // Every 5 seconds for first minute (aggressive for API lag)
+        } else if (elapsed < 3 * 60 * 1000) {
+          pollInterval = 8000; // Every 8 seconds for minutes 1-3
+        } else {
+          pollInterval = 15000; // Every 15 seconds after 3 minutes (relaxed)
+        }
         setTimeout(() => pollImageStatus(startTime, taskId, provider), pollInterval);
       } else {
         console.log(`⏰ Image generation timeout after ${maxMinutes} minutes`);
