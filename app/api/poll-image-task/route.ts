@@ -88,6 +88,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔐 Using ${process.env.KIE_USER_TOKEN ? 'user token' : 'API key'} for Golden Endpoint`);
     console.log(`🔑 Auth token: ${authToken?.substring(0, 10)}...`);
+    console.log('🚀 ATTEMPTING GOLDEN ENDPOINT CALL...');
 
     const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
       method: 'POST',
@@ -107,6 +108,8 @@ export async function GET(request: NextRequest) {
         pageSize: 20 // Check last 20 images
       })
     });
+
+    console.log(`📡 Golden Endpoint response status: ${historyResponse.status}`);
 
     if (historyResponse.ok) {
       const historyData = await historyResponse.json();
@@ -246,6 +249,7 @@ export async function GET(request: NextRequest) {
       console.log('⏳ Task not found in recent history, will retry...');
     } else {
       console.error('❌ Golden Endpoint failed:', historyResponse.status);
+      console.error('❌ Falling back to old polling method');
     }
 
     // If Golden Endpoint fails completely, try the old polling method as fallback
