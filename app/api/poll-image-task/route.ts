@@ -182,6 +182,13 @@ export async function GET(request: NextRequest) {
       // Find our specific task
       let targetRecord = records.find((r: any) => r.taskId === taskId);
 
+      if (targetRecord) {
+        // Log full record structure for debugging
+        console.log(`🎯 Found task ${taskId}! Full record structure:`, JSON.stringify(targetRecord, null, 2));
+        console.log(`📋 Record fields:`, Object.keys(targetRecord));
+        console.log(`📊 successFlag: ${targetRecord.successFlag}, resultJson: ${targetRecord.resultJson ? 'exists' : 'null'}, response: ${targetRecord.response ? 'exists' : 'null'}`);
+      }
+
       if (!targetRecord) {
         console.log(`❌ Task ${taskId} not found after ${records.length} records, trying record-info fallback...`);
 
@@ -357,42 +364,89 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Parse resultJson for successful tasks
-      if (targetRecord.successFlag === 1 && targetRecord.resultJson) {
+      // Check if task has completeTime (indicates completion even if successFlag is 0)
+      const hasCompleteTime = targetRecord.completeTime || targetRecord.completedAt;
+      const isActuallyComplete = targetRecord.successFlag === 1 || hasCompleteTime;
+
+      // Try to extract image URL from multiple possible locations
+      let foundImageUrl = null;
+
+      // 1. Check resultJson (primary location)
+      if (targetRecord.resultJson) {
         try {
           console.log('📦 Raw resultJson:', targetRecord.resultJson);
           const parsedResult = JSON.parse(targetRecord.resultJson);
           console.log('📦 Parsed resultJson:', JSON.stringify(parsedResult, null, 2));
 
+          // Try multiple paths in the parsed result
           if (parsedResult.data?.result_urls && Array.isArray(parsedResult.data.result_urls) && parsedResult.data.result_urls.length > 0) {
-            const imageUrl = parsedResult.data.result_urls[0];
-            console.log('✅ SUCCESS! Found image URL:', imageUrl);
-
-            // Update cache for future reference
-            storeCallbackResult({
-              taskId,
-              status: 'SUCCESS',
-              resultUrls: [imageUrl],
-            });
-
-            return NextResponse.json({
-              code: 200,
-              msg: 'success',
-              imageUrl: imageUrl,
-              status: 'completed',
-              data: {
-                taskId,
-                resultUrls: [imageUrl],
-                successFlag: 1,
-                status: 'SUCCESS',
-                source: 'golden-endpoint-success',
-                cacheHit: false
-              }
-            });
+            foundImageUrl = parsedResult.data.result_urls[0];
+          } else if (parsedResult.result_urls && Array.isArray(parsedResult.result_urls) && parsedResult.result_urls.length > 0) {
+            foundImageUrl = parsedResult.result_urls[0];
+          } else if (parsedResult.url) {
+            foundImageUrl = parsedResult.url;
           }
         } catch (parseError) {
           console.error('❌ Error parsing resultJson:', parseError);
         }
+      }
+
+      // 2. Check response field (alternative location)
+      if (!foundImageUrl && targetRecord.response) {
+        try {
+          console.log('📦 Checking response field:', typeof targetRecord.response);
+          let responseData = targetRecord.response;
+          
+          // Parse if it's a string
+          if (typeof responseData === 'string') {
+            responseData = JSON.parse(responseData);
+          }
+
+          // Try multiple paths
+          if (responseData.data?.result_urls && Array.isArray(responseData.data.result_urls) && responseData.data.result_urls.length > 0) {
+            foundImageUrl = responseData.data.result_urls[0];
+          } else if (responseData.result_urls && Array.isArray(responseData.result_urls) && responseData.result_urls.length > 0) {
+            foundImageUrl = responseData.result_urls[0];
+          } else if (responseData.url) {
+            foundImageUrl = responseData.url;
+          } else if (typeof responseData === 'string' && responseData.startsWith('http')) {
+            foundImageUrl = responseData;
+          }
+        } catch (parseError) {
+          console.error('❌ Error parsing response field:', parseError);
+        }
+      }
+
+      // 3. If we found an image URL, return success
+      if (foundImageUrl) {
+        console.log('✅ SUCCESS! Found image URL:', foundImageUrl);
+
+        // Update cache for future reference
+        storeCallbackResult({
+          taskId,
+          status: 'SUCCESS',
+          resultUrls: [foundImageUrl],
+        });
+
+        return NextResponse.json({
+          code: 200,
+          msg: 'success',
+          imageUrl: foundImageUrl,
+          status: 'completed',
+          data: {
+            taskId,
+            resultUrls: [foundImageUrl],
+            successFlag: isActuallyComplete ? 1 : 0,
+            status: 'SUCCESS',
+            source: 'golden-endpoint-success',
+            cacheHit: false
+          }
+        });
+      }
+
+      // 4. If task has completeTime but no URL found, it might be completed but URL not yet populated
+      if (hasCompleteTime && !foundImageUrl) {
+        console.log('⚠️ Task has completeTime but no image URL found yet. This might indicate completion with delayed URL population.');
       }
 
       // Handle failed tasks
