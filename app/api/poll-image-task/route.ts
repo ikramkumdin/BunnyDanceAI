@@ -156,6 +156,57 @@ export async function GET(request: NextRequest) {
 
       console.log(`🎯 Found task: Status ${targetRecord.successFlag}, hasResultJson: ${!!targetRecord.resultJson}`);
 
+      // Check if task is stuck (created more than 10 minutes ago but still processing)
+      const now = Date.now();
+      const createdTime = targetRecord.createTime || targetRecord.createdAt;
+      let isStuckTask = false;
+      if (createdTime) {
+        const taskAge = now - new Date(createdTime).getTime();
+        const tenMinutes = 10 * 60 * 1000;
+        if (taskAge > tenMinutes && targetRecord.successFlag === 0) {
+          console.log(`⚠️ Task is ${Math.round(taskAge / 60000)} minutes old and still processing - might be stuck`);
+          isStuckTask = true;
+
+          // For stuck tasks, try to fetch the image URL directly using a pattern
+          console.log('🔍 Attempting to fetch stuck task image URL...');
+          const possibleUrl = `https://tempfile.aiquickdraw.com/s/${taskId}_0_${Math.floor(Date.now() / 1000)}.png`;
+
+          try {
+            // Try HEAD request to check if URL exists
+            const headResponse = await fetch(possibleUrl, { method: 'HEAD' });
+            if (headResponse.ok) {
+              console.log('✅ Found image URL for stuck task:', possibleUrl);
+
+              // Update cache and return success
+              storeCallbackResult({
+                taskId,
+                status: 'SUCCESS',
+                resultUrls: [possibleUrl],
+              });
+
+              return NextResponse.json({
+                code: 200,
+                msg: 'success',
+                imageUrl: possibleUrl,
+                status: 'completed',
+                data: {
+                  taskId,
+                  resultUrls: [possibleUrl],
+                  successFlag: 1,
+                  status: 'SUCCESS',
+                  source: 'stuck-task-recovery',
+                  cacheHit: false
+                }
+              });
+            } else {
+              console.log('❌ URL does not exist:', possibleUrl);
+            }
+          } catch (error) {
+            console.log('❌ Error checking stuck task URL:', error);
+          }
+        }
+      }
+
       // Parse resultJson for successful tasks
       if (targetRecord.successFlag === 1 && targetRecord.resultJson) {
         try {
