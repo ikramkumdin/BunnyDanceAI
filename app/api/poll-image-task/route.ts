@@ -19,8 +19,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Emergency manual completion for stuck tasks
-    if (forceComplete) {
+  // Emergency manual completion for stuck tasks
+  if (forceComplete) {
+    console.log(`🚨 EMERGENCY: Force completing task ${taskId}`);
       console.log(`🚨 EMERGENCY: Force completing task ${taskId}`);
 
       // Try to fetch the URL directly
@@ -81,57 +82,90 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔐 Using ${process.env.KIE_USER_TOKEN ? 'user token' : 'API key'} for Golden Endpoint`);
     console.log(`🔑 Auth token: ${authToken?.substring(0, 10)}...`);
-    console.log('🚀 CALLING GOLDEN ENDPOINT (pageSize: 50)...');
+    // Fetch all pages to ensure we don't miss any tasks
+    let allRecords = [];
+    let totalRecords = 0;
+    let currentPage = 1;
+    const maxPages = 5; // Don't fetch more than 5 pages to avoid infinite loops
 
     try {
-      const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
-        method: 'POST',
-        headers: {
-          'Authorization': authToken, // Raw token without "Bearer" prefix
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/plain, */*',
-          'Origin': 'https://kie.ai',
-          'Referer': 'https://kie.ai/',
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'sec-fetch-dest': 'empty',
-          'sec-fetch-mode': 'cors',
-          'sec-fetch-site': 'same-site',
-        },
-        body: JSON.stringify({
-          pageNum: 1,
-          pageSize: 50 // Check last 50 images to ensure we don't miss any
-        })
-      });
+      while (currentPage <= maxPages) {
+        console.log(`🚀 CALLING GOLDEN ENDPOINT page ${currentPage} (pageSize: 100)...`);
 
-      console.log(`📡 Golden Endpoint response status: ${historyResponse.status}`);
-
-      if (!historyResponse.ok) {
-        const errorText = await historyResponse.text();
-        console.error('❌ Golden Endpoint failed:', historyResponse.status, errorText);
-        return NextResponse.json({
-          code: 500,
-          msg: 'Golden Endpoint failed',
-          imageUrl: null,
-          status: 'error',
-          data: {
-            taskId,
-            resultUrls: null,
-            successFlag: 0,
-            status: 'ERROR',
-            error: `HTTP ${historyResponse.status}: ${errorText}`,
-            source: 'golden-endpoint-error',
-            cacheHit: false
-          }
+        const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
+          method: 'POST',
+          headers: {
+            'Authorization': authToken, // Raw token without "Bearer" prefix
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/plain, */*',
+            'Origin': 'https://kie.ai',
+            'Referer': 'https://kie.ai/',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+          },
+          body: JSON.stringify({
+            pageNum: currentPage,
+            pageSize: 100 // Check last 100 images per page
+          })
         });
+
+        console.log(`📡 Golden Endpoint page ${currentPage} response status: ${historyResponse.status}`);
+
+        if (!historyResponse.ok) {
+          const errorText = await historyResponse.text();
+          console.error(`❌ Page ${currentPage} failed:`, historyResponse.status, errorText);
+          if (currentPage === 1) {
+            return NextResponse.json({
+              code: 500,
+              msg: 'Golden Endpoint failed',
+              imageUrl: null,
+              status: 'error',
+              data: {
+                taskId,
+                resultUrls: null,
+                successFlag: 0,
+                status: 'ERROR',
+                error: `HTTP ${historyResponse.status}: ${errorText}`,
+                source: 'golden-endpoint-error',
+                cacheHit: false
+              }
+            });
+          }
+          break; // If not first page, just stop pagination
+        }
+
+        const pageData = await historyResponse.json();
+
+        if (currentPage === 1) {
+          console.log('✅ Golden Endpoint response received');
+          if (debug) {
+            console.log('📊 Full response:', JSON.stringify(pageData, null, 2));
+          }
+        }
+
+        const pageRecords = pageData.data?.records || [];
+        const pageTotal = pageData.data?.total || 0;
+
+        if (currentPage === 1) {
+          totalRecords = pageTotal;
+          console.log(`📊 Response structure: total=${totalRecords}, pages=${pageData.data?.pages || 1}`);
+        }
+
+        allRecords = allRecords.concat(pageRecords);
+        console.log(`📄 Page ${currentPage}: ${pageRecords.length} records (total so far: ${allRecords.length})`);
+
+        // Check if we have all records or if this is the last page
+        if (allRecords.length >= totalRecords || pageRecords.length === 0) {
+          break;
+        }
+
+        currentPage++;
       }
 
-      const historyData = await historyResponse.json();
-      console.log('✅ Golden Endpoint response received');
-      console.log('📊 Full response:', JSON.stringify(historyData, null, 2));
-
-      const records = historyData.data?.records || [];
-      const totalRecords = historyData.data?.total || records.length;
-      console.log(`📊 Found ${records.length} records in history (total: ${totalRecords})`);
+      const records = allRecords;
+      console.log(`📊 Found ${records.length} total records across ${currentPage} pages (expected: ${totalRecords})`);
 
       // Find our specific task
       const targetRecord = records.find((r: any) => r.taskId === taskId);
