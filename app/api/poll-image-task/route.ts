@@ -171,7 +171,62 @@ export async function GET(request: NextRequest) {
       console.log(`📊 Found ${records.length} total records across ${currentPage} pages (expected: ${totalRecords})`);
 
       // Find our specific task
-      const targetRecord = records.find((r: any) => r.taskId === taskId);
+      let targetRecord = records.find((r: any) => r.taskId === taskId);
+
+      // If task not found in history, try URL pattern guessing as fallback
+      if (!targetRecord) {
+        console.log(`🔍 Task ${taskId} not found in history, trying URL pattern guessing...`);
+
+        // Try to guess the URL pattern for Kie.ai
+        const now = Date.now();
+        const possibleUrls = [];
+
+        // Try current timestamp and some variations
+        for (let i = 0; i < 10; i++) {
+          const timestamp = now - (i * 1000); // Try last 10 seconds
+          for (let id = 1000; id < 10000; id += 1000) { // Try different ID patterns
+            const url = `https://tempfile.aiquickdraw.com/s/${taskId}_0_${timestamp}_${id}.png`;
+            possibleUrls.push(url);
+          }
+        }
+
+        // Test up to 5 URLs to avoid too many requests
+        for (const url of possibleUrls.slice(0, 5)) {
+          try {
+            console.log(`🔗 Testing URL: ${url}`);
+            const headResponse = await fetch(url, { method: 'HEAD' });
+            if (headResponse.ok) {
+              console.log(`✅ URL exists: ${url}`);
+
+              // Store this as a successful result
+              storeCallbackResult({
+                taskId,
+                status: 'SUCCESS',
+                resultUrls: [url],
+              });
+
+              return NextResponse.json({
+                code: 200,
+                msg: 'success',
+                imageUrl: url,
+                status: 'completed',
+                data: {
+                  taskId,
+                  resultUrls: [url],
+                  successFlag: 1,
+                  status: 'SUCCESS',
+                  source: 'url-pattern-guessing',
+                  cacheHit: false
+                }
+              });
+            }
+          } catch (error) {
+            // Continue to next URL
+          }
+        }
+
+        console.log(`❌ No valid URLs found for task ${taskId}`);
+      }
 
       if (!targetRecord) {
         console.log(`❌ Task ${taskId} not found in history`);
