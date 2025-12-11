@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔐 Using ${process.env.KIE_USER_TOKEN ? 'user token' : 'API key'} for Golden Endpoint`);
     console.log(`🔑 Auth token: ${authToken?.substring(0, 10)}...`);
-    console.log('🚀 CALLING GOLDEN ENDPOINT...');
+    console.log('🚀 CALLING GOLDEN ENDPOINT (pageSize: 50)...');
 
     try {
       const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         },
         body: JSON.stringify({
           pageNum: 1,
-          pageSize: 20 // Check last 20 images
+          pageSize: 50 // Check last 50 images to ensure we don't miss any
         })
       });
 
@@ -130,7 +130,8 @@ export async function GET(request: NextRequest) {
       console.log('📊 Full response:', JSON.stringify(historyData, null, 2));
 
       const records = historyData.data?.records || [];
-      console.log(`📊 Found ${records.length} records in history`);
+      const totalRecords = historyData.data?.total || records.length;
+      console.log(`📊 Found ${records.length} records in history (total: ${totalRecords})`);
 
       // Find our specific task
       const targetRecord = records.find((r: any) => r.taskId === taskId);
