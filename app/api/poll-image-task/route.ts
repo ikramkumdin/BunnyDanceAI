@@ -83,14 +83,16 @@ export async function GET(request: NextRequest) {
     console.log(`🔐 Using ${process.env.KIE_USER_TOKEN ? 'user token' : 'API key'} for Golden Endpoint`);
     console.log(`🔑 Auth token: ${authToken?.substring(0, 10)}...`);
     // Fetch all pages to ensure we don't miss any tasks
-    let allRecords = [];
+    const PAGE_SIZE = 10; // Kie.ai API appears to cap at 10
+    let allRecords: any[] = [];
     let totalRecords = 0;
     let currentPage = 1;
-    let maxPages = 5; // Don't fetch more than 5 pages to avoid infinite loops
+    let totalPages = 1;
+    let maxPages = 10; // safety cap to avoid infinite loops
 
     try {
       while (currentPage <= maxPages) {
-        console.log(`🚀 CALLING GOLDEN ENDPOINT page ${currentPage} (pageSize: 20 - testing limit)...`);
+        console.log(`🚀 CALLING GOLDEN ENDPOINT page ${currentPage} (pageSize: ${PAGE_SIZE})...`);
 
         const historyResponse = await fetch('https://api.kie.ai/client/v1/userRecord/gpt4o-image/page', {
           method: 'POST',
@@ -107,7 +109,7 @@ export async function GET(request: NextRequest) {
           },
           body: JSON.stringify({
             pageNum: currentPage,
-            pageSize: 20 // Try 20 per page to see if API accepts it, fallback to pagination
+            pageSize: PAGE_SIZE
           })
         });
 
@@ -147,13 +149,14 @@ export async function GET(request: NextRequest) {
 
         const pageRecords = pageData.data?.records || [];
         const pageTotal = pageData.data?.total || 0;
+          const pageCount = pageData.data?.pages || Math.max(1, Math.ceil(pageTotal / PAGE_SIZE));
 
         if (currentPage === 1) {
           totalRecords = pageTotal;
-          const totalPages = pageData.data?.pages || 1;
+          totalPages = pageCount;
           console.log(`📊 Response structure: total=${totalRecords}, pages=${totalPages}`);
-          // Update maxPages based on API response
-          maxPages = Math.min(maxPages, totalPages);
+          // Allow as many pages as API reports, capped by maxPages
+          maxPages = Math.max(maxPages, totalPages);
         }
 
         allRecords = allRecords.concat(pageRecords);
@@ -173,61 +176,8 @@ export async function GET(request: NextRequest) {
       // Find our specific task
       let targetRecord = records.find((r: any) => r.taskId === taskId);
 
-      // If task not found in history, try URL pattern guessing as fallback
       if (!targetRecord) {
-        console.log(`🔍 Task ${taskId} not found in history, trying URL pattern guessing...`);
-
-        // Try to guess the URL pattern for Kie.ai
-        const now = Date.now();
-        const possibleUrls = [];
-
-        // Try timestamps from last 5 minutes (image generation can take time)
-        for (let i = 0; i < 60; i++) { // 60 timestamps over 5 minutes
-          const timestamp = now - (i * 5000); // Every 5 seconds
-          // Try various ID numbers that Kie.ai uses
-          const ids = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000];
-          for (const id of ids) {
-            const url = `https://tempfile.aiquickdraw.com/s/${taskId}_0_${timestamp}_${id}.png`;
-            possibleUrls.push(url);
-          }
-        }
-
-        // Test up to 10 URLs to increase chances of finding the right one
-        for (const url of possibleUrls.slice(0, 10)) {
-          try {
-            console.log(`🔗 Testing URL: ${url}`);
-            const headResponse = await fetch(url, { method: 'HEAD' });
-            if (headResponse.ok) {
-              console.log(`✅ URL exists: ${url}`);
-
-              // Store this as a successful result
-              storeCallbackResult({
-                taskId,
-                status: 'SUCCESS',
-                resultUrls: [url],
-              });
-
-              return NextResponse.json({
-                code: 200,
-                msg: 'success',
-                imageUrl: url,
-                status: 'completed',
-                data: {
-                  taskId,
-                  resultUrls: [url],
-                  successFlag: 1,
-                  status: 'SUCCESS',
-                  source: 'url-pattern-guessing',
-                  cacheHit: false
-                }
-              });
-            }
-          } catch (error) {
-            // Continue to next URL
-          }
-        }
-
-        console.log(`❌ No valid URLs found for task ${taskId}`);
+        console.log(`❌ Task ${taskId} not found after ${records.length} records, trying record-info fallback...`);
 
         // As final fallback, try to get the image directly from Kie.ai's record-info endpoint
         console.log(`🔄 Trying direct Kie.ai record-info API as final fallback...`);
