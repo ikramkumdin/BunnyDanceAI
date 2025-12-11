@@ -280,7 +280,16 @@ export default function GeneratePage() {
         const timeStr = elapsedMinutes > 0 ? `${elapsedMinutes}:${remainingSeconds.toString().padStart(2, '0')}` : `${elapsedSeconds}s`;
         setGenerationProgress(`Generating... ${timeStr} elapsed`);
         console.log(`🔍 Polling for image status (${provider})... ${timeStr} elapsed`);
-        const pollResponse = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
+
+        // Call the polling endpoint twice with a small delay for robustness
+        let pollResponse;
+        try {
+          pollResponse = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
+        } catch (firstError) {
+          console.log('⚠️ First poll failed, trying again...');
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+          pollResponse = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
+        }
 
         if (pollResponse.ok) {
           const pollData = await pollResponse.json();
@@ -369,12 +378,12 @@ export default function GeneratePage() {
       const elapsed = Date.now() - startTime;
       const elapsedMinutes = Math.round(elapsed / (60 * 1000));
       const maxMinutes = provider === 'replicate' ? 5 : 5; // Kie.ai text-to-image takes ~3 minutes
-      
+
       console.log(`⏳ Polling image (${provider})... ${elapsedMinutes}/${maxMinutes} minutes elapsed`);
 
-      if (elapsed < maxMinutes * 60 * 1000) { 
-        // Poll every 5 seconds for first 2 minutes, then every 10 seconds
-        const pollInterval = elapsed < 2 * 60 * 1000 ? 5000 : 10000;
+      if (elapsed < maxMinutes * 60 * 1000) {
+        // Poll every 8 seconds for first 2 minutes, then every 15 seconds (more relaxed)
+        const pollInterval = elapsed < 2 * 60 * 1000 ? 8000 : 15000;
         setTimeout(() => pollImageStatus(startTime, taskId, provider), pollInterval);
       } else {
         console.log(`⏰ Image generation timeout after ${maxMinutes} minutes`);
@@ -458,7 +467,8 @@ export default function GeneratePage() {
           // Async generation - start polling
           const provider = data.provider || 'kie';
           console.log(`🎨 Started image generation with ${provider}, polling for completion...`);
-          pollImageStatus(Date.now(), data.taskId, provider);
+          // Wait 3 seconds before starting polling to let Kie.ai register the task
+          setTimeout(() => pollImageStatus(Date.now(), data.taskId, provider), 3000);
         } else {
           alert('Generation started but no task ID received.');
           setIsGenerating(false);
