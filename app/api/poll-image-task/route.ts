@@ -181,17 +181,19 @@ export async function GET(request: NextRequest) {
         const now = Date.now();
         const possibleUrls = [];
 
-        // Try current timestamp and some variations
-        for (let i = 0; i < 10; i++) {
-          const timestamp = now - (i * 1000); // Try last 10 seconds
-          for (let id = 1000; id < 10000; id += 1000) { // Try different ID patterns
+        // Try timestamps from last 5 minutes (image generation can take time)
+        for (let i = 0; i < 60; i++) { // 60 timestamps over 5 minutes
+          const timestamp = now - (i * 5000); // Every 5 seconds
+          // Try various ID numbers that Kie.ai uses
+          const ids = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000];
+          for (const id of ids) {
             const url = `https://tempfile.aiquickdraw.com/s/${taskId}_0_${timestamp}_${id}.png`;
             possibleUrls.push(url);
           }
         }
 
-        // Test up to 5 URLs to avoid too many requests
-        for (const url of possibleUrls.slice(0, 5)) {
+        // Test up to 10 URLs to increase chances of finding the right one
+        for (const url of possibleUrls.slice(0, 10)) {
           try {
             console.log(`🔗 Testing URL: ${url}`);
             const headResponse = await fetch(url, { method: 'HEAD' });
