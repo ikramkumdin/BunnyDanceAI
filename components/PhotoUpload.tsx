@@ -18,6 +18,72 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
   const { uploadedImage, setUploadedImage } = useStore();
   const { user } = useUser();
 
+  async function fileToDataUrl(f: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = () => reject(r.error || new Error('Failed to read file'));
+      r.readAsDataURL(f);
+    });
+  }
+
+  /**
+   * Kie.ai rejects very large images ("Images size exceeds limit").
+   * To make uploads reliable, we downscale + JPEG-compress in the browser before uploading to GCS.
+   */
+  async function preprocessImageForUpload(original: File): Promise<File> {
+    // Only preprocess images.
+    if (!original.type.startsWith('image/')) return original;
+
+    // If already reasonably small, keep as-is.
+    const MAX_DIM = 1280;
+    const SMALL_FILE_BYTES = 1_500_000; // ~1.5MB
+    if (original.size <= SMALL_FILE_BYTES && (original.type === 'image/jpeg' || original.type === 'image/webp')) {
+      return original;
+    }
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      const url = URL.createObjectURL(original);
+      el.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(el);
+      };
+      el.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to decode image'));
+      };
+      el.src = url;
+    });
+
+    const w = img.naturalWidth || (img as any).width;
+    const h = img.naturalHeight || (img as any).height;
+    if (!w || !h) return original;
+
+    const scale = Math.min(1, MAX_DIM / Math.max(w, h));
+    const outW = Math.max(1, Math.round(w * scale));
+    const outH = Math.max(1, Math.round(h * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return original;
+
+    ctx.drawImage(img, 0, 0, outW, outH);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('Failed to encode image'))),
+        'image/jpeg',
+        0.82
+      );
+    });
+
+    const newName = original.name.replace(/\.[^.]+$/, '') + '.jpg';
+    return new File([blob], newName, { type: 'image/jpeg' });
+  }
+
   // Restore preview from store if it exists
   useEffect(() => {
     if (uploadedImage) {
@@ -29,17 +95,22 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
     const file = acceptedFiles[0];
     if (!file || !user) return;
 
-    // Show preview immediately and get base64
-    const reader = new FileReader();
-    const base64Promise = new Promise<string>((resolve) => {
-      reader.onload = () => {
-        const result = reader.result as string;
-        setPreview(result); // Show base64 immediately
-        setBase64Fallback(result); // Keep base64 as fallback
-        resolve(result);
-      };
+    // Preprocess (downscale/compress) to avoid Kie.ai "Images size exceeds limit"
+    // and to reduce upload size.
+    let uploadFile: File = file;
+    try {
+      uploadFile = await preprocessImageForUpload(file);
+    } catch (e) {
+      console.warn('Image preprocess failed, using original file:', e);
+      uploadFile = file;
+    }
+
+    // Show preview immediately and get base64 (use processed file so preview matches what we upload)
+    const base64Promise = fileToDataUrl(uploadFile).then((result) => {
+      setPreview(result); // Show base64 immediately
+      setBase64Fallback(result); // Keep base64 as fallback
+      return result;
     });
-    reader.readAsDataURL(file);
 
     // Upload to GCS (preferred): signed URL + direct PUT from browser.
     // This avoids Vercel serverless body limits (413 FUNCTION_PAYLOAD_TOO_LARGE).
@@ -53,8 +124,8 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
-          contentType: file.type,
-          fileName: file.name,
+          contentType: uploadFile.type,
+          fileName: uploadFile.name,
           folder: 'images',
         }),
       });
@@ -71,7 +142,7 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
         console.error('Failed to get signed upload URL:', sigRes.status, sigText);
         // Fallback to legacy /api/upload for small files (may 413 on Vercel for larger images)
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', uploadFile);
         formData.append('userId', user.id);
         const response = await fetch('/api/upload', { method: 'POST', body: formData });
         const rawText = await response.text();
@@ -95,8 +166,8 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
       // 2) PUT file directly to GCS
       const putRes = await fetch(sigData.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
+        headers: { 'Content-Type': uploadFile.type },
+        body: uploadFile,
       });
 
       if (!putRes.ok) {

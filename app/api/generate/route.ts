@@ -487,6 +487,15 @@ export async function POST(request: NextRequest) {
           data = await response.json();
           console.log(`📊 Async response ${i + 1}:`, JSON.stringify(data, null, 2));
 
+          // Kie.ai sometimes returns { code, msg, data } even when HTTP status is 200.
+          // Treat non-200 "code" as a failed attempt and surface common validation errors.
+          if (typeof data?.code === 'number' && data.code !== 200) {
+            const kieMsg = data.msg || data.message || 'Unknown error';
+            console.log(`⚠️ Async request ${i + 1} returned Kie.ai code ${data.code}:`, kieMsg);
+            lastError = `Kie.ai code ${data.code}: ${kieMsg}`;
+            continue;
+          }
+
           if (!response.ok) {
             console.log(`❌ Async request ${i + 1} failed with status ${response.status}`);
             lastError = `Kie.ai API error: ${response.status} - ${JSON.stringify(data)}`;
@@ -534,7 +543,18 @@ export async function POST(request: NextRequest) {
       if (!asyncSuccess) {
         console.error('❌ All async attempts failed');
         console.error('📝 Last error:', lastError);
-        // If we reach here, all retries failed. Throw error to be caught by outer catch
+        // If we reach here, all retries failed. Surface common Kie validation errors clearly.
+        const last = String(lastError || '');
+        if (last.includes('Images size exceeds limit')) {
+          return NextResponse.json(
+            {
+              error: 'Image is too large for Kie.ai (Images size exceeds limit). Please upload a smaller image (we will auto-compress next).',
+              details: lastError,
+            },
+            { status: 422 }
+          );
+        }
+        // Otherwise throw error to be caught by outer catch
         throw new Error(`Failed to get taskId from Kie.ai after trying all formats. Last error: ${lastError}`);
       }
     }
