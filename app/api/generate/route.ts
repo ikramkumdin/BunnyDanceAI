@@ -347,6 +347,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ API key configured, proceeding with generation...');
 
     let taskId: string | undefined;
+    let lastKiePayload: any = null;
 
     // Prefer async mode to avoid serverless timeouts; frontend polls /api/poll-task as fallback
     let requestBody: any = {
@@ -384,7 +385,15 @@ export async function POST(request: NextRequest) {
       console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
 
       data = await response.json();
+      lastKiePayload = data;
       console.log('📊 Sync response:', JSON.stringify(data, null, 2));
+
+      // Kie.ai sometimes returns { code, msg, data } even when HTTP status is 200.
+      // Treat non-200 "code" as an error and allow the async/fallback path to surface details.
+      if (typeof data?.code === 'number' && data.code !== 200) {
+        const kieMsg = data.msg || data.message || 'Unknown error';
+        throw new Error(`Kie.ai code ${data.code}: ${kieMsg}. Full: ${JSON.stringify(data)}`);
+      }
 
       // Check if we got a direct video URL (immediate success)
       const videoUrl = data.videoUrl || data.url || data.result?.videoUrl || data.output?.url || data.data?.videoUrl;
@@ -503,6 +512,7 @@ export async function POST(request: NextRequest) {
           console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
 
           data = await response.json();
+          lastKiePayload = data;
           console.log(`📊 Async response ${i + 1}:`, JSON.stringify(data, null, 2));
 
           // Kie.ai sometimes returns { code, msg, data } even when HTTP status is 200.
@@ -510,7 +520,7 @@ export async function POST(request: NextRequest) {
           if (typeof data?.code === 'number' && data.code !== 200) {
             const kieMsg = data.msg || data.message || 'Unknown error';
             console.log(`⚠️ Async request ${i + 1} returned Kie.ai code ${data.code}:`, kieMsg);
-            lastError = `Kie.ai code ${data.code}: ${kieMsg}`;
+            lastError = `Kie.ai code ${data.code}: ${kieMsg}. Full: ${JSON.stringify(data)}`;
             continue;
           }
 
@@ -569,6 +579,7 @@ export async function POST(request: NextRequest) {
               error:
                 'Kie.ai rejected the reference image (Images size exceeds limit). This is often caused by validation (aspect ratio/resolution) or fetch/access issues, not just bytes. Re-upload and try again (we now auto-crop to 9:16 and upload the reference to Kie).',
               details: lastError,
+              kie: lastKiePayload,
             },
             { status: 422 }
           );
