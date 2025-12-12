@@ -44,7 +44,7 @@ export default function GeneratePage() {
 
   // Save image to assets
   const saveImageToAssets = useCallback(async (imageUrl: string, prompt?: string, source: 'text-to-image' | 'image-to-video' = 'text-to-image'): Promise<boolean> => {
-    if (!user) return;
+    if (!user) return false;
     
     try {
       await saveImage({
