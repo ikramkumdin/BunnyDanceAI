@@ -137,6 +137,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { imageUrl, imageDataUrl, templateId, intensity = 'mild', userId } = body;
 
+    const apiKey = process.env.GROK_API_KEY;
+
     console.log('🚀 API called with templateId:', templateId);
     console.log('📊 Total templates loaded:', templates.length);
     console.log('📋 First few templates:', templates.slice(0, 3).map(t => ({ id: t.id, name: t.name })));
@@ -195,7 +197,7 @@ export async function POST(request: NextRequest) {
 
         const uploadResponse = await fetch('https://api.kie.ai/api/v1/file-upload/upload', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${process.env.GROK_API_KEY}` },
+          headers: { 'Authorization': `Bearer ${apiKey}` },
           body: formData,
         });
 
@@ -217,7 +219,7 @@ export async function POST(request: NextRequest) {
         // If this succeeds, we don't need to make the object public or generate a signed URL.
         try {
           if (typeof imageUrl === 'string' && imageUrl.length > 0) {
-            const kieHostedUrl = await uploadImageToKie(imageUrl, process.env.GROK_API_KEY);
+            const kieHostedUrl = await uploadImageToKie(imageUrl, apiKey);
             accessibleImageUrl = kieHostedUrl;
             console.log('✅ Using Kie-hosted image URL for generation:', accessibleImageUrl);
             // Skip GCS makePublic path
@@ -299,7 +301,7 @@ export async function POST(request: NextRequest) {
     console.log('🎯 Using API URL:', grokApiUrl);
     console.log('🔄 Alternative URLs available:', possibleApiUrls.slice(1));
 
-    if (!process.env.GROK_API_KEY) {
+    if (!apiKey) {
       console.error('❌ GROK_API_KEY is not configured in environment');
       console.log('🔍 Available env vars:', Object.keys(process.env).filter(key => key.includes('GROK') || key.includes('API')));
       return NextResponse.json(
@@ -339,7 +341,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (!process.env.GROK_API_KEY) {
+    if (!apiKey) {
       console.error('❌ GROK_API_KEY is not configured in .env.local');
       return NextResponse.json(
         { error: 'GROK_API_KEY is not configured. Please add it to .env.local' },
@@ -377,7 +379,7 @@ export async function POST(request: NextRequest) {
       response = await fetch(grokApiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
@@ -496,7 +498,7 @@ export async function POST(request: NextRequest) {
           response = await fetch(reqConfig.url, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+              'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(reqConfig.body),
