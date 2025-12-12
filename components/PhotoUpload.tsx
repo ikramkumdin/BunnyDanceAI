@@ -65,6 +65,49 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
 
       if (!response.ok) {
         console.error('Upload failed:', response.status, rawText);
+        // If /api/upload is blocked (403), fall back to signed direct-to-GCS upload.
+        if (response.status === 403) {
+          try {
+            const base64Data = await base64Promise;
+            const sigRes = await fetch('/api/upload-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: user.id,
+                contentType: file.type,
+                fileName: file.name,
+                folder: 'images',
+              }),
+            });
+
+            const sigText = await sigRes.text();
+            const sigData = sigText ? JSON.parse(sigText) : null;
+            if (!sigRes.ok || !sigData?.uploadUrl || !sigData?.publicUrl) {
+              throw new Error(`Failed to get upload URL: ${sigRes.status} ${sigText}`);
+            }
+
+            // PUT file directly to GCS
+            const putRes = await fetch(sigData.uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': file.type },
+              body: file,
+            });
+
+            if (!putRes.ok) {
+              const putText = await putRes.text();
+              throw new Error(`Direct upload failed: ${putRes.status} ${putText}`);
+            }
+
+            // Use GCS URL for generation; keep base64 for preview if needed
+            setUploadedImage(sigData.publicUrl);
+            setPreview(sigData.publicUrl);
+            onImageSelect({ gcpUrl: sigData.publicUrl, base64Url: base64Data });
+            return;
+          } catch (e) {
+            console.error('Fallback direct upload failed:', e);
+          }
+        }
+
         // Keep base64 preview; still notify parent so template selection can work.
         const base64Data = await base64Promise;
         onImageSelect({ gcpUrl: '', base64Url: base64Data });
