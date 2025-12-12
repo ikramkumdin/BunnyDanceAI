@@ -123,8 +123,8 @@ export async function GET(request: NextRequest) {
     // --- NEW STRATEGY: Poll the official /api/v1/jobs/recordInfo Endpoint ---
     console.log(`🚀 Polling official Kie.ai recordInfo endpoint for task ${taskId}`);
 
-    const MAX_RETRIES = 60; // Up to 5 minutes (5s interval * 60 attempts)
-    const POLL_INTERVAL = 5000; // 5 seconds
+    const MAX_RETRIES = 90; // Increased to 90 attempts (approx 4.5 minutes at 3s interval)
+    const INITIAL_POLL_INTERVAL = 3000; // Start with 3 seconds
     let attempts = 0;
 
     const authToken = process.env.GROK_API_KEY; // Use Kie.ai API Key
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
               { status: 200 } // Return 200 to indicate our server processed the error
             );
           }
-          await new Promise(r => setTimeout(r, POLL_INTERVAL));
+          await new Promise(r => setTimeout(r, INITIAL_POLL_INTERVAL * Math.pow(2, attempts))); // Exponential backoff
           attempts++;
           continue;
         }
@@ -241,7 +241,7 @@ export async function GET(request: NextRequest) {
         console.error(`[Polling] Network error during polling for task ${taskId}:`, error);
       }
 
-      await new Promise(r => setTimeout(r, POLL_INTERVAL));
+      await new Promise(r => setTimeout(r, INITIAL_POLL_INTERVAL * Math.pow(2, attempts))); // Exponential backoff
       attempts++;
     }
 
