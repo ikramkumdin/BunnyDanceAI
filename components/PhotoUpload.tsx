@@ -30,6 +30,10 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
   /**
    * Kie.ai rejects very large images ("Images size exceeds limit").
    * To make uploads reliable, we downscale + JPEG-compress in the browser before uploading to GCS.
+   *
+   * IMPORTANT: Kie/Veo validation can also fail when the reference image aspect ratio does not
+   * match the requested `aspectRatio`. Our image-to-video path uses portrait (9:16), so we
+   * center-crop to 9:16 before encoding to keep the input consistently valid.
    */
   async function preprocessImageForUpload(original: File): Promise<File> {
     // Only preprocess images.
@@ -37,7 +41,10 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
 
     // These limits are intentionally conservative to satisfy Kie.ai's "Images size exceeds limit".
     // We optimize for reliability over absolute quality.
-    const MAX_DIM_START = 768;
+    // Target a strict portrait 9:16 frame. Keep it small to satisfy hidden backend limits.
+    const TARGET_ASPECT = 9 / 16; // width / height
+    const TARGET_HEIGHT_START = 640; // results in ~360x640
+    const MIN_HEIGHT = 512; // results in ~288x512
     const MIN_DIM = 512;
     const TARGET_MAX_BYTES = 350_000; // ~0.35MB
 
@@ -67,14 +74,13 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
       height: h,
     });
 
-    let maxDim = MAX_DIM_START;
+    let targetH = TARGET_HEIGHT_START;
     let quality = 0.78;
 
     // Try a few rounds: downscale, then reduce quality if still too big.
     for (let attempt = 0; attempt < 7; attempt++) {
-      const scale = Math.min(1, maxDim / Math.max(w, h));
-      const outW = Math.max(1, Math.round(w * scale));
-      const outH = Math.max(1, Math.round(h * scale));
+      const outH = Math.max(1, Math.round(targetH));
+      const outW = Math.max(1, Math.round(outH * TARGET_ASPECT));
 
       const canvas = document.createElement('canvas');
       canvas.width = outW;
@@ -82,7 +88,24 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
       const ctx = canvas.getContext('2d');
       if (!ctx) return original;
 
-      ctx.drawImage(img, 0, 0, outW, outH);
+      // Center-crop source to 9:16 then scale into the output canvas.
+      const srcAspect = w / h;
+      let srcCropW = w;
+      let srcCropH = h;
+      let sx = 0;
+      let sy = 0;
+
+      if (srcAspect > TARGET_ASPECT) {
+        // too wide -> crop width
+        srcCropW = Math.round(h * TARGET_ASPECT);
+        sx = Math.round((w - srcCropW) / 2);
+      } else if (srcAspect < TARGET_ASPECT) {
+        // too tall -> crop height
+        srcCropH = Math.round(w / TARGET_ASPECT);
+        sy = Math.round((h - srcCropH) / 2);
+      }
+
+      ctx.drawImage(img, sx, sy, srcCropW, srcCropH, 0, 0, outW, outH);
 
       // Encode JPEG at current quality
       const blob = await new Promise<Blob>((resolve, reject) => {
@@ -102,7 +125,7 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
           width: outW,
           height: outH,
           quality,
-          maxDim,
+          targetH,
         });
         return new File([blob], newName, { type: 'image/jpeg' });
       }
@@ -111,21 +134,35 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
       if (quality > 0.45) {
         quality = Math.max(0.45, quality - 0.1);
       } else {
-        maxDim = Math.max(MIN_DIM, Math.floor(maxDim * 0.85));
+        targetH = Math.max(MIN_HEIGHT, Math.floor(targetH * 0.9));
       }
     }
 
     // Last resort: return whatever we have at the smallest settings.
     // (We should almost never reach here.)
-    const scale = Math.min(1, MIN_DIM / Math.max(w, h));
-    const outW = Math.max(1, Math.round(w * scale));
-    const outH = Math.max(1, Math.round(h * scale));
+    const outH = Math.max(1, MIN_HEIGHT);
+    const outW = Math.max(1, Math.round(outH * TARGET_ASPECT));
     const canvas = document.createElement('canvas');
     canvas.width = outW;
     canvas.height = outH;
     const ctx = canvas.getContext('2d');
     if (!ctx) return original;
-    ctx.drawImage(img, 0, 0, outW, outH);
+
+    const srcAspect = w / h;
+    let srcCropW = w;
+    let srcCropH = h;
+    let sx = 0;
+    let sy = 0;
+
+    if (srcAspect > TARGET_ASPECT) {
+      srcCropW = Math.round(h * TARGET_ASPECT);
+      sx = Math.round((w - srcCropW) / 2);
+    } else if (srcAspect < TARGET_ASPECT) {
+      srcCropH = Math.round(w / TARGET_ASPECT);
+      sy = Math.round((h - srcCropH) / 2);
+    }
+
+    ctx.drawImage(img, sx, sy, srcCropW, srcCropH, 0, 0, outW, outH);
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error('Failed to encode image'))),
@@ -141,7 +178,7 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
       width: outW,
       height: outH,
       quality: 0.45,
-      maxDim: MIN_DIM,
+      maxDim: MIN_HEIGHT,
     });
     return new File([blob], newName, { type: 'image/jpeg' });
   }

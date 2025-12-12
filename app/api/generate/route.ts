@@ -566,7 +566,8 @@ export async function POST(request: NextRequest) {
         if (last.includes('Images size exceeds limit')) {
           return NextResponse.json(
             {
-              error: 'Image is too large for Kie.ai (Images size exceeds limit). Please upload a smaller image (we will auto-compress next).',
+              error:
+                'Kie.ai rejected the reference image (Images size exceeds limit). This is often caused by validation (aspect ratio/resolution) or fetch/access issues, not just bytes. Re-upload and try again (we now auto-crop to 9:16 and upload the reference to Kie).',
               details: lastError,
             },
             { status: 422 }
