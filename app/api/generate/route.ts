@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
 
     // We need an image URL accessible by Kie.ai. If the client provided base64,
     // upload it to Kie.ai File Upload API and use the returned URL.
-    let accessibleImageUrl: string;
+    let accessibleImageUrl: string | undefined;
     try {
       if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
         console.log('📤 Received base64 imageDataUrl; uploading to Kie.ai File Upload API...');
@@ -293,6 +293,10 @@ export async function POST(request: NextRequest) {
         console.error('❌ Signed URL fallback failed:', signedUrlError);
         throw new Error(`Failed to get accessible image URL: ${signedUrlError instanceof Error ? signedUrlError.message : 'Unknown error'}`);
       }
+    }
+
+    if (!accessibleImageUrl) {
+      throw new Error('Failed to resolve accessible image URL for generation');
     }
 
     // Call Kie.ai API according to documentation
