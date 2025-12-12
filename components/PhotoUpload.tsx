@@ -53,8 +53,25 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
         body: formData,
       });
 
-      const data = await response.json();
-      if (data.imageUrl) {
+      // The server might return non-JSON on 403/blocked deployments (e.g. Vercel protection).
+      // Always read as text first, then try JSON parsing.
+      const rawText = await response.text();
+      let data: any = null;
+      try {
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        console.error('Upload failed:', response.status, rawText);
+        // Keep base64 preview; still notify parent so template selection can work.
+        const base64Data = await base64Promise;
+        onImageSelect({ gcpUrl: '', base64Url: base64Data });
+        return;
+      }
+
+      if (data?.imageUrl) {
         // Update to GCP URL after successful upload
         const gcpUrl = data.imageUrl;
         setUploadedImage(gcpUrl);
