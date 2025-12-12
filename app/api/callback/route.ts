@@ -154,6 +154,16 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Always cache for polling, even if we also save to Firestore
+    if (taskId && typeof videoUrl === 'string' && videoUrl.startsWith('http')) {
+      storeVideoCallbackResult({
+        taskId,
+        status: (status || body.state || body.data?.state || 'SUCCESS').toString().toUpperCase(),
+        videoUrl,
+        error: body.error || body.data?.error || body.failMsg || body.data?.failMsg,
+      });
+    }
     
     // If we have userId, save the video
     if (userId) {

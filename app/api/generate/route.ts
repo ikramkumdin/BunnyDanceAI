@@ -260,6 +260,18 @@ export async function POST(request: NextRequest) {
     console.log('✅ API key configured, proceeding with generation...');
     console.log('🔗 API URL:', grokApiUrl);
 
+    // Build callback URL so Kie can POST back when done (prevents relying on slow polling)
+    const originHeader = request.headers.get('origin');
+    const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL || process.env.NEXT_PUBLIC_SITE_URL;
+    const baseUrl = originHeader || (vercelUrl ? `https://${vercelUrl}` : 'http://localhost:3010');
+    const callbackUrl =
+      `${baseUrl}/api/callback` +
+      `?userId=${encodeURIComponent(userId)}` +
+      `&templateId=${encodeURIComponent(templateId)}` +
+      `&templateName=${encodeURIComponent(template.name)}` +
+      `&thumbnail=${encodeURIComponent(imageUrl)}`;
+    console.log(`[Generate] Image-to-video callbackUrl: ${callbackUrl}`);
+
     // Check if test mode is enabled
     const isTestMode = process.env.KIE_TEST_MODE === 'true';
     if (isTestMode) {
@@ -288,7 +300,7 @@ export async function POST(request: NextRequest) {
 
     let taskId: string | undefined;
 
-    // Try synchronous request first (some APIs support this)
+    // Prefer async mode to avoid serverless timeouts; frontend polls /api/poll-task as fallback
     let requestBody: any = {
         prompt: prompt,
         imageUrls: [accessibleImageUrl],
@@ -297,12 +309,12 @@ export async function POST(request: NextRequest) {
         generationType: "REFERENCE_2_VIDEO",
         enableFallback: true, // Enable fallback API as suggested by error message
         enableTranslation: true,
-        // Try synchronous mode first
-        sync: true,
-        waitForCompletion: true
+        callBackUrl: callbackUrl,
+        sync: false,
+        waitForCompletion: false
     };
 
-    console.log('🔄 Trying synchronous generation request...');
+      console.log('🔄 Trying generation request...');
 
     let response;
     let data;
@@ -326,7 +338,7 @@ export async function POST(request: NextRequest) {
       data = await response.json();
       console.log('📊 Sync response:', JSON.stringify(data, null, 2));
 
-      // Check if we got a direct video URL (synchronous success)
+      // Check if we got a direct video URL (immediate success)
       const videoUrl = data.videoUrl || data.url || data.result?.videoUrl || data.output?.url || data.data?.videoUrl;
       if (response.ok && videoUrl) {
         console.log('✅ Synchronous generation succeeded:', videoUrl);
@@ -344,7 +356,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           taskId: 'sync',
-          message: 'Video generated synchronously',
+          videoUrl,
+          message: 'Video generated successfully',
         });
       }
 
@@ -395,7 +408,10 @@ export async function POST(request: NextRequest) {
               aspectRatio: "16:9",
               generationType: "REFERENCE_2_VIDEO",
               enableFallback: true, // Enable fallback API as suggested by error message
-              enableTranslation: true
+              enableTranslation: true,
+              callBackUrl: callbackUrl,
+              sync: false,
+              waitForCompletion: false
             }
           },
           // 2. Try veo3 quality model with FIRST_AND_LAST_FRAMES mode
@@ -408,7 +424,10 @@ export async function POST(request: NextRequest) {
               aspectRatio: "16:9",
               generationType: "FIRST_AND_LAST_FRAMES_2_VIDEO", // Different generation mode
               enableFallback: true,
-              enableTranslation: true
+              enableTranslation: true,
+              callBackUrl: callbackUrl,
+              sync: false,
+              waitForCompletion: false
             }
           }
       ];
