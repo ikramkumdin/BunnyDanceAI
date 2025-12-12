@@ -353,7 +353,7 @@ export async function POST(request: NextRequest) {
         prompt: prompt,
         imageUrls: [accessibleImageUrl],
         model: "veo3_fast", // STRICTLY using veo3_fast for REFERENCE_2_VIDEO
-        aspectRatio: "16:9", // Landscape format as required by API
+        aspectRatio: "9:16", // Match portrait uploads + UI (reduces Kie validation failures)
         generationType: "REFERENCE_2_VIDEO",
         enableFallback: true, // Enable fallback API as suggested by error message
         enableTranslation: true,
@@ -453,7 +453,7 @@ export async function POST(request: NextRequest) {
               prompt: prompt,
               imageUrls: [accessibleImageUrl],
               model: "veo3_fast",
-              aspectRatio: "16:9",
+              aspectRatio: "9:16",
               generationType: "REFERENCE_2_VIDEO",
               enableFallback: true, // Enable fallback API as suggested by error message
               enableTranslation: true,
@@ -469,7 +469,7 @@ export async function POST(request: NextRequest) {
               prompt: prompt,
               imageUrls: [accessibleImageUrl],
               model: "veo3", // Try quality model instead of fast
-              aspectRatio: "16:9",
+              aspectRatio: "9:16",
               generationType: "FIRST_AND_LAST_FRAMES_2_VIDEO", // Different generation mode
               enableFallback: true,
               enableTranslation: true,
