@@ -35,12 +35,10 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
     // Only preprocess images.
     if (!original.type.startsWith('image/')) return original;
 
-    // If already reasonably small, keep as-is.
-    const MAX_DIM = 1280;
-    const SMALL_FILE_BYTES = 1_500_000; // ~1.5MB
-    if (original.size <= SMALL_FILE_BYTES && (original.type === 'image/jpeg' || original.type === 'image/webp')) {
-      return original;
-    }
+    // These limits are intentionally conservative to satisfy Kie.ai's "Images size exceeds limit".
+    // We optimize for reliability over absolute quality.
+    const MAX_DIM_START = 1024;
+    const TARGET_MAX_BYTES = 900_000; // ~0.9MB
 
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
@@ -60,26 +58,63 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
     const h = img.naturalHeight || (img as any).height;
     if (!w || !h) return original;
 
-    const scale = Math.min(1, MAX_DIM / Math.max(w, h));
+    let maxDim = MAX_DIM_START;
+    let quality = 0.82;
+
+    // Try a few rounds: downscale, then reduce quality if still too big.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      const outW = Math.max(1, Math.round(w * scale));
+      const outH = Math.max(1, Math.round(h * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return original;
+
+      ctx.drawImage(img, 0, 0, outW, outH);
+
+      // Encode JPEG at current quality
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error('Failed to encode image'))),
+          'image/jpeg',
+          quality
+        );
+      });
+
+      if (blob.size <= TARGET_MAX_BYTES) {
+        const newName = original.name.replace(/\.[^.]+$/, '') + '.jpg';
+        return new File([blob], newName, { type: 'image/jpeg' });
+      }
+
+      // Too big: first reduce quality, then if already low quality, reduce dimensions further.
+      if (quality > 0.62) {
+        quality = Math.max(0.62, quality - 0.1);
+      } else {
+        maxDim = Math.max(640, Math.floor(maxDim * 0.85));
+      }
+    }
+
+    // Last resort: return whatever we have at the smallest settings.
+    // (We should almost never reach here.)
+    const scale = Math.min(1, 640 / Math.max(w, h));
     const outW = Math.max(1, Math.round(w * scale));
     const outH = Math.max(1, Math.round(h * scale));
-
     const canvas = document.createElement('canvas');
     canvas.width = outW;
     canvas.height = outH;
     const ctx = canvas.getContext('2d');
     if (!ctx) return original;
-
     ctx.drawImage(img, 0, 0, outW, outH);
-
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error('Failed to encode image'))),
         'image/jpeg',
-        0.82
+        0.62
       );
     });
-
     const newName = original.name.replace(/\.[^.]+$/, '') + '.jpg';
     return new File([blob], newName, { type: 'image/jpeg' });
   }
