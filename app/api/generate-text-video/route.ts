@@ -28,6 +28,13 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ API key configured, proceeding with generation...');
 
+    // Callback URL (no userId query params on purpose; direct callbacks are cached for polling)
+    const originHeader = request.headers.get('origin');
+    const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL || process.env.NEXT_PUBLIC_SITE_URL;
+    const baseUrl = originHeader || (vercelUrl ? `https://${vercelUrl}` : 'http://localhost:3010');
+    const callBackUrl = `${baseUrl}/api/callback`;
+    console.log(`[Generate] Text-to-video callbackUrl: ${callBackUrl}`);
+
     // Try synchronous request first
     const requestBody = {
       prompt: prompt,
@@ -36,8 +43,10 @@ export async function POST(request: NextRequest) {
       generationType: "TEXT_2_VIDEO",
       enableFallback: true,
       enableTranslation: true,
-      sync: true,
-      waitForCompletion: true
+      callBackUrl,
+      // Prefer async to avoid serverless timeouts; frontend will poll.
+      sync: false,
+      waitForCompletion: false
     };
 
     console.log('🚀 Sending text-to-video request to Kie.ai...');

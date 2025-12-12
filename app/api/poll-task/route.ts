@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getVideoCallbackResult } from '@/lib/videoCallbackCache';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +14,17 @@ export async function GET(request: NextRequest) {
         { error: 'taskId is required' },
         { status: 400 }
       );
+    }
+
+    // Fast path: if we received a callback for this task, return it immediately.
+    const cached = getVideoCallbackResult(taskId);
+    if (cached?.videoUrl && cached.videoUrl.startsWith('http')) {
+      return NextResponse.json({
+        status: 'completed',
+        videoUrl: cached.videoUrl,
+        taskId,
+        source: 'cache',
+      });
     }
 
     // Check if this is a test task

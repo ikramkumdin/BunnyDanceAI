@@ -2,6 +2,56 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadVideo } from '@/lib/storage';
 import { saveVideo } from '@/lib/firestore';
 import { generateVideoId } from '@/lib/utils';
+import { storeVideoCallbackResult } from '@/lib/videoCallbackCache';
+
+function tryParseJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const s = value.trim();
+  if (!s) return value;
+  if (!(s.startsWith('{') || s.startsWith('['))) return value;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return value;
+  }
+}
+
+function collectHttpUrls(input: unknown, maxDepth = 7): string[] {
+  const urls: string[] = [];
+  const seen = new Set<unknown>();
+
+  const visit = (node: unknown, depth: number) => {
+    if (depth > maxDepth) return;
+    if (node === null || node === undefined) return;
+    if (seen.has(node)) return;
+
+    if (typeof node === 'string') {
+      if (node.startsWith('http://') || node.startsWith('https://')) {
+        urls.push(node);
+        return;
+      }
+      const parsed = tryParseJson(node);
+      if (parsed !== node) visit(parsed, depth + 1);
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      seen.add(node);
+      for (const item of node) visit(item, depth + 1);
+      return;
+    }
+
+    if (typeof node === 'object') {
+      seen.add(node);
+      for (const value of Object.values(node as Record<string, unknown>)) {
+        visit(value, depth + 1);
+      }
+    }
+  };
+
+  visit(input, 0);
+  return urls.filter((u, i) => urls.indexOf(u) === i);
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,7 +78,62 @@ export async function POST(request: NextRequest) {
     if (!userId) {
       console.log('⚠️ No userId found in callback - this might be a direct Kie.ai callback');
       console.log('📦 Full callback data:', JSON.stringify(body, null, 2));
-      // For now, just acknowledge the callback without saving
+
+      // Still store for polling to retrieve (text-to-video flow uses this)
+      const taskId = body.taskId || body.data?.taskId || body.task_id || searchParams.get('taskId') || body.id;
+
+      // Extract video url from common locations or deep scan
+      let videoUrl =
+        body.videoUrl ||
+        body.data?.videoUrl ||
+        body.url ||
+        body.data?.url ||
+        body.video_url ||
+        body.data?.video_url ||
+        body.result?.videoUrl ||
+        body.result?.url ||
+        body.output?.videoUrl ||
+        body.output?.url ||
+        body.data?.response ||
+        body.response ||
+        body.data?.resultJson ||
+        body.resultJson;
+
+      if (typeof videoUrl === 'string') {
+        const parsed = tryParseJson(videoUrl) as any;
+        // If it was JSON, try to extract
+        if (parsed && parsed !== videoUrl) {
+          const extracted =
+            parsed?.videoUrl ||
+            parsed?.url ||
+            parsed?.resultUrls?.[0] ||
+            parsed?.result_urls?.[0] ||
+            parsed?.data?.videoUrl ||
+            parsed?.data?.url ||
+            parsed?.data?.resultUrls?.[0] ||
+            parsed?.data?.result_urls?.[0] ||
+            parsed?.data?.response?.resultUrls?.[0] ||
+            parsed?.data?.response?.result_urls?.[0];
+          videoUrl = extracted ?? videoUrl;
+        }
+      }
+
+      if (!videoUrl || typeof videoUrl !== 'string' || !videoUrl.startsWith('http')) {
+        const scanned = collectHttpUrls(body);
+        const picked = scanned.find((u) => u.includes('.mp4') || u.includes('video') || u.includes('mp4')) || scanned[0];
+        if (picked) videoUrl = picked;
+      }
+
+      if (taskId) {
+        storeVideoCallbackResult({
+          taskId,
+          status: (body.status || body.data?.status || body.state || body.data?.state || 'SUCCESS').toString().toUpperCase(),
+          videoUrl: typeof videoUrl === 'string' && videoUrl.startsWith('http') ? videoUrl : undefined,
+          error: body.error || body.data?.error || body.failMsg || body.data?.failMsg,
+        });
+      }
+
+      // Acknowledge the callback without saving to Firestore (no userId)
       return NextResponse.json({
         success: true,
         message: 'Callback received but no metadata to process',

@@ -18,6 +18,7 @@ export default function GeneratePage() {
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
+  const [showGeneratedVideoActions, setShowGeneratedVideoActions] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -86,6 +87,30 @@ export default function GeneratePage() {
     }
   }, [user]);
 
+  const downloadVideo = useCallback((url: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `generated-${Date.now()}.mp4`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, []);
+
+  const shareVideo = useCallback(async (url: string) => {
+    try {
+      const nav: any = navigator;
+      if (nav?.share) {
+        await nav.share({ title: 'Generated video', url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      alert('Video link copied to clipboard.');
+    } catch (e) {
+      console.error('Share failed:', e);
+      alert('Could not share automatically. Try downloading or copying the link.');
+    }
+  }, []);
+
   // Handle image selection
   const handleImageSelect = (imageData: { gcpUrl: string; base64Url: string }) => {
     setUploadedImage(imageData.gcpUrl);
@@ -117,33 +142,16 @@ export default function GeneratePage() {
             const videoUrl = pollData.videoUrl || pollData.url || pollData.result?.videoUrl || pollData.output?.videoUrl;
             if (videoUrl && (pollData.status === 'completed' || pollData.status === 'success' || pollData.completed)) {
               console.log('🎬 Video ready from Kie.ai:', videoUrl);
-
-              // Save the video to our database
-              const saveResponse = await fetch('/api/callback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  videoUrl: videoUrl,
-                  taskId: taskId,
-                  userId: user?.id,
-                  templateId: 'unknown', // We don't have this info
-                  templateName: 'Generated Video',
-                  thumbnail: 'unknown'
-                })
-              });
-
-              if (saveResponse.ok) {
-                setGeneratedVideo(videoUrl);
-                setIsGenerating(false);
-                // Save to assets
-                if (selectedTemplate) {
-                  saveVideoToAssets(videoUrl, selectedTemplate.name, selectedTemplate.id);
-                } else {
-                  // Text-to-video or unknown source
-                  saveVideoToAssets(videoUrl, 'Text-to-Video', 'text-to-video', videoUrl);
-                }
-                return;
+              setGeneratedVideo(videoUrl);
+              setShowGeneratedVideoActions(true);
+              setIsGenerating(false);
+              // Save to assets ONCE (avoid duplication with DB fallback path)
+              if (selectedTemplate) {
+                saveVideoToAssets(videoUrl, selectedTemplate.name, selectedTemplate.id);
+              } else {
+                saveVideoToAssets(videoUrl, 'Text-to-Video', 'text-to-video', videoUrl);
               }
+              return;
             }
           }
         } catch (pollError) {
@@ -161,14 +169,9 @@ export default function GeneratePage() {
       if (data.ready && data.videoUrl) {
         console.log('🎬 Video ready from database:', data.videoUrl);
         setGeneratedVideo(data.videoUrl);
+        setShowGeneratedVideoActions(true);
         setIsGenerating(false);
-        // Save to assets
-        if (selectedTemplate) {
-          saveVideoToAssets(data.videoUrl, selectedTemplate.name, selectedTemplate.id);
-        } else {
-          // Text-to-video or unknown source
-          saveVideoToAssets(data.videoUrl, 'Text-to-Video', 'text-to-video', data.videoUrl);
-        }
+        // Do NOT save again (DB already has it)
         return;
       }
 
@@ -247,6 +250,8 @@ export default function GeneratePage() {
     }
 
     setIsGenerating(true);
+    setGeneratedVideo(null);
+    setShowGeneratedVideoActions(false);
     try {
       const response = await fetch('/api/generate-text-video', {
         method: 'POST',
@@ -263,6 +268,7 @@ export default function GeneratePage() {
         if (data.videoUrl) {
           // Immediate result (rare)
           setGeneratedVideo(data.videoUrl);
+          setShowGeneratedVideoActions(true);
           // Save to assets
           saveVideoToAssets(data.videoUrl, 'Text-to-Video', 'text-to-video', data.videoUrl);
         } else if (data.taskId) {
@@ -596,38 +602,107 @@ export default function GeneratePage() {
 
             {/* Text-to-Video Mode: Show text area with preview */}
             {activeMode === 'text-to-video' && (
-              <div className="w-full h-full flex flex-col p-4 gap-3">
-                <div className="flex-1 flex flex-col gap-2">
-                  <label className="text-white font-semibold text-sm">Describe your video:</label>
-                  <textarea
-                    value={textPrompt}
-                    onChange={(e) => setTextPrompt(e.target.value)}
-                    placeholder="A person dancing in a park with autumn leaves, cinematic lighting, 4K quality..."
-                    className="flex-1 bg-gray-900 text-white px-3 py-3 rounded-lg text-sm border border-gray-700 focus:border-primary focus:outline-none resize-none"
-                  />
-                  
-                  {textPrompt && (
-                    <div className="bg-gray-900/80 border border-gray-700 rounded-lg p-3">
-                      <p className="text-xs text-gray-400 mb-1">Preview:</p>
-                      <p className="text-sm text-white line-clamp-4">{textPrompt}</p>
-                    </div>
-                  )}
-                </div>
-
-                {!isGenerating ? (
-                  <button
-                    onClick={handleTextToVideo}
-                    disabled={!textPrompt}
-                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm flex items-center justify-center gap-2"
+              <div className={`w-full h-full flex flex-col ${generatedVideo ? 'p-0' : 'p-4'} gap-3`}>
+                {generatedVideo ? (
+                  <div
+                    className="w-full h-full relative"
+                    onClick={() => setShowGeneratedVideoActions(true)}
                   >
-                    <Sparkles className="w-4 h-4" />
-                    Generate Video
-                  </button>
-                ) : (
-                  <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
-                    <div className="animate-spin rounded-full w-8 h-8 border-t-2 border-b-2 border-purple-600 mx-auto mb-2"></div>
-                    <p className="text-white text-sm font-semibold">Generating your video...</p>
+                    <video
+                      src={generatedVideo}
+                      className="w-full h-full object-cover"
+                      controls
+                      playsInline
+                    />
+                    <button
+                      onClick={() => {
+                        if (showGeneratedVideoActions) {
+                          setShowGeneratedVideoActions(false);
+                          return;
+                        }
+                        setGeneratedVideo(null);
+                        setTextPrompt('');
+                      }}
+                      className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
+                      aria-label="Close"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+
+                    {showGeneratedVideoActions && (
+                      <div
+                        className="absolute inset-0 bg-black/0 flex items-end"
+                        onClick={() => setShowGeneratedVideoActions(false)}
+                      >
+                        <div
+                          className="w-full bg-gray-900/95 border-t border-white/10 p-4"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => setShowGeneratedVideoActions(false)}
+                            className="absolute right-4 -top-10 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
+                            aria-label="Close details"
+                          >
+                            <X className="w-4 h-4 text-white" />
+                          </button>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              onClick={() => shareVideo(generatedVideo)}
+                              className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label="Share"
+                              title="Share"
+                            >
+                              <Share2 className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => downloadVideo(generatedVideo)}
+                              className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label="Download"
+                              title="Download"
+                            >
+                              <Download className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <>
+                    <div className="flex-1 flex flex-col gap-2">
+                      <label className="text-white font-semibold text-sm">Describe your video:</label>
+                      <textarea
+                        value={textPrompt}
+                        onChange={(e) => setTextPrompt(e.target.value)}
+                        placeholder="A person dancing in a park with autumn leaves, cinematic lighting, 4K quality..."
+                        className="flex-1 bg-gray-900 text-white px-3 py-3 rounded-lg text-sm border border-gray-700 focus:border-primary focus:outline-none resize-none"
+                      />
+                      
+                      {textPrompt && (
+                        <div className="bg-gray-900/80 border border-gray-700 rounded-lg p-3">
+                          <p className="text-xs text-gray-400 mb-1">Preview:</p>
+                          <p className="text-sm text-white line-clamp-4">{textPrompt}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {!isGenerating ? (
+                      <button
+                        onClick={handleTextToVideo}
+                        disabled={!textPrompt}
+                        className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm flex items-center justify-center gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Generate Video
+                      </button>
+                    ) : (
+                      <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
+                        <div className="animate-spin rounded-full w-8 h-8 border-t-2 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                        <p className="text-white text-sm font-semibold">Generating your video...</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
