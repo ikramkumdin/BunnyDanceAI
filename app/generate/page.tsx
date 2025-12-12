@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { templates } from '@/data/templates';
 import { Template } from '@/types';
-import { X, Search, Sparkles } from 'lucide-react';
+import { Check, Download, Save, Search, Share2, Sparkles, X } from 'lucide-react';
 import PhotoUpload from '@/components/PhotoUpload';
 import { useStore } from '@/store/useStore';
 import { useUser } from '@/hooks/useUser';
@@ -683,9 +683,13 @@ export default function GeneratePage() {
                     />
                     <button
                       onClick={() => {
+                        if (showGeneratedImageActions) {
+                          setShowGeneratedImageActions(false);
+                          return;
+                        }
+                        // Clear preview (so user can regenerate)
                         setUploadedImage(null);
                         setTextPrompt('');
-                        setShowGeneratedImageActions(false);
                         setHasSavedGeneratedImage(false);
                       }}
                       className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
@@ -696,55 +700,51 @@ export default function GeneratePage() {
                     {/* Click image to open details/actions modal */}
                     {showGeneratedImageActions && (
                       <div
-                        className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-end"
+                        // Don't dim the image; just provide an invisible click-catcher + bottom sheet.
+                        className="absolute inset-0 bg-black/0 flex items-end"
                         onClick={() => setShowGeneratedImageActions(false)}
                       >
                         <div
                           className="w-full bg-gray-900/95 border-t border-white/10 p-4"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="flex items-start justify-between gap-3 mb-3">
-                            <div>
-                              <p className="text-white font-semibold text-sm">Generated image</p>
-                              <p className="text-white/60 text-xs">Tap outside to close</p>
-                            </div>
-                            <button
-                              onClick={() => setShowGeneratedImageActions(false)}
-                              className="bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
-                              aria-label="Close"
-                            >
-                              <X className="w-4 h-4 text-white" />
-                            </button>
-                          </div>
+                          {/* Close icon pinned top-right of the sheet */}
+                          <button
+                            onClick={() => setShowGeneratedImageActions(false)}
+                            className="absolute right-4 -top-10 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
+                            aria-label="Close details"
+                          >
+                            <X className="w-4 h-4 text-white" />
+                          </button>
 
-                          <div className="flex gap-2">
+                          {/* Icon-only actions */}
+                          <div className="grid grid-cols-3 gap-3">
                             <button
                               onClick={() => shareImage(uploadedImage)}
-                              className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                              className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label="Share"
+                              title="Share"
                             >
-                              Share
+                              <Share2 className="w-5 h-5" />
                             </button>
+
                             <button
                               onClick={() => downloadImage(uploadedImage)}
-                              className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                              className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label="Download"
+                              title="Download"
                             >
-                              Download
+                              <Download className="w-5 h-5" />
                             </button>
+
                             <button
                               onClick={saveGeneratedImageToAssets}
                               disabled={isSavingGeneratedImage || hasSavedGeneratedImage}
-                              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label={hasSavedGeneratedImage ? 'Saved' : 'Save to Assets'}
+                              title={hasSavedGeneratedImage ? 'Saved' : 'Save'}
                             >
-                              {hasSavedGeneratedImage ? 'Saved' : isSavingGeneratedImage ? 'Saving…' : 'Save'}
-                            </button>
-                          </div>
-
-                          <div className="mt-2">
-                            <button
-                              onClick={() => router.push('/assets?tab=image')}
-                              className="w-full bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
-                            >
-                              Go to Assets
+                              {hasSavedGeneratedImage ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
                             </button>
                           </div>
                         </div>
