@@ -117,7 +117,7 @@ export default function AssetsPage() {
         {unique.map((t) => (
           <span
             key={t}
-            className="px-3 py-1 rounded-full text-xs border border-slate-700 bg-gray-800 text-gray-300"
+            className="px-4 py-2 rounded-full text-sm bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors select-none"
           >
             {t}
           </span>

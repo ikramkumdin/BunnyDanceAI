@@ -568,7 +568,87 @@ export default function GeneratePage() {
             {/* Image-to-Video Mode: Show uploader */}
             {activeMode === 'image-to-video' && (
               <>
-            {uploadedImage ? (
+            {generatedVideo ? (
+              <div className="w-full h-full relative bg-gray-800 rounded-lg overflow-hidden">
+                <video
+                  src={generatedVideo}
+                  className="w-full h-full object-cover"
+                  controls
+                  playsInline
+                />
+
+                <button
+                  onClick={() => {
+                    if (showGeneratedVideoActions) {
+                      setShowGeneratedVideoActions(false);
+                      return;
+                    }
+                    setGeneratedVideo(null);
+                  }}
+                  className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+
+                <button
+                  onClick={() => setShowGeneratedVideoActions(true)}
+                  className="absolute bottom-16 right-2 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
+                  aria-label="Open video actions"
+                  title="Actions"
+                >
+                  <Share2 className="w-4 h-4 text-white" />
+                </button>
+
+                {showGeneratedVideoActions && (
+                  <div
+                    className="absolute inset-0 bg-black/0 flex items-end"
+                    onClick={() => setShowGeneratedVideoActions(false)}
+                  >
+                    <div
+                      className="w-full bg-gray-900/95 border-t border-white/10 p-4"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => setShowGeneratedVideoActions(false)}
+                        className="absolute right-4 -top-10 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
+                        aria-label="Close details"
+                      >
+                        <X className="w-4 h-4 text-white" />
+                      </button>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <button
+                          onClick={() => shareVideo(generatedVideo)}
+                          className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                          aria-label="Share"
+                          title="Share"
+                        >
+                          <Share2 className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => downloadVideo(generatedVideo)}
+                          className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                          aria-label="Download"
+                          title="Download"
+                        >
+                          <Download className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={saveGeneratedVideoToAssets}
+                          disabled={isSavingGeneratedVideo || hasSavedGeneratedVideo}
+                          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                          aria-label={hasSavedGeneratedVideo ? 'Saved' : 'Save to Assets'}
+                          title={hasSavedGeneratedVideo ? 'Saved' : 'Save'}
+                        >
+                          {hasSavedGeneratedVideo ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              ) : uploadedImage ? (
               <div className="w-full h-full relative bg-gray-800 rounded-lg overflow-hidden">
                 <img
                   src={base64Image || uploadedImage}
@@ -865,7 +945,7 @@ export default function GeneratePage() {
             )}
 
               {/* Selected Template Preview in Left Corner - Only for image-to-video mode */}
-              {activeMode === 'image-to-video' && selectedTemplate && (
+              {activeMode === 'image-to-video' && selectedTemplate && !generatedVideo && (
                 <div className="absolute top-2 left-2 w-20 h-24 bg-gray-800 rounded-lg overflow-hidden border-2 border-primary z-50 shadow-lg">
                   <div className="absolute top-0 left-0 right-0 bg-primary text-white px-1 py-0.5 text-[6px] font-semibold text-center z-10">
                     Template
@@ -888,7 +968,7 @@ export default function GeneratePage() {
               )}
 
               {/* Image-to-Video Mode: Generate Button */}
-              {activeMode === 'image-to-video' && selectedTemplate && uploadedImage && (
+              {activeMode === 'image-to-video' && selectedTemplate && uploadedImage && !generatedVideo && (
                 <div className="absolute bottom-4 left-4 right-4">
                   {isGenerating ? (
                     <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
