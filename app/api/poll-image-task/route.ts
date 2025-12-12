@@ -21,14 +21,23 @@ export async function GET(request: NextRequest) {
   // 1. Check in-memory cache first (from Kie.ai callback)
   const cachedResult = getCallbackResult(taskId);
   if (cachedResult) {
-    console.log(`[Polling] Task ${taskId} found in cache. Status: ${cachedResult.status}`);
-    return NextResponse.json({
-      status: cachedResult.status,
-      imageUrl: cachedResult.resultUrls ? cachedResult.resultUrls[0] : null,
-      taskId: taskId,
-      source: 'cache',
-      error: cachedResult.error
-    });
+    const cachedUrl = Array.isArray(cachedResult.resultUrls) ? cachedResult.resultUrls[0] : null;
+    if (cachedUrl && typeof cachedUrl === 'string' && cachedUrl.startsWith('http')) {
+      console.log(`[Polling] Task ${taskId} found in cache with URL. Status: ${cachedResult.status}`);
+      return NextResponse.json({
+        status: cachedResult.status,
+        imageUrl: cachedUrl,
+        taskId: taskId,
+        source: 'cache',
+        error: cachedResult.error
+      });
+    }
+
+    // If we got a callback but it didn't include URLs, do NOT stop here.
+    // Fall through to live polling so the frontend can still succeed.
+    console.warn(
+      `[Polling] Task ${taskId} found in cache but no URL present (status=${cachedResult.status}). Falling back to live polling.`
+    );
   }
 
   // For debugging: manually complete a task
