@@ -43,7 +43,7 @@ export default function GeneratePage() {
   }, []);
 
   // Save image to assets
-  const saveImageToAssets = useCallback(async (imageUrl: string, prompt?: string, source: 'text-to-image' | 'image-to-video' = 'text-to-image') => {
+  const saveImageToAssets = useCallback(async (imageUrl: string, prompt?: string, source: 'text-to-image' | 'image-to-video' = 'text-to-image'): Promise<boolean> => {
     if (!user) return;
     
     try {
@@ -57,8 +57,10 @@ export default function GeneratePage() {
         createdAt: new Date().toISOString(),
       });
       console.log('✅ Image saved to assets');
+      return true;
     } catch (error) {
       console.error('❌ Error saving image to assets:', error);
+      return false;
     }
   }, [user, textPrompt]);
 
@@ -337,8 +339,12 @@ export default function GeneratePage() {
 
     setIsSavingGeneratedImage(true);
     try {
-      await saveImageToAssets(uploadedImage, textPrompt, 'text-to-image');
-      setHasSavedGeneratedImage(true);
+      const ok = await saveImageToAssets(uploadedImage, textPrompt, 'text-to-image');
+      if (ok) {
+        setHasSavedGeneratedImage(true);
+      } else {
+        alert('Could not save to Assets. Please try again.');
+      }
     } finally {
       setIsSavingGeneratedImage(false);
     }
@@ -628,7 +634,7 @@ export default function GeneratePage() {
 
             {/* Text-to-Image Mode: Show text area with preview */}
             {activeMode === 'text-to-image' && (
-              <div className="w-full h-full flex flex-col p-4 gap-3">
+              <div className={`w-full h-full flex flex-col ${uploadedImage ? 'p-0' : 'p-4'} gap-3`}>
                 {!uploadedImage ? (
                   <>
                     <div className="flex-1 flex flex-col gap-2">
@@ -672,8 +678,8 @@ export default function GeneratePage() {
                     <img
                       src={uploadedImage}
                       alt="Generated image"
-                      className="w-full h-full object-cover rounded-lg"
-                      onClick={() => setShowGeneratedImageActions((v) => !v)}
+                      className="w-full h-full object-cover"
+                      onClick={() => setShowGeneratedImageActions(true)}
                     />
                     <button
                       onClick={() => {
@@ -687,37 +693,61 @@ export default function GeneratePage() {
                       <X className="w-4 h-4 text-white" />
                     </button>
 
-                    {/* Tap/click image to toggle actions */}
+                    {/* Click image to open details/actions modal */}
                     {showGeneratedImageActions && (
-                      <div className="absolute bottom-2 left-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-2 flex flex-col gap-2">
-                        <p className="text-xs text-white">Preview ready. Use actions below:</p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => shareImage(uploadedImage)}
-                            className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-2 py-2 rounded-lg transition-colors"
-                          >
-                            Share
-                          </button>
-                          <button
-                            onClick={() => downloadImage(uploadedImage)}
-                            className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-2 py-2 rounded-lg transition-colors"
-                          >
-                            Download
-                          </button>
-                          <button
-                            onClick={saveGeneratedImageToAssets}
-                            disabled={isSavingGeneratedImage || hasSavedGeneratedImage}
-                            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-semibold px-2 py-2 rounded-lg transition-colors"
-                          >
-                            {hasSavedGeneratedImage ? 'Saved' : isSavingGeneratedImage ? 'Saving…' : 'Save'}
-                          </button>
-                        </div>
-                        <button
-                          onClick={() => router.push('/assets?tab=image')}
-                          className="w-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-2 py-2 rounded-lg transition-colors"
+                      <div
+                        className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-end"
+                        onClick={() => setShowGeneratedImageActions(false)}
+                      >
+                        <div
+                          className="w-full bg-gray-900/95 border-t border-white/10 p-4"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          Go to Assets
-                        </button>
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div>
+                              <p className="text-white font-semibold text-sm">Generated image</p>
+                              <p className="text-white/60 text-xs">Tap outside to close</p>
+                            </div>
+                            <button
+                              onClick={() => setShowGeneratedImageActions(false)}
+                              className="bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+                              aria-label="Close"
+                            >
+                              <X className="w-4 h-4 text-white" />
+                            </button>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => shareImage(uploadedImage)}
+                              className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                            >
+                              Share
+                            </button>
+                            <button
+                              onClick={() => downloadImage(uploadedImage)}
+                              className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                            >
+                              Download
+                            </button>
+                            <button
+                              onClick={saveGeneratedImageToAssets}
+                              disabled={isSavingGeneratedImage || hasSavedGeneratedImage}
+                              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                            >
+                              {hasSavedGeneratedImage ? 'Saved' : isSavingGeneratedImage ? 'Saving…' : 'Save'}
+                            </button>
+                          </div>
+
+                          <div className="mt-2">
+                            <button
+                              onClick={() => router.push('/assets?tab=image')}
+                              className="w-full bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                            >
+                              Go to Assets
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
