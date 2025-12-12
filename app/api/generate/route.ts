@@ -299,19 +299,14 @@ export async function POST(request: NextRequest) {
       throw new Error('Failed to resolve accessible image URL for generation');
     }
 
-    // Call Kie.ai API according to documentation
-    // Try multiple possible endpoints in case the API has changed
-    const possibleApiUrls = [
-      process.env.GROK_API_URL,
-      'https://api.kie.ai/api/v1/veo/generate',
-      'https://api.kie.ai/v1/generate',
-      'https://api.kie.ai/api/v1/generate',
-      'https://api.kie.ai/generate'
-    ].filter(Boolean);
-
-    const grokApiUrl = possibleApiUrls[0] || 'https://api.kie.ai/api/v1/veo/generate';
+    // Call Kie.ai Veo endpoint.
+    // We keep this pinned to the documented URL unless GROK_API_URL explicitly points to a Veo endpoint.
+    const defaultVeoUrl = 'https://api.kie.ai/api/v1/veo/generate';
+    const grokApiUrl =
+      typeof process.env.GROK_API_URL === 'string' && process.env.GROK_API_URL.includes('/veo/')
+        ? process.env.GROK_API_URL
+        : defaultVeoUrl;
     console.log('🎯 Using API URL:', grokApiUrl);
-    console.log('🔄 Alternative URLs available:', possibleApiUrls.slice(1));
 
     console.log('✅ API key configured, proceeding with generation...');
     console.log('🔗 API URL:', grokApiUrl);
@@ -349,19 +344,21 @@ export async function POST(request: NextRequest) {
     let taskId: string | undefined;
     let lastKiePayload: any = null;
 
-    // Prefer async mode to avoid serverless timeouts; frontend polls /api/poll-task as fallback
-    let requestBody: any = {
-        prompt: prompt,
-        imageUrls: [accessibleImageUrl],
-        model: "veo3_fast", // STRICTLY using veo3_fast for REFERENCE_2_VIDEO
-        aspectRatio: "9:16", // Match portrait uploads + UI (reduces Kie validation failures)
-        generationType: "REFERENCE_2_VIDEO",
-        enableFallback: true, // Enable fallback API as suggested by error message
-        enableTranslation: true,
-        callBackUrl: callbackUrl,
-        sync: false,
-        waitForCompletion: false
+    // Prefer minimal "known-good" body shape (closest to what you confirmed worked before).
+    // Kie sometimes returns generic 422 messages for any validation issue, so keep payload strict.
+    const baseVeoBody: any = {
+      prompt,
+      imageUrls: [accessibleImageUrl],
+      model: 'veo3_fast',
+      generationType: 'REFERENCE_2_VIDEO',
+      enableFallback: false,
+      enableTranslation: true,
+      callBackUrl: callbackUrl,
     };
+
+    // Start with 16:9 first (matches the previously-working payload you shared),
+    // then try portrait variants.
+    let requestBody: any = { ...baseVeoBody, aspectRatio: '16:9' };
 
       console.log('🔄 Trying generation request...');
 
@@ -455,38 +452,14 @@ export async function POST(request: NextRequest) {
 
       // Fall back to async request - try different parameter formats
       const asyncRequestBodies = [
-          // 1. Correct format per docs: veo3_fast + REFERENCE_2_VIDEO
-          {
-            url: grokApiUrl,
-            body: {
-              prompt: prompt,
-              imageUrls: [accessibleImageUrl],
-              model: "veo3_fast",
-              aspectRatio: "9:16",
-              generationType: "REFERENCE_2_VIDEO",
-              enableFallback: true, // Enable fallback API as suggested by error message
-              enableTranslation: true,
-              callBackUrl: callbackUrl,
-              sync: false,
-              waitForCompletion: false
-            }
-          },
-          // 2. Try veo3 quality model with FIRST_AND_LAST_FRAMES mode
-          {
-            url: grokApiUrl,
-            body: {
-              prompt: prompt,
-              imageUrls: [accessibleImageUrl],
-              model: "veo3", // Try quality model instead of fast
-              aspectRatio: "9:16",
-              generationType: "FIRST_AND_LAST_FRAMES_2_VIDEO", // Different generation mode
-              enableFallback: true,
-              enableTranslation: true,
-              callBackUrl: callbackUrl,
-              sync: false,
-              waitForCompletion: false
-            }
-          }
+        // 1) Previously-working shape: 16:9 + veo3_fast + REFERENCE_2_VIDEO
+        { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '16:9' } },
+        // 2) Portrait
+        { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '9:16' } },
+        // 3) Omit aspectRatio (let Kie decide)
+        { url: grokApiUrl, body: { ...baseVeoBody } },
+        // 4) Enable fallback (some accounts require this)
+        { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '16:9', enableFallback: true } },
       ];
 
       let asyncSuccess = false;
