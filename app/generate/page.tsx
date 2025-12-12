@@ -219,7 +219,9 @@ export default function GeneratePage() {
   // Handle generation
   const handleGenerate = async () => {
     if (!uploadedImage || !selectedTemplate || !user) return;
-    if (!imageUrl || !imageUrl.startsWith('http')) {
+    const hasHttpImageUrl = !!imageUrl && imageUrl.startsWith('http');
+    const hasBase64Image = !!base64Image && base64Image.startsWith('data:image/');
+    if (!hasHttpImageUrl && !hasBase64Image) {
       alert('Image upload is still processing or failed. Please wait for upload to finish before generating.');
       return;
     }
@@ -230,7 +232,9 @@ export default function GeneratePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrl: imageUrl,
+          // Prefer uploaded URL; fall back to base64 (server will upload to Kie file upload API)
+          imageUrl: hasHttpImageUrl ? imageUrl : undefined,
+          imageDataUrl: !hasHttpImageUrl && hasBase64Image ? base64Image : undefined,
           templateId: selectedTemplate.id,
           intensity: 'spicy',
           userId: user.id,

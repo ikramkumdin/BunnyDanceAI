@@ -135,13 +135,13 @@ async function uploadImageToKie(imagePath: string, apiKey: string): Promise<stri
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imageUrl, templateId, intensity = 'mild', userId } = body;
+    const { imageUrl, imageDataUrl, templateId, intensity = 'mild', userId } = body;
 
     console.log('🚀 API called with templateId:', templateId);
     console.log('📊 Total templates loaded:', templates.length);
     console.log('📋 First few templates:', templates.slice(0, 3).map(t => ({ id: t.id, name: t.name })));
 
-    if (!imageUrl || !templateId) {
+    if ((!imageUrl && !imageDataUrl) || !templateId) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -177,41 +177,71 @@ export async function POST(request: NextRequest) {
 
     console.log('📝 Final constructed prompt:', prompt);
 
-    // Get a long-lived public signed URL for the image
-    // Get a properly signed URL that worked before
-    // Make image publicly accessible for Kie.ai
+    // We need an image URL accessible by Kie.ai. If the client provided base64,
+    // upload it to Kie.ai File Upload API and use the returned URL.
     let accessibleImageUrl: string;
     try {
-      console.log('🔗 Making image publicly accessible for Kie.ai...');
+      if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
+        console.log('📤 Received base64 imageDataUrl; uploading to Kie.ai File Upload API...');
+        const match = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+        if (!match) throw new Error('Invalid imageDataUrl format');
+        const mimeType = match[1];
+        const base64 = match[2];
+        const buffer = Buffer.from(base64, 'base64');
 
-      // Import storage
-      const { adminStorage } = await import('@/lib/firebase-admin');
+        const formData = new FormData();
+        const blob = new Blob([buffer], { type: mimeType });
+        formData.append('file', blob, 'upload-image');
 
-      // Parse the GCS path
-      let bucketName = 'voice-app-storage';
-      let filePath = imageUrl;
+        const uploadResponse = await fetch('https://api.kie.ai/api/v1/file-upload/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${process.env.GROK_API_KEY}` },
+          body: formData,
+        });
 
-      if (imageUrl.startsWith('https://storage.googleapis.com/')) {
-        const url = new URL(imageUrl);
-        const pathParts = url.pathname.substring(1).split('/');
-        bucketName = pathParts[0];
-        filePath = pathParts.slice(1).join('/');
-      } else if (imageUrl.includes('voice-app-storage/')) {
-        filePath = imageUrl.split('voice-app-storage/')[1] || imageUrl;
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          throw new Error(`Kie.ai file upload failed: ${uploadResponse.status} - ${errorText}`);
+        }
+
+        const uploadResult = await uploadResponse.json();
+        const kieImageUrl = uploadResult.url || uploadResult.data?.url || uploadResult.fileUrl || uploadResult.data?.fileUrl || uploadResult.imageUrl;
+        if (!kieImageUrl) throw new Error(`No URL in Kie upload response: ${JSON.stringify(uploadResult)}`);
+
+        accessibleImageUrl = kieImageUrl;
+        console.log('✅ Kie.ai uploaded image URL:', accessibleImageUrl);
+      } else {
+        console.log('🔗 Making image publicly accessible for Kie.ai...');
+
+        // Import storage
+        const { adminStorage } = await import('@/lib/firebase-admin');
+
+        // Parse the GCS path
+        let bucketName = 'voice-app-storage';
+        let filePath = imageUrl;
+
+        if (imageUrl.startsWith('https://storage.googleapis.com/')) {
+          const url = new URL(imageUrl);
+          const pathParts = url.pathname.substring(1).split('/');
+          bucketName = pathParts[0];
+          filePath = pathParts.slice(1).join('/');
+        } else if (imageUrl.includes('voice-app-storage/')) {
+          filePath = imageUrl.split('voice-app-storage/')[1] || imageUrl;
+        }
+
+        console.log(`📦 Bucket: ${bucketName}, File: ${filePath}`);
+
+        const bucket = adminStorage.bucket(bucketName);
+        const file = bucket.file(filePath);
+
+        // Make the file publicly readable
+        await file.makePublic();
+        console.log('✅ Made image publicly accessible');
+
+        // Get the public URL
+        accessibleImageUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+        console.log('📸 Public GCS URL:', accessibleImageUrl);
       }
-
-      console.log(`📦 Bucket: ${bucketName}, File: ${filePath}`);
-
-      const bucket = adminStorage.bucket(bucketName);
-      const file = bucket.file(filePath);
-
-      // Make the file publicly readable
-      await file.makePublic();
-      console.log('✅ Made image publicly accessible');
-
-      // Get the public URL
-      accessibleImageUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
-      console.log('📸 Public GCS URL:', accessibleImageUrl);
 
     } catch (publicError) {
       console.error('❌ Error making image public:', publicError);
