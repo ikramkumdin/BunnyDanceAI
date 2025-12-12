@@ -213,6 +213,26 @@ export async function POST(request: NextRequest) {
       } else {
         console.log('🔗 Making image publicly accessible for Kie.ai...');
 
+        // Prefer Kie.ai File Upload API so Veo can fetch reliably (and avoid GCS access/size quirks).
+        // If this succeeds, we don't need to make the object public or generate a signed URL.
+        try {
+          if (typeof imageUrl === 'string' && imageUrl.length > 0) {
+            const kieHostedUrl = await uploadImageToKie(imageUrl, process.env.GROK_API_KEY);
+            accessibleImageUrl = kieHostedUrl;
+            console.log('✅ Using Kie-hosted image URL for generation:', accessibleImageUrl);
+            // Skip GCS makePublic path
+            console.log('⏭️ Skipping GCS makePublic/signed-url because Kie upload succeeded');
+          }
+        } catch (kieUploadErr) {
+          console.warn(
+            '⚠️ Kie file upload fallback failed; continuing with GCS public/signed-url flow:',
+            kieUploadErr instanceof Error ? kieUploadErr.message : String(kieUploadErr)
+          );
+        }
+
+        if (accessibleImageUrl) {
+          // We already have a Kie-hosted URL; no more work needed.
+        } else {
         // Import storage
         const { adminStorage } = await import('@/lib/firebase-admin');
 
@@ -241,6 +261,7 @@ export async function POST(request: NextRequest) {
         // Get the public URL
         accessibleImageUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
         console.log('📸 Public GCS URL:', accessibleImageUrl);
+        }
       }
 
     } catch (publicError) {

@@ -37,8 +37,9 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
 
     // These limits are intentionally conservative to satisfy Kie.ai's "Images size exceeds limit".
     // We optimize for reliability over absolute quality.
-    const MAX_DIM_START = 1024;
-    const TARGET_MAX_BYTES = 900_000; // ~0.9MB
+    const MAX_DIM_START = 768;
+    const MIN_DIM = 512;
+    const TARGET_MAX_BYTES = 350_000; // ~0.35MB
 
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
@@ -58,11 +59,19 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
     const h = img.naturalHeight || (img as any).height;
     if (!w || !h) return original;
 
+    console.info('[upload] original image', {
+      name: original.name,
+      type: original.type,
+      bytes: original.size,
+      width: w,
+      height: h,
+    });
+
     let maxDim = MAX_DIM_START;
-    let quality = 0.82;
+    let quality = 0.78;
 
     // Try a few rounds: downscale, then reduce quality if still too big.
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 7; attempt++) {
       const scale = Math.min(1, maxDim / Math.max(w, h));
       const outW = Math.max(1, Math.round(w * scale));
       const outH = Math.max(1, Math.round(h * scale));
@@ -86,20 +95,29 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
 
       if (blob.size <= TARGET_MAX_BYTES) {
         const newName = original.name.replace(/\.[^.]+$/, '') + '.jpg';
+        console.info('[upload] processed image OK', {
+          name: newName,
+          type: 'image/jpeg',
+          bytes: blob.size,
+          width: outW,
+          height: outH,
+          quality,
+          maxDim,
+        });
         return new File([blob], newName, { type: 'image/jpeg' });
       }
 
       // Too big: first reduce quality, then if already low quality, reduce dimensions further.
-      if (quality > 0.62) {
-        quality = Math.max(0.62, quality - 0.1);
+      if (quality > 0.45) {
+        quality = Math.max(0.45, quality - 0.1);
       } else {
-        maxDim = Math.max(640, Math.floor(maxDim * 0.85));
+        maxDim = Math.max(MIN_DIM, Math.floor(maxDim * 0.85));
       }
     }
 
     // Last resort: return whatever we have at the smallest settings.
     // (We should almost never reach here.)
-    const scale = Math.min(1, 640 / Math.max(w, h));
+    const scale = Math.min(1, MIN_DIM / Math.max(w, h));
     const outW = Math.max(1, Math.round(w * scale));
     const outH = Math.max(1, Math.round(h * scale));
     const canvas = document.createElement('canvas');
@@ -112,10 +130,19 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
       canvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error('Failed to encode image'))),
         'image/jpeg',
-        0.62
+        0.45
       );
     });
     const newName = original.name.replace(/\.[^.]+$/, '') + '.jpg';
+    console.info('[upload] processed image (last resort)', {
+      name: newName,
+      type: 'image/jpeg',
+      bytes: blob.size,
+      width: outW,
+      height: outH,
+      quality: 0.45,
+      maxDim: MIN_DIM,
+    });
     return new File([blob], newName, { type: 'image/jpeg' });
   }
 
