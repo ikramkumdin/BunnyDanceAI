@@ -7,7 +7,10 @@ export const runtime = 'nodejs';
 // This endpoint receives callbacks from Kie.ai when image generation completes
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔔 Received Kie.ai image callback:', request.method, request.url);
+    console.log('🔔 Headers:', Object.fromEntries(request.headers.entries()));
     const data = await request.json();
+    console.log('🔔 Callback Body:', JSON.stringify(data, null, 2));
     
     console.log('🔔 Received Kie.ai image callback:', JSON.stringify(data, null, 2));
 

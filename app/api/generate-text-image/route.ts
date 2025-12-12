@@ -26,14 +26,15 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Using Kie.ai API for image generation...');
 
-    // Get the base URL for callback (works on both localhost and Vercel)
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
-                    (request.headers.get('host')?.includes('localhost') 
-                      ? 'http://localhost:3000' 
-                      : `https://${request.headers.get('host')}`);
-    
+    const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL || process.env.NEXT_PUBLIC_SITE_URL;
+    const baseUrl = vercelUrl ? `https://${vercelUrl}` : 'http://localhost:3000';
     const callbackUrl = `${baseUrl}/api/image-callback`;
-    console.log('📞 Callback URL:', callbackUrl);
+
+    if (!vercelUrl) {
+      console.warn('⚠️  NEXT_PUBLIC_VERCEL_URL or NEXT_PUBLIC_SITE_URL is not set. Using http://localhost:3000 for callbackUrl.');
+    }
+
+    console.log(`[Generate] Sending callbackUrl to Kie.ai: ${callbackUrl}`);
 
     const requestBody = {
       prompt: prompt,
