@@ -138,6 +138,14 @@ export async function POST(request: NextRequest) {
     const { imageUrl, imageDataUrl, templateId, intensity = 'mild', userId } = body;
 
     const apiKey = process.env.GROK_API_KEY;
+    if (!apiKey) {
+      console.error('❌ GROK_API_KEY is not configured in environment');
+      console.log('🔍 Available env vars:', Object.keys(process.env).filter(key => key.includes('GROK') || key.includes('API')));
+      return NextResponse.json(
+        { error: 'GROK_API_KEY is not configured. Please add it to Vercel environment variables' },
+        { status: 500 }
+      );
+    }
 
     console.log('🚀 API called with templateId:', templateId);
     console.log('📊 Total templates loaded:', templates.length);
@@ -301,15 +309,6 @@ export async function POST(request: NextRequest) {
     console.log('🎯 Using API URL:', grokApiUrl);
     console.log('🔄 Alternative URLs available:', possibleApiUrls.slice(1));
 
-    if (!apiKey) {
-      console.error('❌ GROK_API_KEY is not configured in environment');
-      console.log('🔍 Available env vars:', Object.keys(process.env).filter(key => key.includes('GROK') || key.includes('API')));
-      return NextResponse.json(
-        { error: 'GROK_API_KEY is not configured. Please add it to Vercel environment variables' },
-        { status: 500 }
-      );
-    }
-
     console.log('✅ API key configured, proceeding with generation...');
     console.log('🔗 API URL:', grokApiUrl);
 
@@ -339,14 +338,6 @@ export async function POST(request: NextRequest) {
         taskId: fakeTaskId,
         message: 'Video generation started (TEST MODE)',
       });
-    }
-
-    if (!apiKey) {
-      console.error('❌ GROK_API_KEY is not configured in .env.local');
-      return NextResponse.json(
-        { error: 'GROK_API_KEY is not configured. Please add it to .env.local' },
-        { status: 500 }
-      );
     }
 
     console.log('✅ API key configured, proceeding with generation...');
