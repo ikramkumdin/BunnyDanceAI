@@ -19,6 +19,8 @@ export default function GeneratePage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
   const [showGeneratedVideoActions, setShowGeneratedVideoActions] = useState(false);
+  const [isSavingGeneratedVideo, setIsSavingGeneratedVideo] = useState(false);
+  const [hasSavedGeneratedVideo, setHasSavedGeneratedVideo] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -87,6 +89,23 @@ export default function GeneratePage() {
     }
   }, [user]);
 
+  const saveGeneratedVideoToAssets = useCallback(async () => {
+    if (!generatedVideo) return;
+    if (!user) {
+      alert('Please sign in to save to Assets.');
+      return;
+    }
+    if (hasSavedGeneratedVideo) return;
+
+    setIsSavingGeneratedVideo(true);
+    try {
+      await saveVideoToAssets(generatedVideo, 'Text-to-Video', 'text-to-video', generatedVideo);
+      setHasSavedGeneratedVideo(true);
+    } finally {
+      setIsSavingGeneratedVideo(false);
+    }
+  }, [generatedVideo, user, hasSavedGeneratedVideo, saveVideoToAssets]);
+
   const downloadVideo = useCallback((url: string) => {
     const a = document.createElement('a');
     a.href = url;
@@ -142,16 +161,11 @@ export default function GeneratePage() {
             const videoUrl = pollData.videoUrl || pollData.url || pollData.result?.videoUrl || pollData.output?.videoUrl;
             if (videoUrl && (pollData.status === 'completed' || pollData.status === 'success' || pollData.completed)) {
               console.log('🎬 Video ready from Kie.ai:', videoUrl);
-              setGeneratedVideo(videoUrl);
+                setGeneratedVideo(videoUrl);
               setShowGeneratedVideoActions(true);
-              setIsGenerating(false);
-              // Save to assets ONCE (avoid duplication with DB fallback path)
-              if (selectedTemplate) {
-                saveVideoToAssets(videoUrl, selectedTemplate.name, selectedTemplate.id);
-              } else {
-                saveVideoToAssets(videoUrl, 'Text-to-Video', 'text-to-video', videoUrl);
-              }
-              return;
+              setHasSavedGeneratedVideo(false);
+                setIsGenerating(false);
+                return;
             }
           }
         } catch (pollError) {
@@ -170,6 +184,7 @@ export default function GeneratePage() {
         console.log('🎬 Video ready from database:', data.videoUrl);
         setGeneratedVideo(data.videoUrl);
         setShowGeneratedVideoActions(true);
+        setHasSavedGeneratedVideo(false);
         setIsGenerating(false);
         // Do NOT save again (DB already has it)
         return;
@@ -252,6 +267,7 @@ export default function GeneratePage() {
     setIsGenerating(true);
     setGeneratedVideo(null);
     setShowGeneratedVideoActions(false);
+    setHasSavedGeneratedVideo(false);
     try {
       const response = await fetch('/api/generate-text-video', {
         method: 'POST',
@@ -269,8 +285,9 @@ export default function GeneratePage() {
           // Immediate result (rare)
           setGeneratedVideo(data.videoUrl);
           setShowGeneratedVideoActions(true);
+          setHasSavedGeneratedVideo(false);
           // Save to assets
-          saveVideoToAssets(data.videoUrl, 'Text-to-Video', 'text-to-video', data.videoUrl);
+          // For text-to-video, user saves via the details sheet (like text-to-image).
         } else if (data.taskId) {
           // Async generation - start polling
           console.log('🎬 Started text-to-video generation, polling for completion...');
@@ -604,10 +621,7 @@ export default function GeneratePage() {
             {activeMode === 'text-to-video' && (
               <div className={`w-full h-full flex flex-col ${generatedVideo ? 'p-0' : 'p-4'} gap-3`}>
                 {generatedVideo ? (
-                  <div
-                    className="w-full h-full relative"
-                    onClick={() => setShowGeneratedVideoActions(true)}
-                  >
+                  <div className="w-full h-full relative">
                     <video
                       src={generatedVideo}
                       className="w-full h-full object-cover"
@@ -622,11 +636,22 @@ export default function GeneratePage() {
                         }
                         setGeneratedVideo(null);
                         setTextPrompt('');
+                        setHasSavedGeneratedVideo(false);
                       }}
                       className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
                       aria-label="Close"
                     >
                       <X className="w-4 h-4 text-white" />
+                    </button>
+
+                    {/* Small floating actions button near the bottom so it doesn't block video controls */}
+                    <button
+                      onClick={() => setShowGeneratedVideoActions(true)}
+                      className="absolute bottom-16 right-2 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
+                      aria-label="Open video actions"
+                      title="Actions"
+                    >
+                      <Share2 className="w-4 h-4 text-white" />
                     </button>
 
                     {showGeneratedVideoActions && (
@@ -646,7 +671,7 @@ export default function GeneratePage() {
                             <X className="w-4 h-4 text-white" />
                           </button>
 
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-3 gap-3">
                             <button
                               onClick={() => shareVideo(generatedVideo)}
                               className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
@@ -662,6 +687,15 @@ export default function GeneratePage() {
                               title="Download"
                             >
                               <Download className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={saveGeneratedVideoToAssets}
+                              disabled={isSavingGeneratedVideo || hasSavedGeneratedVideo}
+                              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label={hasSavedGeneratedVideo ? 'Saved' : 'Save to Assets'}
+                              title={hasSavedGeneratedVideo ? 'Saved' : 'Save'}
+                            >
+                              {hasSavedGeneratedVideo ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
                             </button>
                           </div>
                         </div>
