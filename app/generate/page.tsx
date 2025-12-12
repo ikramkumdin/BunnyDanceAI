@@ -132,10 +132,15 @@ export default function GeneratePage() {
 
   // Handle image selection
   const handleImageSelect = (imageData: { gcpUrl: string; base64Url: string }) => {
-    setUploadedImage(imageData.gcpUrl);
-    setImageUrl(imageData.gcpUrl); // For API calls
+    // Always show a preview. If upload failed, fall back to base64 preview,
+    // but keep imageUrl null so generation is blocked until we have a real URL.
+    const previewUrl = imageData.gcpUrl || imageData.base64Url;
+    setUploadedImage(previewUrl);
+    setImageUrl(imageData.gcpUrl || null); // For API calls (must be http URL)
     setBase64Image(imageData.base64Url); // For immediate display
-    setStoreUploadedImage(imageData.gcpUrl);
+    if (imageData.gcpUrl) {
+      setStoreUploadedImage(imageData.gcpUrl);
+    }
     setGeneratedVideo(null);
   };
 
@@ -214,6 +219,10 @@ export default function GeneratePage() {
   // Handle generation
   const handleGenerate = async () => {
     if (!uploadedImage || !selectedTemplate || !user) return;
+    if (!imageUrl || !imageUrl.startsWith('http')) {
+      alert('Image upload is still processing or failed. Please wait for upload to finish before generating.');
+      return;
+    }
 
     setIsGenerating(true);
     try {
@@ -221,7 +230,7 @@ export default function GeneratePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrl: uploadedImage,
+          imageUrl: imageUrl,
           templateId: selectedTemplate.id,
           intensity: 'spicy',
           userId: user.id,
@@ -1041,9 +1050,9 @@ export default function GeneratePage() {
           {filteredTemplates.map((template) => (
             <div
               key={template.id}
-              onClick={() => uploadedImage && handleTemplateSelect(template)}
+              onClick={() => (uploadedImage || base64Image) && handleTemplateSelect(template)}
               className={`relative aspect-[9/16] bg-gray-800 rounded-lg overflow-hidden transition-all ${
-                uploadedImage
+                (uploadedImage || base64Image)
                   ? `cursor-pointer hover:scale-105 ${selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''}`
                   : 'cursor-not-allowed opacity-50'
               }`}

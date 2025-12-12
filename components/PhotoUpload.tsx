@@ -66,11 +66,16 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
       } else {
         // Keep base64 preview if upload fails
         console.error('Upload failed, keeping base64 preview');
-        // Don't clear the preview - keep the base64 image
+        // Still notify parent so template selection can work with preview,
+        // but generation will require a real uploaded URL.
+        const base64Data = await base64Promise;
+        onImageSelect({ gcpUrl: '', base64Url: base64Data });
       }
     } catch (error) {
       console.error('Upload error:', error);
       // Keep the base64 preview even if upload fails
+      const base64Data = await base64Promise;
+      onImageSelect({ gcpUrl: '', base64Url: base64Data });
     } finally {
       setIsUploading(false);
     }
