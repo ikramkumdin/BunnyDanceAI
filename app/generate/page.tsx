@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { templates } from '@/data/templates';
 import { Template } from '@/types';
@@ -10,6 +10,7 @@ import { useStore } from '@/store/useStore';
 import { useUser } from '@/hooks/useUser';
 import Layout from '@/components/Layout';
 import { saveImage, saveVideo } from '@/lib/firestore';
+import { MAX_RETRIES, POLL_INTERVAL_MS } from '@/config/polling';
 
 export default function GeneratePage() {
   const router = useRouter();
@@ -27,9 +28,19 @@ export default function GeneratePage() {
 
   const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
   const { user } = useUser();
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear any existing timeouts when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Save image to assets
-  const saveImageToAssets = async (imageUrl: string, prompt?: string, source: 'text-to-image' | 'image-to-video' = 'text-to-image') => {
+  const saveImageToAssets = useCallback(async (imageUrl: string, prompt?: string, source: 'text-to-image' | 'image-to-video' = 'text-to-image') => {
     if (!user) return;
     
     try {
@@ -46,10 +57,10 @@ export default function GeneratePage() {
     } catch (error) {
       console.error('❌ Error saving image to assets:', error);
     }
-  };
+  }, [user, textPrompt]);
 
   // Save video to assets
-  const saveVideoToAssets = async (videoUrl: string, templateName: string, templateId: string, thumbnail?: string) => {
+  const saveVideoToAssets = useCallback(async (videoUrl: string, templateName: string, templateId: string, thumbnail?: string) => {
     if (!user) return;
     
     try {
@@ -68,7 +79,7 @@ export default function GeneratePage() {
     } catch (error) {
       console.error('❌ Error saving video to assets:', error);
     }
-  };
+  }, [user]);
 
   // Handle image selection
   const handleImageSelect = (imageData: { gcpUrl: string; base64Url: string }) => {
@@ -268,178 +279,14 @@ export default function GeneratePage() {
     }
   };
 
-  // Poll for image status
-  const pollImageStatus = useCallback(async (startTime = Date.now(), taskId = null, provider = 'kie') => {
-    try {
-      if (taskId) {
-        const elapsed = Date.now() - startTime;
-        const elapsedSeconds = Math.round(elapsed / 1000);
-        const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-        const remainingSeconds = elapsedSeconds % 60;
-
-        const timeStr = elapsedMinutes > 0 ? `${elapsedMinutes}:${remainingSeconds.toString().padStart(2, '0')}` : `${elapsedSeconds}s`;
-        const phase = elapsed < 1 * 60 * 1000 ? 'frequent checks' :
-                     elapsed < 3 * 60 * 1000 ? 'regular polling' : 'slow polling';
-        const statusMsg = elapsed < 2 * 60 * 1000 ?
-          `Generating... ${timeStr} elapsed (${phase})` :
-          `Still generating... ${timeStr} elapsed. If Kie.ai dashboard shows complete, API usually catches up in 1-2 min`;
-        setGenerationProgress(statusMsg);
-        console.log(`🔍 Polling for image status (${provider})... ${timeStr} elapsed - ${phase}`);
-
-        // Call the polling endpoint twice with a small delay for robustness
-        let pollResponse;
-        try {
-          pollResponse = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
-        } catch (firstError) {
-          console.log('⚠️ First poll failed, trying again...');
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-          pollResponse = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
-        }
-
-        if (pollResponse.ok) {
-          const pollData = await pollResponse.json();
-          console.log('📊 Image poll response:', pollData);
-
-          // Check if image is ready - be flexible with where URL might be
-          let imageUrl = pollData.imageUrl || pollData.data?.imageUrl;
-
-          // Check data.response field (might be JSON string or object)
-          if (!imageUrl && pollData.data?.response) {
-            try {
-              const response = typeof pollData.data.response === 'string'
-                ? JSON.parse(pollData.data.response)
-                : pollData.data.response;
-
-              // Check for result_urls array
-              if (response.result_urls && Array.isArray(response.result_urls) && response.result_urls.length > 0) {
-                imageUrl = response.result_urls[0];
-              }
-              // Check if response is directly an array of URLs
-              else if (Array.isArray(response) && response.length > 0 && typeof response[0] === 'string' && response[0].startsWith('http')) {
-                imageUrl = response[0];
-              }
-              // Check if response is directly a URL string
-              else if (typeof response === 'string' && response.startsWith('http')) {
-                imageUrl = response;
-              }
-            } catch (e) {
-              console.error('Failed to parse data.response:', e);
-            }
-          }
-
-          // Check data.resultUrls field
-          if (!imageUrl && pollData.data?.resultUrls) {
-            try {
-              const urls = typeof pollData.data.resultUrls === 'string'
-                ? JSON.parse(pollData.data.resultUrls)
-                : pollData.data.resultUrls;
-
-              if (Array.isArray(urls) && urls.length > 0) {
-                imageUrl = urls[0];
-              } else if (typeof urls === 'string' && urls.startsWith('http')) {
-                imageUrl = urls;
-              }
-            } catch (e) {
-              console.error('Failed to parse data.resultUrls:', e);
-            }
-          }
-
-          // Check data.url field as fallback
-          if (!imageUrl && pollData.data?.url) {
-            imageUrl = pollData.data.url;
-          }
-
-          console.log('🔍 Extracted image URL:', imageUrl);
-          console.log('📊 Full pollData for debugging:', JSON.stringify(pollData, null, 2));
-
-          if (imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
-            console.log('🎨 Image ready:', imageUrl);
-            setUploadedImage(imageUrl);
-            setBase64Image(imageUrl);
-            setImageUrl(imageUrl);
-            setIsGenerating(false);
-            setGenerationProgress('');
-            // Save to assets automatically
-            saveImageToAssets(imageUrl, textPrompt, 'text-to-image');
-            // Redirect to Assets page to show the new image
-            setTimeout(() => {
-              router.push('/assets?tab=image');
-            }, 1000); // Small delay to ensure save completes
-            return;
-          }
-
-          // Check for explicit failure
-          if (pollData.status === 'failed' || pollData.data?.status === 'FAILED') {
-            console.error('❌ Image generation failed:', pollData.error || pollData.data?.errorMessage);
-            alert('Image generation failed: ' + (pollData.error || pollData.data?.errorMessage || 'Unknown error'));
-            setIsGenerating(false);
-            setGenerationProgress('');
-            return;
-          }
-        }
-      }
-
-      // Continue polling if not ready (max 5 minutes for Kie.ai text-to-image - takes ~3 minutes)
-      const elapsed = Date.now() - startTime;
-      const elapsedMinutes = Math.round(elapsed / (60 * 1000));
-      const maxMinutes = provider === 'replicate' ? 5 : 5; // Kie.ai text-to-image takes ~3 minutes
-
-      console.log(`⏳ Polling image (${provider})... ${elapsedMinutes}/${maxMinutes} minutes elapsed`);
-
-      if (elapsed < maxMinutes * 60 * 1000) {
-        // Poll aggressively early, then relax: 5s for first minute, 8s for next 2, 15s after
-        let pollInterval;
-        if (elapsed < 1 * 60 * 1000) {
-          pollInterval = 5000; // Every 5 seconds for first minute (aggressive for API lag)
-        } else if (elapsed < 3 * 60 * 1000) {
-          pollInterval = 8000; // Every 8 seconds for minutes 1-3
-        } else {
-          pollInterval = 15000; // Every 15 seconds after 3 minutes (relaxed)
-        }
-        setTimeout(() => pollImageStatus(startTime, taskId, provider), pollInterval);
-      } else {
-        console.log(`⏰ Image generation timeout after ${maxMinutes} minutes`);
-        console.log('💡 The image might still be generating. Check Kie.ai dashboard: https://kie.ai/logs');
-        
-        // Try one last check of the cache (in case callback arrived during timeout)
-        if (taskId && provider === 'kie') {
-          console.log('🔄 Doing final cache check before timeout...');
-          const finalCheck = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
-          if (finalCheck.ok) {
-            const finalData = await finalCheck.json();
-            const finalImageUrl = finalData.imageUrl || finalData.data?.imageUrl;
-            if (finalImageUrl && typeof finalImageUrl === 'string' && finalImageUrl.startsWith('http')) {
-              console.log('🎉 Found image in final cache check!', finalImageUrl);
-              setUploadedImage(finalImageUrl);
-              setBase64Image(finalImageUrl);
-              setImageUrl(finalImageUrl);
-              setIsGenerating(false);
-              setGenerationProgress('');
-              // Save to assets
-              saveImageToAssets(finalImageUrl, textPrompt, 'text-to-image');
-              return;
-            }
-          }
-        }
-
-        setIsGenerating(false);
-        setGenerationProgress('');
-        const message = `Image generation timed out after ${maxMinutes} minutes.\n\n` +
-          `Task ID: ${taskId}\n\n` +
-          `The image might still be processing. Please:\n` +
-          `1. Go to https://kie.ai/logs\n` +
-          `2. Find task ID: ${taskId}\n` +
-          `3. If it shows "SUCCESS", click "Retry Callback" button\n` +
-          `4. Then refresh this page and try again`;
-        alert(message);
-      }
-    } catch (error) {
-      console.error('Image polling error:', error);
-      setIsGenerating(false);
-      setGenerationProgress('');
-      alert('Error checking image status. Please try again.');
+  // Poll for image status (single check only now, loop handled by handleTextToImage)
+  const fetchImageStatus = useCallback(async (taskId: string, provider: string) => {
+    const pollResponse = await fetch(`/api/poll-image-task?taskId=${taskId}&provider=${provider}`);
+    if (!pollResponse.ok) {
+      throw new Error(`Polling API error: ${pollResponse.status}`);
     }
-  }, [saveImageToAssets, textPrompt, router]);
+    return await pollResponse.json();
+  }, []);
 
   // Handle text-to-image generation
   const handleTextToImage = async () => {
@@ -450,6 +297,10 @@ export default function GeneratePage() {
 
     setIsGenerating(true);
     setGenerationProgress('Starting generation...');
+    setUploadedImage(null);
+    setBase64Image(null);
+    setImageUrl(null);
+
     try {
       const response = await fetch('/api/generate-text-image', {
         method: 'POST',
@@ -462,40 +313,108 @@ export default function GeneratePage() {
 
       const data = await response.json();
 
-      if (response.ok) {
-        if (data.imageUrl) {
-          // Immediate result (rare)
-          setUploadedImage(data.imageUrl);
-          setBase64Image(data.imageUrl);
-          setImageUrl(data.imageUrl);
-          setIsGenerating(false);
-          // Save to assets
-          saveImageToAssets(data.imageUrl, textPrompt, 'text-to-image');
-          // Redirect to Assets page to show the new image
-          setTimeout(() => {
-            router.push('/assets?tab=image');
-          }, 1000);
-        } else if (data.taskId) {
-          // Async generation - wait for callback first, then poll as backup
-          const provider = data.provider || 'kie';
-          console.log(`🎨 Started image generation with ${provider}, waiting for callback...`);
-          // Wait 15 seconds for callback, then start polling as backup (new tasks need time to index)
-          setTimeout(() => {
-            console.log('⏰ Callback timeout reached, starting polling as backup...');
-            pollImageStatus(Date.now(), data.taskId, provider);
-          }, 15000); // 15 seconds to let new tasks get indexed in Golden Endpoint
-        } else {
-          alert('Generation started but no task ID received.');
-          setIsGenerating(false);
-        }
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to initiate image generation');
+      }
+
+      if (data.imageUrl) {
+        // Immediate result (rare)
+        console.log('🎨 Immediate image result:', data.imageUrl);
+        setUploadedImage(data.imageUrl);
+        setBase64Image(data.imageUrl);
+        setImageUrl(data.imageUrl);
+        setIsGenerating(false);
+        setGenerationProgress('');
+        saveImageToAssets(data.imageUrl, textPrompt, 'text-to-image');
+        router.push('/assets?tab=image');
+        return;
+      }
+
+      if (data.taskId) {
+        const provider = data.provider || 'kie';
+        console.log(`🎨 Started image generation with ${provider}, managing polling... Task ID: ${data.taskId}`);
+
+        const startTime = Date.now();
+        let attempts = 0;
+        let finalImageUrl: string | null = null;
+
+        const pollLoop = async () => {
+          if (pollingTimeoutRef.current) {
+            clearTimeout(pollingTimeoutRef.current);
+            pollingTimeoutRef.current = null;
+          }
+
+          if (attempts >= MAX_RETRIES) {
+            console.log(`⏰ Image generation timeout after ${MAX_RETRIES} attempts.`);
+            console.log('💡 The image might still be generating. Check Kie.ai dashboard: https://kie.ai/logs');
+            setIsGenerating(false);
+            setGenerationProgress('');
+            alert(`Image generation timed out after ${Math.round(MAX_RETRIES * POLL_INTERVAL_MS / 60000)} minutes.\n\n` +
+              `Task ID: ${data.taskId}\n\n` +
+              `The image might still be processing. Please:\n` +
+              `1. Go to https://kie.ai/logs\n` +
+              `2. Find task ID: ${data.taskId}\n` +
+              `3. If it shows "SUCCESS", click "Retry Callback" button\n` +
+              `4. Then refresh this page and try again`);
+            return;
+          }
+
+          attempts++;
+          const elapsed = Date.now() - startTime;
+          const elapsedMinutes = Math.floor(elapsed / 60000);
+          const elapsedSeconds = Math.round((elapsed % 60000) / 1000);
+          const timeStr = elapsedMinutes > 0 ? `${elapsedMinutes}m ${elapsedSeconds}s` : `${elapsedSeconds}s`;
+          setGenerationProgress(`Generating... ${timeStr} elapsed`);
+
+          try {
+            const pollData = await fetchImageStatus(data.taskId, provider);
+            console.log('📊 Image poll response:', pollData);
+
+            // Prioritize cached callback result if available
+            if (pollData.source === 'cache' && pollData.imageUrl) {
+              finalImageUrl = pollData.imageUrl;
+              console.log('🎉 Found image in cache via polling!', finalImageUrl);
+            } else if (pollData.status === 'COMPLETED' && pollData.imageUrl) {
+              finalImageUrl = pollData.imageUrl;
+              console.log('🎉 Found image via polling!', finalImageUrl);
+            } else if (pollData.status === 'FAILED') {
+              console.error('❌ Image generation failed:', pollData.error);
+              alert('Image generation failed: ' + (pollData.error || 'Unknown error'));
+              setIsGenerating(false);
+              setGenerationProgress('');
+              return;
+            }
+
+            if (finalImageUrl) {
+              setUploadedImage(finalImageUrl);
+              setBase64Image(finalImageUrl);
+              setImageUrl(finalImageUrl);
+              setIsGenerating(false);
+              setGenerationProgress('');
+              saveImageToAssets(finalImageUrl, textPrompt, 'text-to-image');
+              router.push('/assets?tab=image');
+              return;
+            }
+          } catch (pollingError) {
+            console.error('Polling attempt failed:', pollingError);
+          }
+
+          // Schedule next poll
+          pollingTimeoutRef.current = setTimeout(pollLoop, POLL_INTERVAL_MS);
+        };
+
+        // Start the polling loop
+        pollingTimeoutRef.current = setTimeout(pollLoop, POLL_INTERVAL_MS); // Initial slight delay
+
       } else {
-        alert('Generation failed: ' + (data.error || 'Unknown error'));
+        alert('Generation started but no task ID received.');
         setIsGenerating(false);
       }
     } catch (error) {
       console.error('Text-to-image error:', error);
       alert('Failed to generate image. Please try again.');
       setIsGenerating(false);
+      setGenerationProgress('');
     }
   };
 

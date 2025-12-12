@@ -1,7 +1,7 @@
 // Simple in-memory cache for Kie.ai image callback results
 // This stores callback results temporarily so polling can retrieve them
 
-interface ImageCallbackResult {
+export interface ImageCallbackResult {
   taskId: string;
   status: string;
   resultUrls?: string[];
