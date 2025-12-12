@@ -190,6 +190,7 @@ export async function POST(request: NextRequest) {
     // We need an image URL accessible by Kie.ai. If the client provided base64,
     // upload it to Kie.ai File Upload API and use the returned URL.
     let accessibleImageUrl: string | undefined;
+    let kieUploadResultForDebug: any = null;
     try {
       if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
         console.log('📤 Received base64 imageDataUrl; uploading to Kie.ai File Upload API...');
@@ -200,8 +201,10 @@ export async function POST(request: NextRequest) {
         const buffer = Buffer.from(base64, 'base64');
 
         const formData = new FormData();
-        const blob = new Blob([buffer], { type: mimeType });
-        formData.append('file', blob, 'upload-image');
+        const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+        // Use a real filename with extension; some backends validate by filename/ctype.
+        const fileName = mimeType === 'image/png' ? 'image.png' : 'image.jpg';
+        formData.append('file', blob, fileName);
 
         const uploadResponse = await fetch('https://api.kie.ai/api/v1/file-upload/upload', {
           method: 'POST',
@@ -215,6 +218,8 @@ export async function POST(request: NextRequest) {
         }
 
         const uploadResult = await uploadResponse.json();
+        kieUploadResultForDebug = uploadResult;
+        console.log('✅ Kie.ai file upload response (base64 path):', uploadResult);
         const kieImageUrl = uploadResult.url || uploadResult.data?.url || uploadResult.fileUrl || uploadResult.data?.fileUrl || uploadResult.imageUrl;
         if (!kieImageUrl) throw new Error(`No URL in Kie upload response: ${JSON.stringify(uploadResult)}`);
 
@@ -298,6 +303,9 @@ export async function POST(request: NextRequest) {
     if (!accessibleImageUrl) {
       throw new Error('Failed to resolve accessible image URL for generation');
     }
+    if (!String(accessibleImageUrl).startsWith('http')) {
+      throw new Error(`Resolved accessibleImageUrl is not an http(s) URL: ${String(accessibleImageUrl)}`);
+    }
 
     // Call Kie.ai Veo endpoint.
     // We keep this pinned to the documented URL unless GROK_API_URL explicitly points to a Veo endpoint.
@@ -343,6 +351,7 @@ export async function POST(request: NextRequest) {
 
     let taskId: string | undefined;
     let lastKiePayload: any = null;
+    let lastVeoRequestBody: any = null;
 
     // Prefer minimal "known-good" body shape (closest to what you confirmed worked before).
     // Kie sometimes returns generic 422 messages for any validation issue, so keep payload strict.
@@ -368,6 +377,7 @@ export async function POST(request: NextRequest) {
     try {
       console.log('🚀 Sending sync request to Kie.ai...');
       console.log('📝 Request body:', JSON.stringify(requestBody, null, 2));
+      lastVeoRequestBody = requestBody;
 
       response = await fetch(grokApiUrl, {
         method: 'POST',
@@ -471,6 +481,7 @@ export async function POST(request: NextRequest) {
           console.log(`🔄 Trying async request format ${i + 1}/${asyncRequestBodies.length}`);
           console.log('🔗 URL:', reqConfig.url);
           console.log('📝 Request body:', JSON.stringify(reqConfig.body, null, 2));
+          lastVeoRequestBody = reqConfig.body;
 
           response = await fetch(reqConfig.url, {
             method: 'POST',
@@ -553,6 +564,11 @@ export async function POST(request: NextRequest) {
                 'Kie.ai rejected the reference image (Images size exceeds limit). This is often caused by validation (aspect ratio/resolution) or fetch/access issues, not just bytes. Re-upload and try again (we now auto-crop to 9:16 and upload the reference to Kie).',
               details: lastError,
               kie: lastKiePayload,
+              debug: {
+                accessibleImageUrl,
+                veoRequestBody: lastVeoRequestBody,
+                kieUploadResult: kieUploadResultForDebug,
+              },
             },
             { status: 422 }
           );
