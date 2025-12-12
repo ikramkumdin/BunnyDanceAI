@@ -25,6 +25,9 @@ export default function GeneratePage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [textPrompt, setTextPrompt] = useState<string>('');
   const [activeMode, setActiveMode] = useState<'image-to-video' | 'text-to-video' | 'text-to-image'>('image-to-video');
+  const [showGeneratedImageActions, setShowGeneratedImageActions] = useState(false);
+  const [isSavingGeneratedImage, setIsSavingGeneratedImage] = useState(false);
+  const [hasSavedGeneratedImage, setHasSavedGeneratedImage] = useState(false);
 
   const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
   const { user } = useUser();
@@ -288,6 +291,59 @@ export default function GeneratePage() {
     return await pollResponse.json();
   }, []);
 
+  const downloadImage = useCallback(async (url: string) => {
+    try {
+      const res = await fetch(url, { method: 'GET' });
+      if (!res.ok) throw new Error(`Failed to fetch image for download: ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `generated-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+      console.warn('Download via blob failed, opening in new tab instead.', e);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }, []);
+
+  const shareImage = useCallback(async (url: string) => {
+    try {
+      // Web Share API (mobile-friendly)
+      const nav: any = navigator;
+      if (nav?.share) {
+        await nav.share({ title: 'Generated image', url });
+        return;
+      }
+      // Fallback: copy to clipboard
+      await navigator.clipboard.writeText(url);
+      alert('Image link copied to clipboard.');
+    } catch (e) {
+      console.error('Share failed:', e);
+      alert('Could not share automatically. Please copy the link from your browser address bar or open the image in a new tab.');
+    }
+  }, []);
+
+  const saveGeneratedImageToAssets = useCallback(async () => {
+    if (!uploadedImage) return;
+    if (!user) {
+      alert('Please sign in to save to Assets.');
+      return;
+    }
+    if (hasSavedGeneratedImage) return;
+
+    setIsSavingGeneratedImage(true);
+    try {
+      await saveImageToAssets(uploadedImage, textPrompt, 'text-to-image');
+      setHasSavedGeneratedImage(true);
+    } finally {
+      setIsSavingGeneratedImage(false);
+    }
+  }, [uploadedImage, user, hasSavedGeneratedImage, saveImageToAssets, textPrompt]);
+
   // Handle text-to-image generation
   const handleTextToImage = async () => {
     if (!textPrompt || !user) {
@@ -300,6 +356,8 @@ export default function GeneratePage() {
     setUploadedImage(null);
     setBase64Image(null);
     setImageUrl(null);
+    setShowGeneratedImageActions(false);
+    setHasSavedGeneratedImage(false);
 
     try {
       const response = await fetch('/api/generate-text-image', {
@@ -325,8 +383,8 @@ export default function GeneratePage() {
         setImageUrl(data.imageUrl);
         setIsGenerating(false);
         setGenerationProgress('');
-        saveImageToAssets(data.imageUrl, textPrompt, 'text-to-image');
-        router.push('/assets?tab=image');
+        setShowGeneratedImageActions(true);
+        setHasSavedGeneratedImage(false);
         return;
       }
 
@@ -391,8 +449,8 @@ export default function GeneratePage() {
               setImageUrl(finalImageUrl);
               setIsGenerating(false);
               setGenerationProgress('');
-              saveImageToAssets(finalImageUrl, textPrompt, 'text-to-image');
-              router.push('/assets?tab=image');
+              setShowGeneratedImageActions(true);
+              setHasSavedGeneratedImage(false);
               return;
             }
           } catch (pollingError) {
@@ -615,19 +673,53 @@ export default function GeneratePage() {
                       src={uploadedImage}
                       alt="Generated image"
                       className="w-full h-full object-cover rounded-lg"
+                      onClick={() => setShowGeneratedImageActions((v) => !v)}
                     />
                     <button
                       onClick={() => {
                         setUploadedImage(null);
                         setTextPrompt('');
+                        setShowGeneratedImageActions(false);
+                        setHasSavedGeneratedImage(false);
                       }}
                       className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
                     >
                       <X className="w-4 h-4 text-white" />
                     </button>
-                    <div className="absolute bottom-2 left-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-2">
-                      <p className="text-xs text-white">✨ Image generated! You can now use it for video generation.</p>
-                    </div>
+
+                    {/* Tap/click image to toggle actions */}
+                    {showGeneratedImageActions && (
+                      <div className="absolute bottom-2 left-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-2 flex flex-col gap-2">
+                        <p className="text-xs text-white">Preview ready. Use actions below:</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => shareImage(uploadedImage)}
+                            className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-2 py-2 rounded-lg transition-colors"
+                          >
+                            Share
+                          </button>
+                          <button
+                            onClick={() => downloadImage(uploadedImage)}
+                            className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-2 py-2 rounded-lg transition-colors"
+                          >
+                            Download
+                          </button>
+                          <button
+                            onClick={saveGeneratedImageToAssets}
+                            disabled={isSavingGeneratedImage || hasSavedGeneratedImage}
+                            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-semibold px-2 py-2 rounded-lg transition-colors"
+                          >
+                            {hasSavedGeneratedImage ? 'Saved' : isSavingGeneratedImage ? 'Saving…' : 'Save'}
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => router.push('/assets?tab=image')}
+                          className="w-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-2 py-2 rounded-lg transition-colors"
+                        >
+                          Go to Assets
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
