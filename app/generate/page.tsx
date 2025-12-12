@@ -221,8 +221,8 @@ export default function GeneratePage() {
     if (!uploadedImage || !selectedTemplate || !user) return;
     const hasHttpImageUrl = !!imageUrl && imageUrl.startsWith('http');
     const hasBase64Image = !!base64Image && base64Image.startsWith('data:image/');
-    if (!hasHttpImageUrl) {
-      alert('Image upload is still processing or failed. Please wait for upload to finish before generating.');
+    if (!hasHttpImageUrl && !hasBase64Image) {
+      alert('Image is not ready yet. Please re-upload and wait for the preview to appear before generating.');
       return;
     }
 
@@ -232,8 +232,10 @@ export default function GeneratePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // Prefer uploaded URL; fall back to base64 (server will upload to Kie file upload API)
-          imageUrl: imageUrl,
+          // Always include base64 when available so the server can upload directly to Kie File Upload API.
+          // This avoids Kie failing to fetch from GCS URLs (signed/public access quirks).
+          imageUrl: hasHttpImageUrl ? imageUrl : undefined,
+          imageDataUrl: hasBase64Image ? base64Image : undefined,
           templateId: selectedTemplate.id,
           intensity: 'spicy',
           userId: user.id,
