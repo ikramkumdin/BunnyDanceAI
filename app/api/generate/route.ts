@@ -3,6 +3,7 @@ import { templates } from '@/data/templates';
 import { IntensityLevel } from '@/types';
 import { uploadVideo, uploadImage } from '@/lib/storage';
 import { getSignedUrl } from '@/lib/gcp-storage';
+import crypto from 'crypto';
 import { saveVideo } from '@/lib/firestore';
 import { generateVideoId } from '@/lib/utils';
 import { adminDb } from '@/lib/firebase-admin';
@@ -188,6 +189,22 @@ export async function POST(request: NextRequest) {
 
     console.log('📝 Final constructed prompt:', prompt);
 
+    // Base URL (for proxying image bytes to Kie in a simple URL)
+    const originHeader = request.headers.get('origin');
+    const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL || process.env.NEXT_PUBLIC_SITE_URL;
+    const baseUrl = originHeader || (vercelUrl ? `https://${vercelUrl}` : 'http://localhost:3010');
+
+    function publicImageProxyUrl(gcsUrl: string): string {
+      const u = new URL(gcsUrl);
+      const parts = u.pathname.split('/').filter((p) => p);
+      const bucket = parts[0] || '';
+      const path = parts.slice(1).join('/');
+      const secret = process.env.PUBLIC_IMAGE_PROXY_SECRET || process.env.NEXTAUTH_SECRET || '';
+      if (!secret) throw new Error('Missing PUBLIC_IMAGE_PROXY_SECRET (or NEXTAUTH_SECRET) for /api/public-image');
+      const sig = crypto.createHmac('sha256', secret).update(`${bucket}\n${path}`).digest('hex');
+      return `${baseUrl}/api/public-image?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}&sig=${encodeURIComponent(sig)}`;
+    }
+
     // We need an image URL accessible by Kie.ai/Veo.
     // Kie File Upload API has been inconsistent (404s for some accounts/regions),
     // so the most reliable approach is: use a GCS Signed URL.
@@ -197,15 +214,28 @@ export async function POST(request: NextRequest) {
       if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
         console.log('📤 Received base64 imageDataUrl; uploading to GCS then generating signed URL...');
         const gcsUrl = await uploadImage(imageDataUrl, userId, 'images');
-        accessibleImageUrl = await getSignedUrl(gcsUrl, 86400);
-        console.log('✅ Using GCS signed URL (from base64 upload) for generation');
+        // Prefer a simple Vercel URL that serves the bytes (avoids Kie mis-validating signed URLs).
+        try {
+          accessibleImageUrl = publicImageProxyUrl(gcsUrl);
+          console.log('✅ Using /api/public-image proxy URL for generation');
+        } catch (e) {
+          console.warn('⚠️ public-image proxy unavailable, falling back to signed URL:', e);
+          accessibleImageUrl = await getSignedUrl(gcsUrl, 86400);
+          console.log('✅ Using GCS signed URL (from base64 upload) for generation');
+        }
       } else {
         if (typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
           throw new Error('Expected imageUrl to be an http(s) URL when no base64 imageDataUrl is provided');
         }
-        console.log('🔗 Generating signed URL for provided imageUrl...');
-        accessibleImageUrl = await getSignedUrl(imageUrl, 86400);
-        console.log('✅ Using GCS signed URL (from imageUrl) for generation');
+        console.log('🔗 Using imageUrl for generation (prefer proxy URL, fallback signed URL)...');
+        try {
+          accessibleImageUrl = publicImageProxyUrl(imageUrl);
+          console.log('✅ Using /api/public-image proxy URL for generation');
+        } catch (e) {
+          console.warn('⚠️ public-image proxy unavailable, falling back to signed URL:', e);
+          accessibleImageUrl = await getSignedUrl(imageUrl, 86400);
+          console.log('✅ Using GCS signed URL (from imageUrl) for generation');
+        }
       }
 
     } catch (publicError) {
@@ -233,9 +263,7 @@ export async function POST(request: NextRequest) {
     console.log('🔗 API URL:', grokApiUrl);
 
     // Build callback URL so Kie can POST back when done (prevents relying on slow polling)
-    const originHeader = request.headers.get('origin');
-    const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL || process.env.NEXT_PUBLIC_SITE_URL;
-    const baseUrl = originHeader || (vercelUrl ? `https://${vercelUrl}` : 'http://localhost:3010');
+    // (baseUrl was computed earlier for the public-image proxy)
     const callbackUrl =
       `${baseUrl}/api/callback` +
       `?userId=${encodeURIComponent(userId)}` +
