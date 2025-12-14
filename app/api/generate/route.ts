@@ -316,7 +316,8 @@ export async function POST(request: NextRequest) {
         imageUrls: [accessibleImageUrl],
       model: 'veo3_fast',
       generationType: 'REFERENCE_2_VIDEO',
-        enableFallback: false,
+      // Google/Veo can reject content (often image-driven) and Kie explicitly recommends enabling fallback.
+      enableFallback: true,
         enableTranslation: true,
       callBackUrl: callbackUrl,
     };
@@ -418,14 +419,14 @@ export async function POST(request: NextRequest) {
 
       // Fall back to async request - try different parameter formats
       const asyncRequestBodies = [
-        // 1) Previously-working shape: 16:9 + veo3_fast + REFERENCE_2_VIDEO
+        // 1) Known-good shape: 16:9 + veo3_fast + REFERENCE_2_VIDEO (fallback enabled)
         { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '16:9' } },
         // 2) Portrait
         { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '9:16' } },
         // 3) Omit aspectRatio (let Kie decide)
         { url: grokApiUrl, body: { ...baseVeoBody } },
-        // 4) Enable fallback (some accounts require this)
-        { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '16:9', enableFallback: true } },
+        // 4) Last resort: disable fallback (some accounts may have fallback disabled)
+        { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '16:9', enableFallback: false } },
       ];
 
       let asyncSuccess = false;
@@ -513,6 +514,22 @@ export async function POST(request: NextRequest) {
         console.error('📝 Last error:', lastError);
         // If we reach here, all retries failed. Surface common Kie validation errors clearly.
         const last = String(lastError || '');
+        if (last.toLowerCase().includes('content policy') || last.toLowerCase().includes('rejected by google')) {
+          return NextResponse.json(
+            {
+              error:
+                "Rejected by Google's content policy. Try a different image/prompt, or use a less sensitive template. (Fallback is already enabled on our side.)",
+              details: lastError,
+              kie: lastKiePayload,
+              debug: {
+                accessibleImageUrl,
+                veoRequestBody: lastVeoRequestBody,
+                kieUploadResult: kieUploadResultForDebug,
+              },
+            },
+            { status: 400 }
+          );
+        }
         if (last.includes('Images size exceeds limit')) {
           return NextResponse.json(
             {
