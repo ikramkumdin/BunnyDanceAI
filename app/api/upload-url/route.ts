@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'contentType is required' }, { status: 400 });
     }
 
-    const bucketName = process.env.GCP_STORAGE_BUCKET || 'voice-app-storage';
+    const bucketName = process.env.GCP_STORAGE_BUCKET || 'bunnydanceai-storage';
     const ext = getFileExtension(contentType);
     const safeName = (fileName && typeof fileName === 'string' ? fileName : `upload.${ext}`)
       .replace(/[^a-zA-Z0-9._-]/g, '_');

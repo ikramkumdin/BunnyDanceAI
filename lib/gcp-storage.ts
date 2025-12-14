@@ -22,7 +22,7 @@ function getStorageClient(): Storage {
     }
 
     storageClient = new Storage({
-      projectId: process.env.GCP_PROJECT_ID || 'voice-app-d19d8',
+      projectId: process.env.GCP_PROJECT_ID || 'bunnydanceai',
       credentials,
       // If no credentials provided, will use default credentials from GCP
     });
@@ -30,7 +30,7 @@ function getStorageClient(): Storage {
   return storageClient;
 }
 
-const BUCKET_NAME = process.env.GCP_STORAGE_BUCKET || 'voice-app-storage';
+const BUCKET_NAME = process.env.GCP_STORAGE_BUCKET || 'bunnydanceai-storage';
 
 /**
  * Upload an image file to GCP Cloud Storage
@@ -179,21 +179,27 @@ export async function getSignedUrl(
 ): Promise<string> {
   try {
     const storage = getStorageClient();
-    const bucket = storage.bucket(BUCKET_NAME);
-    
-    // Extract path from full URL if provided
+
+    // Extract bucket + object path from URL forms when provided.
+    // Supports:
+    // - https://storage.googleapis.com/<bucket>/<object>
+    // - gs://<bucket>/<object>
+    let bucketName = BUCKET_NAME;
     let gcsPath = filePath;
-    if (filePath.startsWith('https://storage.googleapis.com/')) {
+
+    if (filePath.startsWith('gs://')) {
+      const without = filePath.replace('gs://', '');
+      const parts = without.split('/');
+      bucketName = parts[0] || BUCKET_NAME;
+      gcsPath = parts.slice(1).join('/');
+    } else if (filePath.startsWith('https://storage.googleapis.com/')) {
       const url = new URL(filePath);
-      // Remove bucket name from path
-      const pathParts = url.pathname.split('/').filter(p => p);
-      if (pathParts[0] === BUCKET_NAME) {
-        gcsPath = pathParts.slice(1).join('/');
-      } else {
-        gcsPath = url.pathname.substring(1); // Remove leading /
-      }
+      const pathParts = url.pathname.split('/').filter((p) => p);
+      bucketName = pathParts[0] || BUCKET_NAME;
+      gcsPath = pathParts.slice(1).join('/');
     }
-    
+
+    const bucket = storage.bucket(bucketName);
     const fileRef = bucket.file(gcsPath);
 
     const [url] = await fileRef.getSignedUrl({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { templates } from '@/data/templates';
 import { IntensityLevel } from '@/types';
 import { uploadVideo, uploadImage } from '@/lib/storage';
+import { getSignedUrl } from '@/lib/gcp-storage';
 import { saveVideo } from '@/lib/firestore';
 import { generateVideoId } from '@/lib/utils';
 import { adminDb } from '@/lib/firebase-admin';
@@ -187,117 +188,29 @@ export async function POST(request: NextRequest) {
 
     console.log('📝 Final constructed prompt:', prompt);
 
-    // We need an image URL accessible by Kie.ai. If the client provided base64,
-    // upload it to Kie.ai File Upload API and use the returned URL.
+    // We need an image URL accessible by Kie.ai/Veo.
+    // Kie File Upload API has been inconsistent (404s for some accounts/regions),
+    // so the most reliable approach is: use a GCS Signed URL.
     let accessibleImageUrl: string | undefined;
     let kieUploadResultForDebug: any = null;
     try {
       if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
-        console.log('📤 Received base64 imageDataUrl; uploading to Kie.ai File Upload API...');
-        const match = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-        if (!match) throw new Error('Invalid imageDataUrl format');
-        const mimeType = match[1];
-        const base64 = match[2];
-        const buffer = Buffer.from(base64, 'base64');
-
-        const formData = new FormData();
-        const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
-        // Use a real filename with extension; some backends validate by filename/ctype.
-        const fileName = mimeType === 'image/png' ? 'image.png' : 'image.jpg';
-        formData.append('file', blob, fileName);
-
-        const uploadResponse = await fetch('https://api.kie.ai/api/v1/file-upload/upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${apiKey}` },
-          body: formData,
-        });
-
-        if (!uploadResponse.ok) {
-          const errorText = await uploadResponse.text();
-          throw new Error(`Kie.ai file upload failed: ${uploadResponse.status} - ${errorText}`);
-        }
-
-        const uploadResult = await uploadResponse.json();
-        kieUploadResultForDebug = uploadResult;
-        console.log('✅ Kie.ai file upload response (base64 path):', uploadResult);
-        const kieImageUrl = uploadResult.url || uploadResult.data?.url || uploadResult.fileUrl || uploadResult.data?.fileUrl || uploadResult.imageUrl;
-        if (!kieImageUrl) throw new Error(`No URL in Kie upload response: ${JSON.stringify(uploadResult)}`);
-
-        accessibleImageUrl = kieImageUrl;
-        console.log('✅ Kie.ai uploaded image URL:', accessibleImageUrl);
+        console.log('📤 Received base64 imageDataUrl; uploading to GCS then generating signed URL...');
+        const gcsUrl = await uploadImage(imageDataUrl, userId, 'images');
+        accessibleImageUrl = await getSignedUrl(gcsUrl, 86400);
+        console.log('✅ Using GCS signed URL (from base64 upload) for generation');
       } else {
-        console.log('🔗 Making image publicly accessible for Kie.ai...');
-
-        // Prefer Kie.ai File Upload API so Veo can fetch reliably (and avoid GCS access/size quirks).
-        // If this succeeds, we don't need to make the object public or generate a signed URL.
-        try {
-          if (typeof imageUrl === 'string' && imageUrl.length > 0) {
-            const kieHostedUrl = await uploadImageToKie(imageUrl, apiKey);
-            accessibleImageUrl = kieHostedUrl;
-            console.log('✅ Using Kie-hosted image URL for generation:', accessibleImageUrl);
-            // Skip GCS makePublic path
-            console.log('⏭️ Skipping GCS makePublic/signed-url because Kie upload succeeded');
-          }
-        } catch (kieUploadErr) {
-          console.warn(
-            '⚠️ Kie file upload fallback failed; continuing with GCS public/signed-url flow:',
-            kieUploadErr instanceof Error ? kieUploadErr.message : String(kieUploadErr)
-          );
+        if (typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
+          throw new Error('Expected imageUrl to be an http(s) URL when no base64 imageDataUrl is provided');
         }
-
-        if (accessibleImageUrl) {
-          // We already have a Kie-hosted URL; no more work needed.
-        } else {
-        // Import storage
-        const { adminStorage } = await import('@/lib/firebase-admin');
-
-        // Parse the GCS path
-        let bucketName = 'voice-app-storage';
-        let filePath = imageUrl;
-
-        if (imageUrl.startsWith('https://storage.googleapis.com/')) {
-          const url = new URL(imageUrl);
-          const pathParts = url.pathname.substring(1).split('/');
-          bucketName = pathParts[0];
-          filePath = pathParts.slice(1).join('/');
-        } else if (imageUrl.includes('voice-app-storage/')) {
-          filePath = imageUrl.split('voice-app-storage/')[1] || imageUrl;
-        }
-
-        console.log(`📦 Bucket: ${bucketName}, File: ${filePath}`);
-
-        const bucket = adminStorage.bucket(bucketName);
-        const file = bucket.file(filePath);
-
-        // Make the file publicly readable
-        await file.makePublic();
-        console.log('✅ Made image publicly accessible');
-
-        // Get the public URL
-        accessibleImageUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
-        console.log('📸 Public GCS URL:', accessibleImageUrl);
-        }
+        console.log('🔗 Generating signed URL for provided imageUrl...');
+        accessibleImageUrl = await getSignedUrl(imageUrl, 86400);
+        console.log('✅ Using GCS signed URL (from imageUrl) for generation');
       }
 
     } catch (publicError) {
       console.error('❌ Error making image public:', publicError);
-
-      // Fallback to signed URL
-      console.log('🔄 Falling back to signed URL...');
-      try {
-        const signedUrlResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3009'}/api/get-signed-url?path=${encodeURIComponent(imageUrl)}`);
-
-        if (signedUrlResponse.ok) {
-          const signedUrlData = await signedUrlResponse.json();
-          accessibleImageUrl = signedUrlData.url;
-          console.log('✅ Using signed URL fallback');
-        } else {
-          throw new Error('Signed URL fallback also failed');
-        }
-      } catch (signedUrlError) {
-        console.error('❌ Signed URL fallback failed:', signedUrlError);
-        throw new Error(`Failed to get accessible image URL: ${signedUrlError instanceof Error ? signedUrlError.message : 'Unknown error'}`);
-      }
+      throw publicError;
     }
 
     if (!accessibleImageUrl) {
@@ -357,11 +270,11 @@ export async function POST(request: NextRequest) {
     // Kie sometimes returns generic 422 messages for any validation issue, so keep payload strict.
     const baseVeoBody: any = {
       prompt,
-      imageUrls: [accessibleImageUrl],
+        imageUrls: [accessibleImageUrl],
       model: 'veo3_fast',
       generationType: 'REFERENCE_2_VIDEO',
-      enableFallback: false,
-      enableTranslation: true,
+        enableFallback: false,
+        enableTranslation: true,
       callBackUrl: callbackUrl,
     };
 
