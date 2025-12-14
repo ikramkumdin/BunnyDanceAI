@@ -4,6 +4,98 @@ import { getVideoCallbackResult } from '@/lib/videoCallbackCache';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+function tryParseJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const s = value.trim();
+  if (!s) return value;
+  if (!(s.startsWith('{') || s.startsWith('['))) return value;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return value;
+  }
+}
+
+function collectHttpUrls(input: unknown, maxDepth = 7): string[] {
+  const urls: string[] = [];
+  const seen = new Set<unknown>();
+
+  const visit = (node: unknown, depth: number) => {
+    if (depth > maxDepth) return;
+    if (node === null || node === undefined) return;
+    if (seen.has(node)) return;
+
+    if (typeof node === 'string') {
+      if (node.startsWith('http://') || node.startsWith('https://')) {
+        urls.push(node);
+        return;
+      }
+      const parsed = tryParseJson(node);
+      if (parsed !== node) visit(parsed, depth + 1);
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      seen.add(node);
+      for (const item of node) visit(item, depth + 1);
+      return;
+    }
+
+    if (typeof node === 'object') {
+      seen.add(node);
+      for (const value of Object.values(node as Record<string, unknown>)) {
+        visit(value, depth + 1);
+      }
+    }
+  };
+
+  visit(input, 0);
+  return urls.filter((u, i) => urls.indexOf(u) === i);
+}
+
+function pickVideoUrl(payload: any): string | undefined {
+  // Common direct fields
+  const direct =
+    payload?.videoUrl ||
+    payload?.url ||
+    payload?.data?.videoUrl ||
+    payload?.data?.url ||
+    payload?.result?.videoUrl ||
+    payload?.output?.videoUrl ||
+    payload?.result?.url ||
+    payload?.output?.url;
+
+  if (typeof direct === 'string' && direct.startsWith('http')) return direct;
+
+  // Veo record-info often stores results inside data.response or data.resultJson
+  const candidates = [
+    payload?.data?.response,
+    payload?.data?.resultJson,
+    payload?.resultJson,
+    payload?.response,
+    payload?.data?.resultUrls,
+    payload?.data?.result_urls,
+  ];
+
+  for (const c of candidates) {
+    const parsed = tryParseJson(c) as any;
+    const fromParsed =
+      (typeof parsed === 'string' && parsed.startsWith('http') ? parsed : undefined) ||
+      parsed?.videoUrl ||
+      parsed?.url ||
+      parsed?.resultUrls?.[0] ||
+      parsed?.result_urls?.[0] ||
+      parsed?.data?.resultUrls?.[0] ||
+      parsed?.data?.result_urls?.[0] ||
+      (Array.isArray(parsed) ? parsed.find((u) => typeof u === 'string' && u.startsWith('http')) : undefined);
+    if (typeof fromParsed === 'string' && fromParsed.startsWith('http')) return fromParsed;
+  }
+
+  // Last resort: deep scan and prefer mp4
+  const scanned = collectHttpUrls(payload);
+  return scanned.find((u) => u.includes('.mp4') || u.includes('mp4')) || scanned[0];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -136,13 +228,15 @@ export async function GET(request: NextRequest) {
             if (statusData.data.response) {
               try {
                 const response = typeof statusData.data.response === 'string' 
-                  ? JSON.parse(statusData.data.response) 
+                  ? tryParseJson(statusData.data.response) 
                   : statusData.data.response;
                 
                 // Check if response is an array of URLs
-                if (Array.isArray(response) && response.length > 0 && response[0].startsWith('http')) {
-                  statusData.videoUrl = response[0];
+                const picked = pickVideoUrl({ data: { response } });
+                if (picked) {
+                  statusData.videoUrl = picked;
                   statusData.status = 'completed';
+                  statusData.completed = true;
                   hasVideoUrl = true;
                   console.log('✅ Found video URL in response field:', statusData.videoUrl);
                 }
@@ -157,22 +251,11 @@ export async function GET(request: NextRequest) {
                 statusData.status = 'processing';
               } else if (flag === 1) {
                 statusData.status = 'completed';
+                statusData.completed = true;
                 
-                // Extract result URLs if available
-                if (statusData.data.resultUrls) {
-                  try {
-                    const urls = typeof statusData.data.resultUrls === 'string' 
-                      ? JSON.parse(statusData.data.resultUrls) 
-                      : statusData.data.resultUrls;
-                    statusData.videoUrl = Array.isArray(urls) ? urls[0] : urls;
-                  } catch (e) {
-                    console.error('Failed to parse resultUrls:', e);
-                    // Try direct assignment if it's already a string URL
-                    if (typeof statusData.data.resultUrls === 'string' && statusData.data.resultUrls.startsWith('http')) {
-                      statusData.videoUrl = statusData.data.resultUrls;
-                    }
-                  }
-                }
+                // Extract from resultJson/response/resultUrls
+                const picked = pickVideoUrl(statusData);
+                if (picked) statusData.videoUrl = picked;
               } else if (flag === 2 || flag === 3) {
                 statusData.status = 'failed';
                 statusData.error = statusData.data.failReason || 'Video generation failed';
@@ -187,13 +270,8 @@ export async function GET(request: NextRequest) {
 
           // Extract video URL if nested and not already found
           if (!statusData.videoUrl) {
-             statusData.videoUrl = statusData.url || 
-                                  statusData.result?.videoUrl || 
-                                  statusData.output?.videoUrl || 
-                                  statusData.data?.videoUrl ||
-                                  statusData.data?.url ||
-                                  statusData.result?.url ||
-                                  statusData.output?.url;
+            const picked = pickVideoUrl(statusData);
+            if (picked) statusData.videoUrl = picked;
           }
 
           return NextResponse.json(statusData);

@@ -142,8 +142,46 @@ export async function POST(request: NextRequest) {
 
     // Handle different callback formats from Kie.ai
     const taskId = body.taskId || body.data?.taskId || body.task_id || searchParams.get('taskId');
-    const videoUrl = body.videoUrl || body.data?.videoUrl || body.url || body.data?.url || body.video_url || body.data?.video_url ||
-                     body.result?.videoUrl || body.result?.url || body.output?.videoUrl || body.output?.url;
+    // Extract mp4 url from common locations OR nested resultJson/response
+    let videoUrl: any =
+      body.videoUrl ||
+      body.data?.videoUrl ||
+      body.url ||
+      body.data?.url ||
+      body.video_url ||
+      body.data?.video_url ||
+      body.result?.videoUrl ||
+      body.result?.url ||
+      body.output?.videoUrl ||
+      body.output?.url ||
+      body.data?.response ||
+      body.response ||
+      body.data?.resultJson ||
+      body.resultJson;
+
+    if (typeof videoUrl === 'string') {
+      const parsed = tryParseJson(videoUrl) as any;
+      if (parsed && parsed !== videoUrl) {
+        const extracted =
+          parsed?.videoUrl ||
+          parsed?.url ||
+          parsed?.resultUrls?.[0] ||
+          parsed?.result_urls?.[0] ||
+          parsed?.data?.videoUrl ||
+          parsed?.data?.url ||
+          parsed?.data?.resultUrls?.[0] ||
+          parsed?.data?.result_urls?.[0] ||
+          (Array.isArray(parsed) ? parsed.find((u: any) => typeof u === 'string' && u.startsWith('http')) : undefined);
+        videoUrl = extracted ?? videoUrl;
+      }
+    }
+
+    if (!videoUrl || typeof videoUrl !== 'string' || !videoUrl.startsWith('http')) {
+      const scanned = collectHttpUrls(body);
+      const picked =
+        scanned.find((u) => u.includes('.mp4') || u.includes('mp4') || u.includes('video')) || scanned[0];
+      if (picked) videoUrl = picked;
+    }
 
     console.log('🎬 Extracted data:', { userId, templateId, templateName, taskId, videoUrl });
     const status = body.status || body.data?.status;
