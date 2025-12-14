@@ -1,4 +1,5 @@
 import { Storage } from '@google-cloud/storage';
+import { parseServiceAccountFromEnv } from './credentials';
 
 // Initialize GCP Storage client (server-side only)
 let storageClient: Storage | null = null;
@@ -12,11 +13,7 @@ function getStorageClient(): Storage {
     // Use service account key from environment or default credentials
     let credentials;
     try {
-      if (process.env.GCP_SERVICE_ACCOUNT_KEY) {
-        credentials = typeof process.env.GCP_SERVICE_ACCOUNT_KEY === 'string'
-          ? JSON.parse(process.env.GCP_SERVICE_ACCOUNT_KEY)
-          : process.env.GCP_SERVICE_ACCOUNT_KEY;
-      }
+      credentials = parseServiceAccountFromEnv();
     } catch (error) {
       console.error('Error parsing GCP_SERVICE_ACCOUNT_KEY:', error);
     }

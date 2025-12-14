@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Storage } from '@google-cloud/storage';
 import { getFileExtension } from '@/lib/gcp-storage';
+import { parseServiceAccountFromEnv } from '@/lib/credentials';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -8,18 +9,13 @@ export const runtime = 'nodejs';
 function getStorageClient(): Storage {
   let credentials: any = undefined;
   try {
-    if (process.env.GCP_SERVICE_ACCOUNT_KEY) {
-      credentials =
-        typeof process.env.GCP_SERVICE_ACCOUNT_KEY === 'string'
-          ? JSON.parse(process.env.GCP_SERVICE_ACCOUNT_KEY)
-          : process.env.GCP_SERVICE_ACCOUNT_KEY;
-    }
+    credentials = parseServiceAccountFromEnv();
   } catch (e) {
     console.error('Error parsing GCP_SERVICE_ACCOUNT_KEY:', e);
   }
 
   return new Storage({
-    projectId: process.env.GCP_PROJECT_ID || 'voice-app-d19d8',
+    projectId: process.env.GCP_PROJECT_ID || 'bunnydanceai',
     credentials,
   });
 }

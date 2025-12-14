@@ -1,10 +1,15 @@
 import * as admin from 'firebase-admin';
+import { parseServiceAccountFromEnv } from './credentials';
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-  const serviceAccount = process.env.GCP_SERVICE_ACCOUNT_KEY
-    ? JSON.parse(process.env.GCP_SERVICE_ACCOUNT_KEY)
-    : null;
+  let serviceAccount: any = null;
+  try {
+    serviceAccount = parseServiceAccountFromEnv() || null;
+  } catch (e) {
+    console.error('Error parsing service account for Firebase Admin:', e);
+    serviceAccount = null;
+  }
 
   // Use bunnydanceai project
   const projectId = 'bunnydanceai';
