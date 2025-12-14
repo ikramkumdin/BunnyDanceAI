@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { saveVideo } from '@/lib/firestore';
 import { generateVideoId } from '@/lib/utils';
 import { adminDb } from '@/lib/firebase-admin';
+import { getTemplatePrompt } from '@/data/template-prompts';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -180,14 +181,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build prompt from template - Simple and safe prompt to avoid safety filters
+    // Build prompt from selected template (fallback to template-prompts DB, then safe generic)
     console.log('📝 Raw template.prompt:', template.prompt);
-    console.log('📝 Template object:', { id: template.id, name: template.name, category: template.category });
-    
-    // Use extremely simple prompt to test if image is the issue
-    let prompt = `A person standing and waving at the camera in a friendly way, natural lighting, professional video quality.`;
+    console.log('📝 Template object:', { id: template.id, name: template.name, category: template.category, intensity: template.intensity });
 
-    console.log('📝 Final constructed prompt:', prompt);
+    const promptFromTemplateDb = getTemplatePrompt(template.id)?.prompt;
+    const baseTemplatePrompt =
+      (typeof template.prompt === 'string' && template.prompt.trim() ? template.prompt.trim() : '') ||
+      (typeof promptFromTemplateDb === 'string' && promptFromTemplateDb.trim() ? promptFromTemplateDb.trim() : '');
+    const promptSource: 'template.prompt' | 'template-prompts.ts' | 'safe-fallback' =
+      typeof template.prompt === 'string' && template.prompt.trim()
+        ? 'template.prompt'
+        : typeof promptFromTemplateDb === 'string' && promptFromTemplateDb.trim()
+          ? 'template-prompts.ts'
+          : 'safe-fallback';
+
+    const identityWrapper =
+      `IMPORTANT: Use the person from the provided reference image as the main subject.\n` +
+      `The video should feature this specific person with their appearance and characteristics.\n` +
+      `The person in the video should match the reference image. The person in the video MUST be identical to the person in the reference image.\n\n`;
+
+    const safeFallbackPrompt =
+      `Animate the person in the reference image performing a short, family-friendly dance loop in a well-lit setting, smooth motion, professional video quality.`;
+
+    // Prefer the selected template prompt; only fall back to the safe prompt if template is missing.
+    let prompt = identityWrapper + (baseTemplatePrompt || safeFallbackPrompt);
+    console.log('📝 Final constructed prompt (template-driven):', prompt);
 
     // Base URL (for proxying image bytes to Kie in a simple URL)
     const originHeader = request.headers.get('origin');
@@ -209,11 +228,13 @@ export async function POST(request: NextRequest) {
     // Kie File Upload API has been inconsistent (404s for some accounts/regions),
     // so the most reliable approach is: use a GCS Signed URL.
     let accessibleImageUrl: string | undefined;
+    let thumbnailUrlForCallback: string | undefined = typeof imageUrl === 'string' ? imageUrl : undefined;
     let kieUploadResultForDebug: any = null;
     try {
       if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
         console.log('📤 Received base64 imageDataUrl; uploading to GCS then generating signed URL...');
         const gcsUrl = await uploadImage(imageDataUrl, userId, 'images');
+        thumbnailUrlForCallback = gcsUrl;
         // Prefer a simple Vercel URL that serves the bytes (avoids Kie mis-validating signed URLs).
         try {
           accessibleImageUrl = publicImageProxyUrl(gcsUrl);
@@ -284,7 +305,7 @@ export async function POST(request: NextRequest) {
       `?userId=${encodeURIComponent(userId)}` +
       `&templateId=${encodeURIComponent(templateId)}` +
       `&templateName=${encodeURIComponent(template.name)}` +
-      `&thumbnail=${encodeURIComponent(imageUrl)}`;
+      `&thumbnail=${encodeURIComponent(thumbnailUrlForCallback || accessibleImageUrl || '')}`;
     console.log(`[Generate] Image-to-video callbackUrl: ${callbackUrl}`);
 
     // Check if test mode is enabled
@@ -379,6 +400,7 @@ export async function POST(request: NextRequest) {
           taskId: 'sync',
           videoUrl,
           message: 'Video generated successfully',
+          debug: { templateId: template.id, templateName: template.name, promptSource },
         });
       }
 
@@ -402,7 +424,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           taskId: foundTaskId,
           status: 'processing',
-          message: 'Video generation started. Please wait for completion.'
+          message: 'Video generation started. Please wait for completion.',
+          debug: { templateId: template.id, templateName: template.name, promptSource },
         });
       } else if (response.ok) {
         // If response is OK but no video or taskId, Kie.ai might not support this mode
@@ -496,7 +519,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
               taskId,
               status: 'processing',
-              message: 'Video generation started. Please wait for completion.'
+              message: 'Video generation started. Please wait for completion.',
+              debug: { templateId: template.id, templateName: template.name, promptSource },
             });
           } else {
             console.log(`⚠️ Async request ${i + 1} OK but no taskId found`);
