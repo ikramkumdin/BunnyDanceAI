@@ -5,6 +5,18 @@ export type ServiceAccountJson = {
   [key: string]: any;
 };
 
+function tryReadJsonFile(path: string): ServiceAccountJson | undefined {
+  try {
+    const fs = require('fs');
+    if (!fs.existsSync(path)) return undefined;
+    const raw = fs.readFileSync(path, 'utf8');
+    const parsed = JSON.parse(raw) as ServiceAccountJson;
+    return parsed && typeof parsed === 'object' ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function looksLikeJsonObjectString(s: string): boolean {
   const t = s.trim();
   return t.startsWith('{') && t.endsWith('}');
@@ -17,6 +29,18 @@ function looksLikeBase64(s: string): boolean {
 }
 
 export function parseServiceAccountFromEnv(): ServiceAccountJson | undefined {
+  // First: allow pointing at a JSON file on disk (best for local dev).
+  // - GOOGLE_APPLICATION_CREDENTIALS is a standard env used by Google libraries.
+  // - GCP_SERVICE_ACCOUNT_KEY_FILE is our convenience env.
+  const filePath =
+    process.env.GCP_SERVICE_ACCOUNT_KEY_FILE ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    '';
+  if (filePath) {
+    const fromFile = tryReadJsonFile(filePath);
+    if (fromFile) return fromFile;
+  }
+
   const raw =
     process.env.GCP_SERVICE_ACCOUNT_KEY ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ||
@@ -68,7 +92,7 @@ export function parseServiceAccountFromEnv(): ServiceAccountJson | undefined {
   }
 
   throw new Error(
-    'Failed to parse service account credentials from env. Provide JSON in GCP_SERVICE_ACCOUNT_KEY (or base64 JSON in GOOGLE_APPLICATION_CREDENTIALS_BASE64).'
+    'Failed to parse service account credentials. Fix by setting ONE of: (1) GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json, (2) GCP_SERVICE_ACCOUNT_KEY_FILE=/path/to/service-account.json, (3) GOOGLE_APPLICATION_CREDENTIALS_BASE64=<base64(json)>, (4) GCP_SERVICE_ACCOUNT_KEY=<one-line json>.'
   );
 }
 
