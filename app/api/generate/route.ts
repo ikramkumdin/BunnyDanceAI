@@ -219,9 +219,17 @@ export async function POST(request: NextRequest) {
           accessibleImageUrl = publicImageProxyUrl(gcsUrl);
           console.log('✅ Using /api/public-image proxy URL for generation');
         } catch (e) {
-          console.warn('⚠️ public-image proxy unavailable, falling back to signed URL:', e);
-          accessibleImageUrl = await getSignedUrl(gcsUrl, 86400);
-          console.log('✅ Using GCS signed URL (from base64 upload) for generation');
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('❌ public-image proxy unavailable:', msg);
+          // Do NOT fall back to signed URLs in prod; Kie frequently cannot fetch them and returns "Image fetch failed".
+          return NextResponse.json(
+            {
+              error:
+                'Server is missing PUBLIC_IMAGE_PROXY_SECRET (or NEXTAUTH_SECRET). This is required so we can proxy image bytes via /api/public-image for Kie to fetch reliably.',
+              details: msg,
+            },
+            { status: 500 }
+          );
         }
       } else {
         if (typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
@@ -232,9 +240,16 @@ export async function POST(request: NextRequest) {
           accessibleImageUrl = publicImageProxyUrl(imageUrl);
           console.log('✅ Using /api/public-image proxy URL for generation');
         } catch (e) {
-          console.warn('⚠️ public-image proxy unavailable, falling back to signed URL:', e);
-          accessibleImageUrl = await getSignedUrl(imageUrl, 86400);
-          console.log('✅ Using GCS signed URL (from imageUrl) for generation');
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('❌ public-image proxy unavailable:', msg);
+          return NextResponse.json(
+            {
+              error:
+                'Server is missing PUBLIC_IMAGE_PROXY_SECRET (or NEXTAUTH_SECRET). This is required so we can proxy image bytes via /api/public-image for Kie to fetch reliably.',
+              details: msg,
+            },
+            { status: 500 }
+          );
         }
       }
 
