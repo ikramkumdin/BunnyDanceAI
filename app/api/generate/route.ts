@@ -544,9 +544,11 @@ export async function POST(request: NextRequest) {
 
       // Fall back to async request - try different parameter formats
       const asyncRequestBodies = [
-        // 1) Normal mode (default)
+        // 1) Normal mode (default) - Input as Object
         { url: grokApiUrl, body: { ...baseRequestBody } },
-        // 2) Try without mode (let API decide)
+        // 2) Input as JSON String (Task API often requires this)
+        { url: grokApiUrl, body: { ...baseRequestBody, input: JSON.stringify(baseRequestBody.input) } },
+        // 3) Try without mode (let API decide)
         { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, mode: undefined } } },
       ];
 
