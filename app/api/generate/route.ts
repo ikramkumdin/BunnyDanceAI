@@ -242,8 +242,37 @@ export async function POST(request: NextRequest) {
         if (typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
           throw new Error('Expected imageUrl to be an http(s) URL when no base64 imageDataUrl is provided');
         }
-        gcsUrl = imageUrl;
-        thumbnailUrlForCallback = imageUrl;
+
+        // Check if it's already a GCS URL or a persistent URL we trust
+        // If it's from tempfile.aiquickdraw.com or other external sources, we should re-upload it
+        const isGcs = imageUrl.includes('storage.googleapis.com') || imageUrl.includes('bunnydanceai-storage');
+        const isExternal = !isGcs;
+
+        if (isExternal) {
+          console.log('🌍 External URL detected (e.g. tempfile/generated), downloading and re-uploading to GCS for persistence:', imageUrl);
+          try {
+            // Fetch the external image
+            const imageResp = await fetch(imageUrl);
+            if (!imageResp.ok) throw new Error(`Failed to fetch external image: ${imageResp.status}`);
+
+            const arrayBuffer = await imageResp.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            const contentType = imageResp.headers.get('content-type') || 'image/jpeg';
+            const base64 = `data:${contentType};base64,${buffer.toString('base64')}`;
+
+            // Upload to GCS
+            gcsUrl = await uploadImage(base64, userId, 'images');
+            console.log('✅ Re-uploaded external image to GCS:', gcsUrl);
+            thumbnailUrlForCallback = gcsUrl;
+          } catch (reuploadError) {
+            console.error('⚠️ Failed to re-upload external image, falling back to original URL:', reuploadError);
+            gcsUrl = imageUrl;
+            // Proceed with original URL, though it might fail if Kie can't access it
+          }
+        } else {
+          gcsUrl = imageUrl;
+          thumbnailUrlForCallback = imageUrl;
+        }
       }
 
       // For grok-imagine/image-to-video, use direct GCS URLs since bucket is public

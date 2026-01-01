@@ -362,8 +362,19 @@ export default function GeneratePage() {
 
   const downloadImage = useCallback(async (url: string) => {
     try {
-      const res = await fetch(url, { method: 'GET' });
-      if (!res.ok) throw new Error(`Failed to fetch image for download: ${res.status}`);
+      let res;
+      try {
+        // Try direct fetch first
+        res = await fetch(url, { method: 'GET', mode: 'cors' });
+        if (!res.ok) throw new Error('Direct fetch failed');
+      } catch (directError) {
+        console.log('Direct image fetch failed (likely CORS), trying proxy...');
+        // Fallback to proxy
+        const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+        res = await fetch(proxyUrl, { method: 'GET' });
+        if (!res.ok) throw new Error(`Proxy request failed: ${res.status}`);
+      }
+
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -575,8 +586,8 @@ export default function GeneratePage() {
           <button
             onClick={() => setActiveMode('image-to-video')}
             className={`px-4 py-2 font-semibold transition-colors ${activeMode === 'image-to-video'
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-gray-400 hover:text-white'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-400 hover:text-white'
               }`}
           >
             IMAGE TO VIDEO
@@ -584,8 +595,8 @@ export default function GeneratePage() {
           <button
             onClick={() => setActiveMode('text-to-video')}
             className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${activeMode === 'text-to-video'
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-gray-400 hover:text-white'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-400 hover:text-white'
               }`}
           >
             <Sparkles className="w-4 h-4" />
@@ -594,8 +605,8 @@ export default function GeneratePage() {
           <button
             onClick={() => setActiveMode('text-to-image')}
             className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${activeMode === 'text-to-image'
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-gray-400 hover:text-white'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-400 hover:text-white'
               }`}
           >
             <Sparkles className="w-4 h-4" />
@@ -1067,8 +1078,8 @@ export default function GeneratePage() {
                   key={cat.value}
                   onClick={() => setSelectedCategory(cat.value)}
                   className={`px-4 py-2 rounded-full text-sm transition-colors ${selectedCategory === cat.value
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
                     }`}
                 >
                   {cat.label}
@@ -1083,8 +1094,8 @@ export default function GeneratePage() {
                   key={template.id}
                   onClick={() => (uploadedImage || base64Image) && handleTemplateSelect(template)}
                   className={`relative aspect-[9/16] bg-gray-800 rounded-lg overflow-hidden transition-all ${(uploadedImage || base64Image)
-                      ? `cursor-pointer hover:scale-105 ${selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''}`
-                      : 'cursor-not-allowed opacity-50'
+                    ? `cursor-pointer hover:scale-105 ${selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''}`
+                    : 'cursor-not-allowed opacity-50'
                     }`}
                 >
                   {template.previewVideo && videoUrls[template.id] ? (
