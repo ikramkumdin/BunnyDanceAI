@@ -434,10 +434,10 @@ export async function POST(request: NextRequest) {
     console.log(`🎨 Using generation mode: ${generationMode} (from template intensity: ${template.intensity})`);
 
     // CRITICAL: Ensure prompt is never empty - use fallback if needed
-    const finalPrompt = trimmedPrompt && trimmedPrompt.trim().length > 0 
+    const finalPrompt = trimmedPrompt && trimmedPrompt.trim().length > 0
       ? trimmedPrompt.trim()
       : baseTemplatePrompt || safeFallbackPrompt || 'A beautiful woman performs a graceful dance in a luxurious setting.';
-    
+
     console.log('🔍 Pre-request validation:');
     console.log('   - trimmedPrompt length:', trimmedPrompt?.length || 0);
     console.log('   - finalPrompt length:', finalPrompt?.length || 0);
@@ -465,7 +465,7 @@ export async function POST(request: NextRequest) {
       console.error('   - baseRequestBody.input:', JSON.stringify(baseRequestBody.input, null, 2));
       throw new Error('Request body contains empty prompt field');
     }
-    
+
     console.log('✅ Request body validated - prompt length:', baseRequestBody.input.prompt.length);
 
     console.log('📋 Request summary:', {
@@ -598,40 +598,70 @@ export async function POST(request: NextRequest) {
       const guaranteedPrompt = finalPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
       const guaranteedCleanPrompt = cleanPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
       const guaranteedSimplePrompt = simplePrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
-      
+
       console.log('🔄 Fallback prompts prepared:');
       console.log('   - guaranteedPrompt length:', guaranteedPrompt.length);
       console.log('   - guaranteedCleanPrompt length:', guaranteedCleanPrompt.length);
       console.log('   - guaranteedSimplePrompt length:', guaranteedSimplePrompt.length);
 
+      const grokImagineEndpoint = 'https://api.kie.ai/api/v1/grok-imagine/image-to-video';
+
       const asyncRequestBodies = [
         // 1) Normal mode (default) - Input as Object
         { url: grokApiUrl, body: { ...baseRequestBody } },
-        // 2) Input as JSON String (Matches previous successful logs) - but ensure prompt is in the stringified input
-        { url: grokApiUrl, body: { 
-          ...baseRequestBody, 
-          input: JSON.stringify({
-            ...baseRequestBody.input,
-            prompt: guaranteedPrompt // Ensure prompt is present in stringified version
-          })
-        } },
-        // 3) Clean Prompt (No Newlines) - Some validators are strict
+
+        // 2) Input as JSON String (Task API often requires this)
+        {
+          url: grokApiUrl, body: {
+            ...baseRequestBody,
+            input: JSON.stringify({
+              ...baseRequestBody.input,
+              prompt: guaranteedPrompt
+            })
+          }
+        },
+
+        // 3) FLAT Structure (No 'input' object, everything at top level like Veo model)
+        {
+          url: grokApiUrl, body: {
+            model: baseRequestBody.model,
+            prompt: guaranteedPrompt,
+            image_urls: [accessibleImageUrl],
+            index: 0,
+            callBackUrl: baseRequestBody.callBackUrl
+          }
+        },
+
+        // 4) FLAT Structure (Alternative key 'text')
+        {
+          url: grokApiUrl, body: {
+            model: baseRequestBody.model,
+            text: guaranteedPrompt,
+            image_urls: [accessibleImageUrl],
+            callBackUrl: baseRequestBody.callBackUrl
+          }
+        },
+
+        // 5) Clean Prompt (No Newlines) - Some validators are strict
         { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: guaranteedCleanPrompt } } },
-        // 4) Simple Prompt (No Identity Wrapper) - Avoid safety filters
+
+        // 6) Simple Prompt (No Identity Wrapper) - Avoid safety filters
         { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: guaranteedSimplePrompt } } },
-        // 5) Try WITHOUT callBackUrl (Kie sometimes fails if callback reaches invalid URL)
+
+        // 7) Try WITHOUT callBackUrl (Kie sometimes fails if callback reaches invalid URL)
         { url: grokApiUrl, body: { ...baseRequestBody, callBackUrl: undefined } },
-        // 6) Simplest Possible Format (Only model and input)
-        { url: grokApiUrl, body: { model: baseRequestBody.model, input: baseRequestBody.input } },
-        // 7) Try with prompt at Top Level (Some models expect this)
-        { url: grokApiUrl, body: { ...baseRequestBody, prompt: guaranteedPrompt, text: guaranteedPrompt } },
-        // 8) Try alternate keys: 'prompts' and 'image_url' (singular)
-        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompts: [guaranteedPrompt], image_url: accessibleImageUrl } } },
+
+        // 8) Try Direct Model Endpoint (Alternative to jobs/createTask)
+        { url: grokImagineEndpoint, body: { ...baseRequestBody } },
+
+        // 9) Try with prompt at Top Level combined with 'input'
+        { url: grokImagineEndpoint, body: { ...baseRequestBody, prompt: guaranteedPrompt, text: guaranteedPrompt } },
+
+        // 10) Simplest Possible Format (Only model and input)
+        { url: grokApiUrl, body: { model: baseRequestBody.model, input: { image_urls: [accessibleImageUrl], prompt: guaranteedPrompt } } },
       ];
 
       // Add a potential direct model endpoint fallback if createTask fails
-      const grokImagineEndpoint = 'https://api.kie.ai/api/v1/grok-imagine/image-to-video';
-
       let asyncSuccess = false;
       let lastError = null;
 
