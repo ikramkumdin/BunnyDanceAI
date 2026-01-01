@@ -209,6 +209,23 @@ export async function POST(request: NextRequest) {
     // Prefer the selected template prompt; only fall back to the safe prompt if template is missing.
     let prompt = identityWrapper + (baseTemplatePrompt || safeFallbackPrompt);
     console.log('📝 Final constructed prompt (template-driven):', prompt);
+    console.log('📝 Prompt components:');
+    console.log('   - identityWrapper length:', identityWrapper.length);
+    console.log('   - baseTemplatePrompt length:', baseTemplatePrompt?.length || 0);
+    console.log('   - safeFallbackPrompt length:', safeFallbackPrompt.length);
+    console.log('   - Final prompt length:', prompt.length);
+
+    // Critical: Ensure we have a non-empty prompt
+    if (!prompt || prompt.trim().length === 0) {
+      console.error('❌ CRITICAL: Prompt is empty or undefined!');
+      console.error('   - baseTemplatePrompt:', baseTemplatePrompt);
+      console.error('   - template.prompt:', template.prompt);
+      console.error('   - promptFromTemplateDb:', promptFromTemplateDb);
+
+      // Emergency fallback - create a basic prompt
+      prompt = identityWrapper + "A beautiful woman performs a sensual dance in a luxurious setting with smooth, graceful movements.";
+      console.log('🚨 Using emergency fallback prompt:', prompt);
+    }
 
     // Base URL (for proxying image bytes to Kie in a simple URL)
     const originHeader = request.headers.get('origin');
@@ -427,6 +444,20 @@ export async function POST(request: NextRequest) {
       },
     };
 
+    // Critical validation: Ensure prompt is present and non-empty
+    console.log('🔍 Pre-request validation:');
+    console.log('   - trimmedPrompt length:', trimmedPrompt?.length || 0);
+    console.log('   - baseRequestBody.input.prompt length:', baseRequestBody.input?.prompt?.length || 0);
+    console.log('   - prompt field exists:', 'prompt' in baseRequestBody.input);
+    console.log('   - prompt field is truthy:', !!baseRequestBody.input.prompt);
+
+    if (!baseRequestBody.input.prompt || baseRequestBody.input.prompt.trim().length === 0) {
+      console.error('❌ CRITICAL: Request body has empty prompt!');
+      console.error('   - trimmedPrompt:', JSON.stringify(trimmedPrompt));
+      console.error('   - baseRequestBody.input:', JSON.stringify(baseRequestBody.input, null, 2));
+      throw new Error('Request body contains empty prompt field');
+    }
+
     console.log('📋 Request summary:', {
       model: baseRequestBody.model,
       imageUrl: accessibleImageUrl.substring(0, 80) + '...',
@@ -546,23 +577,28 @@ export async function POST(request: NextRequest) {
       const cleanPrompt = trimmedPrompt.replace(/\n\s*\n/g, '\n').replace(/\n/g, ' ').trim();
       const simplePrompt = baseTemplatePrompt || safeFallbackPrompt;
 
+      // Ensure all prompts are non-empty for fallbacks
+      const guaranteedPrompt = trimmedPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
+      const guaranteedCleanPrompt = cleanPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
+      const guaranteedSimplePrompt = simplePrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
+
       const asyncRequestBodies = [
         // 1) Normal mode (default) - Input as Object
         { url: grokApiUrl, body: { ...baseRequestBody } },
         // 2) Input as JSON String (Matches previous successful logs)
         { url: grokApiUrl, body: { ...baseRequestBody, input: typeof baseRequestBody.input === 'object' ? JSON.stringify(baseRequestBody.input) : baseRequestBody.input } },
         // 3) Clean Prompt (No Newlines) - Some validators are strict
-        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: cleanPrompt } } },
+        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: guaranteedCleanPrompt } } },
         // 4) Simple Prompt (No Identity Wrapper) - Avoid safety filters
-        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: simplePrompt } } },
+        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: guaranteedSimplePrompt } } },
         // 5) Try WITHOUT callBackUrl (Kie sometimes fails if callback reaches invalid URL)
         { url: grokApiUrl, body: { ...baseRequestBody, callBackUrl: undefined } },
         // 6) Simplest Possible Format (Only model and input)
         { url: grokApiUrl, body: { model: baseRequestBody.model, input: baseRequestBody.input } },
         // 7) Try with prompt at Top Level (Some models expect this)
-        { url: grokApiUrl, body: { ...baseRequestBody, prompt: trimmedPrompt, text: trimmedPrompt } },
+        { url: grokApiUrl, body: { ...baseRequestBody, prompt: guaranteedPrompt, text: guaranteedPrompt } },
         // 8) Try alternate keys: 'prompts' and 'image_url' (singular)
-        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompts: [trimmedPrompt], image_url: accessibleImageUrl } } },
+        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompts: [guaranteedPrompt], image_url: accessibleImageUrl } } },
       ];
 
       // Add a potential direct model endpoint fallback if createTask fails
