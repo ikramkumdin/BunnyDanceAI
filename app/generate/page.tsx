@@ -31,6 +31,7 @@ export default function GeneratePage() {
   const [showGeneratedImageActions, setShowGeneratedImageActions] = useState(false);
   const [isSavingGeneratedImage, setIsSavingGeneratedImage] = useState(false);
   const [hasSavedGeneratedImage, setHasSavedGeneratedImage] = useState(false);
+  const [videoUrls, setVideoUrls] = useState<{ [key: string]: string }>({});
 
   const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
   const { user } = useUser();
@@ -45,10 +46,39 @@ export default function GeneratePage() {
     };
   }, []);
 
+  // Get signed URLs for all template videos
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      const urls: { [key: string]: string } = {};
+      for (const template of templates) {
+        if (template.previewVideo) {
+          try {
+            // Get signed URL for the video (works for both public and private files)
+            const signedResponse = await fetch(`/api/get-signed-url?path=${encodeURIComponent(template.previewVideo)}`);
+            if (signedResponse.ok) {
+              const data = await signedResponse.json();
+              urls[template.id] = data.url;
+            } else {
+              // Fallback to direct URL if signed URL fails
+              urls[template.id] = template.previewVideo;
+            }
+          } catch (error) {
+            // Fallback to direct URL on error
+            console.warn('Error getting signed URL for', template.id, 'using direct URL');
+            urls[template.id] = template.previewVideo;
+          }
+        }
+      }
+      setVideoUrls(urls);
+    };
+
+    fetchSignedUrls();
+  }, []);
+
   // Save image to assets
   const saveImageToAssets = useCallback(async (imageUrl: string, prompt?: string, source: 'text-to-image' | 'image-to-video' = 'text-to-image'): Promise<boolean> => {
     if (!user) return false;
-    
+
     try {
       await saveImage({
         userId: user.id,
@@ -70,7 +100,7 @@ export default function GeneratePage() {
   // Save video to assets
   const saveVideoToAssets = useCallback(async (videoUrl: string, templateName: string, templateId: string, thumbnail?: string) => {
     if (!user) return;
-    
+
     try {
       await saveVideo({
         userId: user.id,
@@ -166,11 +196,11 @@ export default function GeneratePage() {
             const videoUrl = pollData.videoUrl || pollData.url || pollData.result?.videoUrl || pollData.output?.videoUrl;
             if (videoUrl && (pollData.status === 'completed' || pollData.status === 'success' || pollData.completed)) {
               console.log('🎬 Video ready from Kie.ai:', videoUrl);
-                setGeneratedVideo(videoUrl);
+              setGeneratedVideo(videoUrl);
               setShowGeneratedVideoActions(true);
               setHasSavedGeneratedVideo(false);
-                setIsGenerating(false);
-                return;
+              setIsGenerating(false);
+              return;
             }
           }
         } catch (pollError) {
@@ -202,8 +232,8 @@ export default function GeneratePage() {
 
       // Increase max polling time to 20 minutes (Kie.ai can be slow)
       // Check every 10 seconds
-      if (elapsed < 20 * 60 * 1000) { 
-        setTimeout(() => pollVideoStatus(startTime, taskId), 10000); 
+      if (elapsed < 20 * 60 * 1000) {
+        setTimeout(() => pollVideoStatus(startTime, taskId), 10000);
       } else {
         console.log('⏰ Video generation timeout after 20 minutes');
         setIsGenerating(false);
@@ -531,7 +561,7 @@ export default function GeneratePage() {
     // Filter by search query
     if (searchQuery) {
       const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           template.description.toLowerCase().includes(searchQuery.toLowerCase());
+        template.description.toLowerCase().includes(searchQuery.toLowerCase());
       if (!matchesSearch) return false;
     }
     return true;
@@ -544,32 +574,29 @@ export default function GeneratePage() {
         <div className="flex gap-4 border-b border-gray-800 pb-2 mb-2">
           <button
             onClick={() => setActiveMode('image-to-video')}
-            className={`px-4 py-2 font-semibold transition-colors ${
-              activeMode === 'image-to-video'
+            className={`px-4 py-2 font-semibold transition-colors ${activeMode === 'image-to-video'
                 ? 'text-primary border-b-2 border-primary'
                 : 'text-gray-400 hover:text-white'
-            }`}
+              }`}
           >
             IMAGE TO VIDEO
           </button>
           <button
             onClick={() => setActiveMode('text-to-video')}
-            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${
-              activeMode === 'text-to-video'
+            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${activeMode === 'text-to-video'
                 ? 'text-primary border-b-2 border-primary'
                 : 'text-gray-400 hover:text-white'
-            }`}
+              }`}
           >
             <Sparkles className="w-4 h-4" />
             TEXT TO VIDEO
           </button>
           <button
             onClick={() => setActiveMode('text-to-image')}
-            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${
-              activeMode === 'text-to-image'
+            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${activeMode === 'text-to-image'
                 ? 'text-primary border-b-2 border-primary'
                 : 'text-gray-400 hover:text-white'
-            }`}
+              }`}
           >
             <Sparkles className="w-4 h-4" />
             TEXT TO IMAGE
@@ -582,132 +609,132 @@ export default function GeneratePage() {
             {/* Image-to-Video Mode: Show uploader */}
             {activeMode === 'image-to-video' && (
               <>
-            {generatedVideo ? (
-              <div className="w-full h-full relative bg-gray-800 rounded-lg overflow-hidden">
-                <video
-                  src={generatedVideo}
-                  className="w-full h-full object-cover"
-                  controls
-                  playsInline
-                />
+                {generatedVideo ? (
+                  <div className="w-full h-full relative bg-gray-800 rounded-lg overflow-hidden">
+                    <video
+                      src={generatedVideo}
+                      className="w-full h-full object-cover"
+                      controls
+                      playsInline
+                    />
 
-                <button
-                  onClick={() => {
-                    if (showGeneratedVideoActions) {
-                      setShowGeneratedVideoActions(false);
-                      return;
-                    }
-                    setGeneratedVideo(null);
-                  }}
-                  className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
-                  aria-label="Close"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
-
-                <button
-                  onClick={() => setShowGeneratedVideoActions(true)}
-                  className="absolute bottom-16 right-2 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
-                  aria-label="Open video actions"
-                  title="Actions"
-                >
-                  <Share2 className="w-4 h-4 text-white" />
-                </button>
-
-                {showGeneratedVideoActions && (
-                  <div
-                    className="absolute inset-0 bg-black/0 flex items-end"
-                    onClick={() => setShowGeneratedVideoActions(false)}
-                  >
-                    <div
-                      className="w-full bg-gray-900/95 border-t border-white/10 p-4"
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      onClick={() => {
+                        if (showGeneratedVideoActions) {
+                          setShowGeneratedVideoActions(false);
+                          return;
+                        }
+                        setGeneratedVideo(null);
+                      }}
+                      className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
+                      aria-label="Close"
                     >
-                      <button
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+
+                    <button
+                      onClick={() => setShowGeneratedVideoActions(true)}
+                      className="absolute bottom-16 right-2 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
+                      aria-label="Open video actions"
+                      title="Actions"
+                    >
+                      <Share2 className="w-4 h-4 text-white" />
+                    </button>
+
+                    {showGeneratedVideoActions && (
+                      <div
+                        className="absolute inset-0 bg-black/0 flex items-end"
                         onClick={() => setShowGeneratedVideoActions(false)}
-                        className="absolute right-4 -top-10 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
-                        aria-label="Close details"
                       >
-                        <X className="w-4 h-4 text-white" />
-                      </button>
+                        <div
+                          className="w-full bg-gray-900/95 border-t border-white/10 p-4"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => setShowGeneratedVideoActions(false)}
+                            className="absolute right-4 -top-10 bg-black/60 hover:bg-black/75 rounded-full p-2 transition-colors"
+                            aria-label="Close details"
+                          >
+                            <X className="w-4 h-4 text-white" />
+                          </button>
 
-                      <div className="grid grid-cols-3 gap-3">
-                        <button
-                          onClick={() => shareVideo(generatedVideo)}
-                          className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
-                          aria-label="Share"
-                          title="Share"
-                        >
-                          <Share2 className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => downloadVideo(generatedVideo)}
-                          className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
-                          aria-label="Download"
-                          title="Download"
-                        >
-                          <Download className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={saveGeneratedVideoToAssets}
-                          disabled={isSavingGeneratedVideo || hasSavedGeneratedVideo}
-                          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
-                          aria-label={hasSavedGeneratedVideo ? 'Saved' : 'Save to Assets'}
-                          title={hasSavedGeneratedVideo ? 'Saved' : 'Save'}
-                        >
-                          {hasSavedGeneratedVideo ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
-                        </button>
+                          <div className="grid grid-cols-3 gap-3">
+                            <button
+                              onClick={() => shareVideo(generatedVideo)}
+                              className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label="Share"
+                              title="Share"
+                            >
+                              <Share2 className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => downloadVideo(generatedVideo)}
+                              className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label="Download"
+                              title="Download"
+                            >
+                              <Download className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={saveGeneratedVideoToAssets}
+                              disabled={isSavingGeneratedVideo || hasSavedGeneratedVideo}
+                              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
+                              aria-label={hasSavedGeneratedVideo ? 'Saved' : 'Save to Assets'}
+                              title={hasSavedGeneratedVideo ? 'Saved' : 'Save'}
+                            >
+                              {hasSavedGeneratedVideo ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
-              ) : uploadedImage ? (
-              <div className="w-full h-full relative bg-gray-800 rounded-lg overflow-hidden">
-                <img
-                  src={base64Image || uploadedImage}
-                  alt="Your upload"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // If base64 fails, try GCP URL, then signed URL
-                    const imgElement = e.currentTarget;
-                    const currentSrc = imgElement.src;
-                    if (currentSrc === base64Image && uploadedImage) {
-                      imgElement.src = uploadedImage;
-                    } else if (currentSrc.startsWith('https://storage.googleapis.com/')) {
-                      fetch(`/api/get-signed-url?path=${encodeURIComponent(currentSrc)}`)
-                        .then((res) => res.json())
-                        .then((data) => {
-                          if (data.url) {
-                            imgElement.src = data.url;
-                          } else if (base64Image) {
-                            imgElement.src = base64Image;
-                          }
-                        })
-                        .catch(() => {
-                          if (base64Image && imgElement.src !== base64Image) {
-                            imgElement.src = base64Image;
-                          }
-                        });
-                    }
-                  }}
-                />
+                ) : uploadedImage ? (
+                  <div className="w-full h-full relative bg-gray-800 rounded-lg overflow-hidden">
+                    <img
+                      src={base64Image || uploadedImage}
+                      alt="Your upload"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // If base64 fails, try GCP URL, then signed URL
+                        const imgElement = e.currentTarget;
+                        const currentSrc = imgElement.src;
+                        if (currentSrc === base64Image && uploadedImage) {
+                          imgElement.src = uploadedImage;
+                        } else if (currentSrc.startsWith('https://storage.googleapis.com/')) {
+                          fetch(`/api/get-signed-url?path=${encodeURIComponent(currentSrc)}`)
+                            .then((res) => res.json())
+                            .then((data) => {
+                              if (data.url) {
+                                imgElement.src = data.url;
+                              } else if (base64Image) {
+                                imgElement.src = base64Image;
+                              }
+                            })
+                            .catch(() => {
+                              if (base64Image && imgElement.src !== base64Image) {
+                                imgElement.src = base64Image;
+                              }
+                            });
+                        }
+                      }}
+                    />
 
-                {/* Close X button */}
-                <button
-                  onClick={() => {
-                    setUploadedImage(null);
-                    setSelectedTemplate(null);
-                    setGeneratedVideo(null);
-                  }}
-                  className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
-              </div>
-              ) : (
-                <PhotoUpload onImageSelect={handleImageSelect} />
-              )}
+                    {/* Close X button */}
+                    <button
+                      onClick={() => {
+                        setUploadedImage(null);
+                        setSelectedTemplate(null);
+                        setGeneratedVideo(null);
+                      }}
+                      className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <PhotoUpload onImageSelect={handleImageSelect} />
+                )}
               </>
             )}
 
@@ -806,7 +833,7 @@ export default function GeneratePage() {
                         placeholder="A person dancing in a park with autumn leaves, cinematic lighting, 4K quality..."
                         className="flex-1 bg-gray-900 text-white px-3 py-3 rounded-lg text-sm border border-gray-700 focus:border-primary focus:outline-none resize-none"
                       />
-                      
+
                       {textPrompt && (
                         <div className="bg-gray-900/80 border border-gray-700 rounded-lg p-3">
                           <p className="text-xs text-gray-400 mb-1">Preview:</p>
@@ -848,7 +875,7 @@ export default function GeneratePage() {
                         placeholder="A beautiful sunset over mountains, photorealistic, highly detailed, 4K..."
                         className="flex-1 bg-gray-900 text-white px-3 py-3 rounded-lg text-sm border border-gray-700 focus:border-primary focus:outline-none resize-none"
                       />
-                      
+
                       {textPrompt && (
                         <div className="bg-gray-900/80 border border-gray-700 rounded-lg p-3">
                           <p className="text-xs text-gray-400 mb-1">Preview:</p>
@@ -958,129 +985,140 @@ export default function GeneratePage() {
               </div>
             )}
 
-              {/* Selected Template Preview in Left Corner - Only for image-to-video mode */}
-              {activeMode === 'image-to-video' && selectedTemplate && !generatedVideo && (
-                <div className="absolute top-2 left-2 w-20 h-24 bg-gray-800 rounded-lg overflow-hidden border-2 border-primary z-50 shadow-lg">
-                  <div className="absolute top-0 left-0 right-0 bg-primary text-white px-1 py-0.5 text-[6px] font-semibold text-center z-10">
-                    Template
+            {/* Selected Template Preview in Left Corner - Only for image-to-video mode */}
+            {activeMode === 'image-to-video' && selectedTemplate && !generatedVideo && (
+              <div className="absolute top-2 left-2 w-20 h-24 bg-gray-800 rounded-lg overflow-hidden border-2 border-primary z-50 shadow-lg">
+                <div className="absolute top-0 left-0 right-0 bg-primary text-white px-1 py-0.5 text-[6px] font-semibold text-center z-10">
+                  Template
+                </div>
+                {selectedTemplate.previewVideo && videoUrls[selectedTemplate.id] ? (
+                  <video
+                    src={videoUrls[selectedTemplate.id]}
+                    className="w-full h-full object-cover mt-3"
+                    muted
+                    loop
+                    playsInline
+                    autoPlay
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center mt-3">
+                    <span className="text-gray-500 text-[6px] text-center px-1">{selectedTemplate.name}</span>
                   </div>
-                  {selectedTemplate.previewVideo ? (
+                )}
+              </div>
+            )}
+
+            {/* Image-to-Video Mode: Generate Button */}
+            {activeMode === 'image-to-video' && selectedTemplate && uploadedImage && !generatedVideo && (
+              <div className="absolute bottom-4 left-4 right-4">
+                {isGenerating ? (
+                  <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
+                    <div className="animate-spin rounded-full w-8 h-8 border-t-2 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-white text-sm font-semibold">Generating your video...</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleGenerate}
+                    className="w-full bg-primary hover:bg-primary-dark text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                  >
+                    Generate Video
+                  </button>
+                )}
+              </div>
+            )}
+
+
+          </div>
+        </div>
+
+        {/* Template Selection - Only show for image-to-video mode */}
+        {activeMode === 'image-to-video' && (
+          <div className="space-y-4">
+            {/* Search and Category Tags in Same Row */}
+            <div className="flex gap-2 flex-wrap">
+              {/* Search Tag - Same style as category tags */}
+              <div className="relative">
+                <div className="flex items-center gap-1 px-4 py-2 rounded-full bg-gray-800 border border-slate-700 hover:bg-gray-700 transition-colors">
+                  <Search className="w-3 h-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-transparent border-none outline-none text-sm text-white placeholder-gray-500 w-20 focus:w-32 transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Category Tags */}
+              {[
+                { label: 'All', value: 'all' },
+                { label: 'Sway', value: 'sway' },
+                { label: 'Shimmy', value: 'shimmy' },
+                { label: 'Peach', value: 'peach' },
+                { label: 'Halloween', value: 'halloween' },
+                { label: 'Playful', value: 'playful' },
+                { label: 'Fright Zone', value: 'fright-zone' },
+                { label: 'JK', value: 'jk' },
+                { label: 'Catgirl', value: 'catgirl' },
+                { label: 'Custom', value: 'custom' },
+              ].map((cat) => (
+                <button
+                  key={cat.value}
+                  onClick={() => setSelectedCategory(cat.value)}
+                  className={`px-4 py-2 rounded-full text-sm transition-colors ${selectedCategory === cat.value
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                    }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Template Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredTemplates.map((template) => (
+                <div
+                  key={template.id}
+                  onClick={() => (uploadedImage || base64Image) && handleTemplateSelect(template)}
+                  className={`relative aspect-[9/16] bg-gray-800 rounded-lg overflow-hidden transition-all ${(uploadedImage || base64Image)
+                      ? `cursor-pointer hover:scale-105 ${selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''}`
+                      : 'cursor-not-allowed opacity-50'
+                    }`}
+                >
+                  {template.previewVideo && videoUrls[template.id] ? (
                     <video
-                      src={selectedTemplate.previewVideo}
-                      className="w-full h-full object-cover mt-3"
+                      src={videoUrls[template.id]}
+                      className="w-full h-full object-cover"
                       muted
                       loop
                       playsInline
                       autoPlay
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center mt-3">
-                      <span className="text-gray-500 text-[6px] text-center px-1">{selectedTemplate.name}</span>
+                    <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                      <span className="text-gray-500 text-xs text-center px-2">{template.name}</span>
+                    </div>
+                  )}
+
+                  {/* Template Name Overlay - Always visible */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-3 pt-8">
+                    <p className="text-white text-sm font-semibold drop-shadow-lg">{template.name}</p>
+                    <p className="text-gray-300 text-xs mt-0.5 line-clamp-2 drop-shadow">{template.description}</p>
+                  </div>
+
+                  {/* Selected Indicator */}
+                  {selectedTemplate?.id === template.id && (
+                    <div className="absolute top-2 right-2 bg-primary text-white px-2 py-1 rounded-full text-xs font-semibold shadow-lg">
+                      Selected
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* Image-to-Video Mode: Generate Button */}
-              {activeMode === 'image-to-video' && selectedTemplate && uploadedImage && !generatedVideo && (
-                <div className="absolute bottom-4 left-4 right-4">
-                  {isGenerating ? (
-                    <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
-                      <div className="animate-spin rounded-full w-8 h-8 border-t-2 border-b-2 border-primary mx-auto mb-2"></div>
-                      <p className="text-white text-sm font-semibold">Generating your video...</p>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleGenerate}
-                      className="w-full bg-primary hover:bg-primary-dark text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
-                    >
-                      Generate Video
-                    </button>
-                  )}
-                </div>
-              )}
-
-
-            </div>
-        </div>
-
-        {/* Template Selection - Only show for image-to-video mode */}
-        {activeMode === 'image-to-video' && (
-        <div className="space-y-4">
-          {/* Search and Category Tags in Same Row */}
-          <div className="flex gap-2 flex-wrap">
-            {/* Search Tag - Same style as category tags */}
-            <div className="relative">
-              <div className="flex items-center gap-1 px-4 py-2 rounded-full bg-gray-800 border border-slate-700 hover:bg-gray-700 transition-colors">
-                <Search className="w-3 h-3 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-white placeholder-gray-500 w-20 focus:w-32 transition-all"
-                />
-              </div>
+              ))}
             </div>
 
-            {/* Category Tags */}
-            {[
-              { label: 'All', value: 'all' },
-              { label: 'Sway', value: 'sway' },
-              { label: 'Shimmy', value: 'shimmy' },
-              { label: 'Peach', value: 'peach' },
-              { label: 'Halloween', value: 'halloween' },
-              { label: 'Playful', value: 'playful' },
-              { label: 'Fright Zone', value: 'fright-zone' },
-              { label: 'JK', value: 'jk' },
-              { label: 'Catgirl', value: 'catgirl' },
-              { label: 'Custom', value: 'custom' },
-            ].map((cat) => (
-              <button
-                key={cat.value}
-                onClick={() => setSelectedCategory(cat.value)}
-                className={`px-4 py-2 rounded-full text-sm transition-colors ${
-                  selectedCategory === cat.value
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
           </div>
-
-          {/* Template Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {filteredTemplates.map((template) => (
-            <div
-              key={template.id}
-              onClick={() => (uploadedImage || base64Image) && handleTemplateSelect(template)}
-              className={`relative aspect-[9/16] bg-gray-800 rounded-lg overflow-hidden transition-all ${
-                (uploadedImage || base64Image)
-                  ? `cursor-pointer hover:scale-105 ${selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''}`
-                  : 'cursor-not-allowed opacity-50'
-              }`}
-            >
-              {template.previewVideo ? (
-                <video
-                  src={template.previewVideo}
-                  className="w-full h-full object-cover"
-                  muted
-                  loop
-                  playsInline
-                  autoPlay
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
-                  <span className="text-gray-500 text-xs text-center px-2">{template.name}</span>
-                </div>
-              )}
-          </div>
-          ))}
-        </div>
-
-        </div>
         )}
       </div>
     </Layout>

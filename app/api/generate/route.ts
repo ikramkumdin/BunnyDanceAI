@@ -98,9 +98,11 @@ async function uploadImageToKie(imagePath: string, apiKey: string): Promise<stri
     // Upload to Kie.ai using their File Upload API
     console.log('🔄 Uploading to Kie.ai File Upload API...');
 
+    // Use built-in FormData (Node.js 18+) - append buffer directly
     const formData = new FormData();
-    const blob = new Blob([new Uint8Array(imageBuffer)], { type: contentType });
-    formData.append('file', blob, 'image.jpg');
+    // Convert Buffer to Uint8Array for Blob compatibility
+    const fileBlob = new Blob([new Uint8Array(imageBuffer)], { type: contentType });
+    formData.append('file', fileBlob, 'image.jpg');
 
     const uploadResponse = await fetch('https://api.kie.ai/api/v1/file-upload/upload', {
       method: 'POST',
@@ -224,59 +226,89 @@ export async function POST(request: NextRequest) {
       return `${baseUrl}/api/public-image?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}&sig=${encodeURIComponent(sig)}`;
     }
 
-    // We need an image URL accessible by Kie.ai/Veo.
-    // Kie File Upload API has been inconsistent (404s for some accounts/regions),
-    // so the most reliable approach is: use a GCS Signed URL.
+    // For the new Kie.ai jobs/createTask API, we need publicly accessible image URLs
+    // GCS bucket might be private, so we need signed URLs or use the public-image proxy
     let accessibleImageUrl: string | undefined;
     let thumbnailUrlForCallback: string | undefined = typeof imageUrl === 'string' ? imageUrl : undefined;
-    let kieUploadResultForDebug: any = null;
+
     try {
+      let gcsUrl: string;
+
       if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
-        console.log('📤 Received base64 imageDataUrl; uploading to GCS then generating signed URL...');
-        const gcsUrl = await uploadImage(imageDataUrl, userId, 'images');
+        console.log('📤 Received base64 imageDataUrl; uploading to GCS...');
+        gcsUrl = await uploadImage(imageDataUrl, userId, 'images');
         thumbnailUrlForCallback = gcsUrl;
-        // Prefer a simple Vercel URL that serves the bytes (avoids Kie mis-validating signed URLs).
-        try {
-          accessibleImageUrl = publicImageProxyUrl(gcsUrl);
-          console.log('✅ Using /api/public-image proxy URL for generation');
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.error('❌ public-image proxy unavailable:', msg);
-          // Do NOT fall back to signed URLs in prod; Kie frequently cannot fetch them and returns "Image fetch failed".
-          return NextResponse.json(
-            {
-              error:
-                'Server is missing PUBLIC_IMAGE_PROXY_SECRET (or NEXTAUTH_SECRET). This is required so we can proxy image bytes via /api/public-image for Kie to fetch reliably.',
-              details: msg,
-            },
-            { status: 500 }
-          );
-        }
       } else {
         if (typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
           throw new Error('Expected imageUrl to be an http(s) URL when no base64 imageDataUrl is provided');
         }
-        console.log('🔗 Using imageUrl for generation (prefer proxy URL, fallback signed URL)...');
-        try {
-          accessibleImageUrl = publicImageProxyUrl(imageUrl);
-          console.log('✅ Using /api/public-image proxy URL for generation');
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.error('❌ public-image proxy unavailable:', msg);
-          return NextResponse.json(
-            {
-              error:
-                'Server is missing PUBLIC_IMAGE_PROXY_SECRET (or NEXTAUTH_SECRET). This is required so we can proxy image bytes via /api/public-image for Kie to fetch reliably.',
-              details: msg,
-            },
-            { status: 500 }
-          );
-        }
+        gcsUrl = imageUrl;
+        thumbnailUrlForCallback = imageUrl;
       }
 
-    } catch (publicError) {
-      console.error('❌ Error making image public:', publicError);
-      throw publicError;
+      // For grok-imagine/image-to-video, use direct GCS URLs since bucket is public
+      // Direct URLs are simpler and more reliable for Kie.ai's image fetcher
+      // The bucket is configured with allUsers:objectViewer, so direct URLs work
+      accessibleImageUrl = gcsUrl;
+      console.log('✅ Using direct GCS URL (bucket is public):', gcsUrl);
+
+      // Verify the URL is accessible from the internet (Kie.ai needs to fetch it)
+      // Also test from multiple user agents to simulate Kie.ai's fetch
+      try {
+        console.log('🧪 Testing direct URL accessibility (simulating Kie.ai fetch)...');
+
+        // Test with different user agents (Kie.ai might use different ones)
+        const userAgents = [
+          'Mozilla/5.0 (compatible; Kie.ai/1.0)',
+          'curl/7.68.0',
+          'Python-requests/2.28.1'
+        ];
+
+        let accessible = false;
+        for (const ua of userAgents) {
+          try {
+            const testResponse = await fetch(gcsUrl, {
+              method: 'GET',
+              signal: AbortSignal.timeout(10000),
+              headers: {
+                'User-Agent': ua,
+                'Accept': 'image/*'
+              }
+            });
+
+            if (testResponse.ok) {
+              const contentType = testResponse.headers.get('content-type');
+              const contentLength = testResponse.headers.get('content-length');
+              console.log(`✅ Direct URL is accessible with ${ua} (${contentType}, ${contentLength} bytes)`);
+
+              // Verify it's actually an image
+              if (!contentType || !contentType.startsWith('image/')) {
+                console.warn(`⚠️ URL returned non-image content type: ${contentType}`);
+              } else {
+                accessible = true;
+                break; // One successful test is enough
+              }
+            } else {
+              console.warn(`⚠️ Test with ${ua} returned ${testResponse.status}`);
+            }
+          } catch (uaError) {
+            console.warn(`⚠️ Test with ${ua} failed:`, uaError instanceof Error ? uaError.message : 'Unknown');
+          }
+        }
+
+        if (!accessible) {
+          console.error('❌ All URL accessibility tests failed!');
+          console.error('Kie.ai will likely NOT be able to fetch this image!');
+          console.error('💡 Try: Make sure the GCS bucket is public and CORS is configured');
+        }
+      } catch (testError) {
+        console.error('❌ Direct URL test failed:', testError instanceof Error ? testError.message : 'Unknown error');
+        console.error('Kie.ai will likely fail to fetch this image!');
+        // Still proceed - maybe it's a network issue on our side but Kie.ai can access it
+      }
+    } catch (error) {
+      console.error('❌ Error processing image:', error);
+      throw error;
     }
 
     if (!accessibleImageUrl) {
@@ -286,27 +318,34 @@ export async function POST(request: NextRequest) {
       throw new Error(`Resolved accessibleImageUrl is not an http(s) URL: ${String(accessibleImageUrl)}`);
     }
 
-    // Call Kie.ai Veo endpoint.
-    // We keep this pinned to the documented URL unless GROK_API_URL explicitly points to a Veo endpoint.
-    const defaultVeoUrl = 'https://api.kie.ai/api/v1/veo/generate';
+    // Call Kie.ai image-to-video endpoint using the new jobs/createTask API
+    const defaultApiUrl = 'https://api.kie.ai/api/v1/jobs/createTask';
     const grokApiUrl =
-      typeof process.env.GROK_API_URL === 'string' && process.env.GROK_API_URL.includes('/veo/')
-        ? process.env.GROK_API_URL
-        : defaultVeoUrl;
+      typeof process.env.GROK_API_URL === 'string' && process.env.GROK_API_URL.trim()
+        ? process.env.GROK_API_URL.trim()
+        : defaultApiUrl;
     console.log('🎯 Using API URL:', grokApiUrl);
 
     console.log('✅ API key configured, proceeding with generation...');
     console.log('🔗 API URL:', grokApiUrl);
 
     // Build callback URL so Kie can POST back when done (prevents relying on slow polling)
+    // Only set callback URL if we're in production (Vercel), not localhost
     // (baseUrl was computed earlier for the public-image proxy)
-    const callbackUrl =
-      `${baseUrl}/api/callback` +
+    const isProduction = baseUrl.startsWith('https://') && !baseUrl.includes('localhost');
+    const callbackUrl = isProduction
+      ? `${baseUrl}/api/callback` +
       `?userId=${encodeURIComponent(userId)}` +
       `&templateId=${encodeURIComponent(templateId)}` +
       `&templateName=${encodeURIComponent(template.name)}` +
-      `&thumbnail=${encodeURIComponent(thumbnailUrlForCallback || accessibleImageUrl || '')}`;
-    console.log(`[Generate] Image-to-video callbackUrl: ${callbackUrl}`);
+      `&thumbnail=${encodeURIComponent(thumbnailUrlForCallback || accessibleImageUrl || '')}`
+      : undefined; // No callback in local dev, rely on polling
+
+    if (callbackUrl) {
+      console.log(`[Generate] Image-to-video callbackUrl: ${callbackUrl}`);
+    } else {
+      console.log(`[Generate] Skipping callback URL (local dev), will use polling`);
+    }
 
     // Check if test mode is enabled
     const isTestMode = process.env.KIE_TEST_MODE === 'true';
@@ -330,24 +369,45 @@ export async function POST(request: NextRequest) {
     let lastKiePayload: any = null;
     let lastVeoRequestBody: any = null;
 
-    // Prefer minimal "known-good" body shape (closest to what you confirmed worked before).
-    // Kie sometimes returns generic 422 messages for any validation issue, so keep payload strict.
-    const baseVeoBody: any = {
-      prompt,
-        imageUrls: [accessibleImageUrl],
-      model: 'veo3_fast',
-      generationType: 'REFERENCE_2_VIDEO',
-      // Google/Veo can reject content (often image-driven) and Kie explicitly recommends enabling fallback.
-      enableFallback: true,
-        enableTranslation: true,
-      callBackUrl: callbackUrl,
+    // Use the new Kie.ai jobs/createTask API format
+    // Note: According to Kie.ai docs, image_urls should be an array with ONE URL
+    // and the prompt should be under 5000 characters
+    const trimmedPrompt = prompt.length > 5000 ? prompt.substring(0, 4997) + '...' : prompt;
+    if (prompt.length > 5000) {
+      console.warn(`⚠️ Prompt is ${prompt.length} characters, trimming to 5000`);
+    }
+
+    // Map template intensity to Kie.ai generation mode
+    // mild → normal, spicy → spicy, extreme → spicy
+    const intensityToMode: { [key: string]: string } = {
+      'mild': 'normal',
+      'spicy': 'spicy',
+      'extreme': 'spicy'
+    };
+    const generationMode = intensityToMode[template.intensity] || 'normal';
+    console.log(`🎨 Using generation mode: ${generationMode} (from template intensity: ${template.intensity})`);
+
+    const baseRequestBody: any = {
+      model: 'grok-imagine/image-to-video',
+      ...(callbackUrl && { callBackUrl: callbackUrl }), // Only include if set
+      input: {
+        image_urls: [accessibleImageUrl], // Array with single URL
+        index: 0,
+        prompt: trimmedPrompt,
+        mode: generationMode,
+      },
     };
 
-    // Start with 16:9 first (matches the previously-working payload you shared),
-    // then try portrait variants.
-    let requestBody: any = { ...baseVeoBody, aspectRatio: '16:9' };
+    console.log('📋 Request summary:', {
+      model: baseRequestBody.model,
+      imageUrl: accessibleImageUrl.substring(0, 80) + '...',
+      promptLength: trimmedPrompt.length,
+      hasCallback: !!callbackUrl
+    });
 
-      console.log('🔄 Trying generation request...');
+    let requestBody: any = { ...baseRequestBody };
+
+    console.log('🔄 Trying generation request...');
 
     let response;
     let data;
@@ -380,6 +440,15 @@ export async function POST(request: NextRequest) {
         throw new Error(`Kie.ai code ${data.code}: ${kieMsg}. Full: ${JSON.stringify(data)}`);
       }
 
+      // Verify we got a taskId
+      if (!data?.data?.taskId) {
+        console.error('❌ No taskId in response!', JSON.stringify(data, null, 2));
+        throw new Error('Kie.ai did not return a taskId. Response: ' + JSON.stringify(data));
+      }
+
+      console.log('✅ Task created successfully with taskId:', data.data.taskId);
+      console.log('💡 Check this task in Kie.ai logs: https://kie.ai/logs (search for taskId)');
+
       // Check if we got a direct video URL (immediate success)
       const videoUrl = data.videoUrl || data.url || data.result?.videoUrl || data.output?.url || data.data?.videoUrl;
       if (response.ok && videoUrl) {
@@ -404,17 +473,21 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Check for taskId in various formats
+      // Check for taskId in various formats (new API may return it differently)
       const possibleTaskIds = [
         data.taskId,
         data.id,
         data.task_id,
-        data.data?.taskId,
-        data.data?.id,
         data.jobId,
         data.job_id,
+        data.data?.taskId,
+        data.data?.id,
+        data.data?.jobId,
+        data.result?.taskId,
+        data.result?.id,
         data.requestId,
-        data.request_id
+        data.request_id,
+        data.uuid
       ];
 
       const foundTaskId = possibleTaskIds.find(id => id);
@@ -442,14 +515,10 @@ export async function POST(request: NextRequest) {
 
       // Fall back to async request - try different parameter formats
       const asyncRequestBodies = [
-        // 1) Known-good shape: 16:9 + veo3_fast + REFERENCE_2_VIDEO (fallback enabled)
-        { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '16:9' } },
-        // 2) Portrait
-        { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '9:16' } },
-        // 3) Omit aspectRatio (let Kie decide)
-        { url: grokApiUrl, body: { ...baseVeoBody } },
-        // 4) Last resort: disable fallback (some accounts may have fallback disabled)
-        { url: grokApiUrl, body: { ...baseVeoBody, aspectRatio: '16:9', enableFallback: false } },
+        // 1) Normal mode (default)
+        { url: grokApiUrl, body: { ...baseRequestBody } },
+        // 2) Try without mode (let API decide)
+        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, mode: undefined } } },
       ];
 
       let asyncSuccess = false;
@@ -494,15 +563,18 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Check for taskId in various formats
+          // Check for taskId in various formats (new API may return it differently)
           const possibleTaskIds = [
             data.taskId,
             data.id,
             data.task_id,
-            data.data?.taskId,
-            data.data?.id,
             data.jobId,
             data.job_id,
+            data.data?.taskId,
+            data.data?.id,
+            data.data?.jobId,
+            data.result?.taskId,
+            data.result?.id,
             data.requestId,
             data.request_id,
             data.generation_id,
@@ -548,7 +620,6 @@ export async function POST(request: NextRequest) {
               debug: {
                 accessibleImageUrl,
                 veoRequestBody: lastVeoRequestBody,
-                kieUploadResult: kieUploadResultForDebug,
               },
             },
             { status: 400 }
@@ -564,7 +635,6 @@ export async function POST(request: NextRequest) {
               debug: {
                 accessibleImageUrl,
                 veoRequestBody: lastVeoRequestBody,
-                kieUploadResult: kieUploadResultForDebug,
               },
             },
             { status: 422 }
@@ -578,7 +648,7 @@ export async function POST(request: NextRequest) {
     // Note: The code below this point is unreachable if async success happened, 
     // because we returned early. It only runs if synchronous request succeeded (handled above)
     // or if we decide to remove the early return in the future.
-    
+
     // For safety, if we somehow reach here without returning, treat it as an error or fallback
     throw new Error('Unexpected execution flow: generation should have been handled by sync or async blocks');
 
