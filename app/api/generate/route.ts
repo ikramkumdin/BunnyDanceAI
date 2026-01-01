@@ -546,9 +546,17 @@ export async function POST(request: NextRequest) {
       const asyncRequestBodies = [
         // 1) Normal mode (default) - Input as Object
         { url: grokApiUrl, body: { ...baseRequestBody } },
-        // 2) Input as JSON String (Task API often requires this)
-        { url: grokApiUrl, body: { ...baseRequestBody, input: JSON.stringify(baseRequestBody.input) } },
-        // 3) Try without mode (let API decide)
+        // 2) Input as JSON String (Matches previous successful logs)
+        { url: grokApiUrl, body: { ...baseRequestBody, input: typeof baseRequestBody.input === 'object' ? JSON.stringify(baseRequestBody.input) : baseRequestBody.input } },
+        // 3) Try WITHOUT callBackUrl (Kie sometimes fails if callback reaches invalid URL)
+        { url: grokApiUrl, body: { ...baseRequestBody, callBackUrl: undefined } },
+        // 4) Try stringified input WITHOUT callBackUrl
+        { url: grokApiUrl, body: { ...baseRequestBody, callBackUrl: undefined, input: typeof baseRequestBody.input === 'object' ? JSON.stringify(baseRequestBody.input) : baseRequestBody.input } },
+        // 5) Try with prompt at Top Level (Some models expect this)
+        { url: grokApiUrl, body: { ...baseRequestBody, prompt: trimmedPrompt, text: trimmedPrompt } },
+        // 6) Simplest Possible Format (Only model and input)
+        { url: grokApiUrl, body: { model: baseRequestBody.model, input: baseRequestBody.input } },
+        // 7) Try without mode (let API decide)
         { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, mode: undefined } } },
       ];
 
