@@ -12,6 +12,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory>('all');
   const [activeTab, setActiveTab] = useState<'trending' | 'my-effect'>('trending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [videoUrls, setVideoUrls] = useState<{ [key: string]: string }>({});
 
   const filteredTemplates = templates.filter((template) => {
     // Filter out hidden templates
@@ -32,6 +33,35 @@ export default function Home() {
   });
 
   const topChoiceTemplates = filteredTemplates.slice(0, 5);
+
+  // Get signed URLs for all template videos
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      const urls: { [key: string]: string } = {};
+      for (const template of templates) {
+        if (template.previewVideo) {
+          try {
+            // Get signed URL for the video (works for both public and private files)
+            const signedResponse = await fetch(`/api/get-signed-url?path=${encodeURIComponent(template.previewVideo)}`);
+            if (signedResponse.ok) {
+              const data = await signedResponse.json();
+              urls[template.id] = data.url;
+            } else {
+              // Fallback to direct URL if signed URL fails
+              urls[template.id] = template.previewVideo;
+            }
+          } catch (error) {
+            // Fallback to direct URL on error
+            console.warn('Error getting signed URL for', template.id, 'using direct URL');
+            urls[template.id] = template.previewVideo;
+          }
+        }
+      }
+      setVideoUrls(urls);
+    };
+
+    fetchSignedUrls();
+  }, []);
 
   const handleAnimatePhoto = () => {
     router.push('/generate');
@@ -116,10 +146,10 @@ export default function Home() {
                 onClick={() => handleTemplateClick(template)}
                 className="relative aspect-[9/16] bg-gray-800 rounded-lg overflow-hidden cursor-pointer hover:scale-105 transition-transform group"
               >
-                {template.previewVideo ? (
+                {template.previewVideo && videoUrls[template.id] ? (
                   <video
                     key={template.id}
-                    src={template.previewVideo}
+                    src={videoUrls[template.id]}
                     className="w-full h-full object-cover"
                     muted
                     loop

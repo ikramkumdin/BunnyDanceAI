@@ -230,7 +230,7 @@ export default function AssetsPage() {
                           image.tags && image.tags.length
                             ? image.tags
                             : ['image', image.source || 'text-to-image']
-                        )}
+              )}
             </div>
                       <div className="flex gap-2">
                         <button

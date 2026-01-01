@@ -206,8 +206,8 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
 
     // Show preview immediately and get base64 (use processed file so preview matches what we upload)
     const base64Promise = fileToDataUrl(uploadFile).then((result) => {
-      setPreview(result); // Show base64 immediately
-      setBase64Fallback(result); // Keep base64 as fallback
+        setPreview(result); // Show base64 immediately
+        setBase64Fallback(result); // Keep base64 as fallback
       return result;
     });
 

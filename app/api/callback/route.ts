@@ -143,6 +143,7 @@ export async function POST(request: NextRequest) {
     // Handle different callback formats from Kie.ai
     const taskId = body.taskId || body.data?.taskId || body.task_id || searchParams.get('taskId');
     // Extract mp4 url from common locations OR nested resultJson/response
+    // For grok-imagine/image-to-video, resultJson contains resultUrls array
     let videoUrl: any =
       body.videoUrl ||
       body.data?.videoUrl ||
@@ -154,19 +155,21 @@ export async function POST(request: NextRequest) {
       body.result?.url ||
       body.output?.videoUrl ||
       body.output?.url ||
-      body.data?.response ||
-      body.response ||
+      // Prioritize resultJson for grok-imagine (contains resultUrls array)
       body.data?.resultJson ||
-      body.resultJson;
+      body.resultJson ||
+      body.data?.response ||
+      body.response;
 
     if (typeof videoUrl === 'string') {
       const parsed = tryParseJson(videoUrl) as any;
       if (parsed && parsed !== videoUrl) {
+        // For grok-imagine, resultJson contains resultUrls array
         const extracted =
+          parsed?.resultUrls?.[0] || // Prioritize resultUrls for grok-imagine
+          parsed?.result_urls?.[0] ||
           parsed?.videoUrl ||
           parsed?.url ||
-          parsed?.resultUrls?.[0] ||
-          parsed?.result_urls?.[0] ||
           parsed?.data?.videoUrl ||
           parsed?.data?.url ||
           parsed?.data?.resultUrls?.[0] ||

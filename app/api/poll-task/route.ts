@@ -67,11 +67,12 @@ function pickVideoUrl(payload: any): string | undefined {
 
   if (typeof direct === 'string' && direct.startsWith('http')) return direct;
 
+  // For grok-imagine/image-to-video, resultJson contains resultUrls array
   // Veo record-info often stores results inside data.response or data.resultJson
   const candidates = [
-    payload?.data?.response,
-    payload?.data?.resultJson,
+    payload?.data?.resultJson, // Prioritize resultJson for grok-imagine
     payload?.resultJson,
+    payload?.data?.response,
     payload?.response,
     payload?.data?.resultUrls,
     payload?.data?.result_urls,
@@ -80,11 +81,12 @@ function pickVideoUrl(payload: any): string | undefined {
   for (const c of candidates) {
     const parsed = tryParseJson(c) as any;
     const fromParsed =
+      // Prioritize resultUrls array (grok-imagine format)
+      parsed?.resultUrls?.[0] ||
+      parsed?.result_urls?.[0] ||
       (typeof parsed === 'string' && parsed.startsWith('http') ? parsed : undefined) ||
       parsed?.videoUrl ||
       parsed?.url ||
-      parsed?.resultUrls?.[0] ||
-      parsed?.result_urls?.[0] ||
       parsed?.data?.resultUrls?.[0] ||
       parsed?.data?.result_urls?.[0] ||
       (Array.isArray(parsed) ? parsed.find((u) => typeof u === 'string' && u.startsWith('http')) : undefined);
@@ -154,20 +156,23 @@ export async function GET(request: NextRequest) {
 
     // Try different possible endpoints for task status
     // Based on search results and common Kie.ai patterns
-    const kieApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/veo/generate';
+    const kieApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/jobs/createTask';
     const baseUrl = kieApiUrl.includes('/api/v1') 
       ? kieApiUrl.split('/api/v1')[0] 
       : 'https://api.kie.ai';
 
     // Try common task status endpoints and variations based on Kie.ai patterns
+    // For grok-imagine/image-to-video, try jobs endpoints first
     const possibleEndpoints = [
-      // Correct endpoint for Veo task status per documentation search
-      // Note the hyphen in 'record-info'
-      `${baseUrl}/api/v1/veo/record-info?taskId=${taskId}`,
-      
-      // Fallback: older endpoint style
+      // Jobs API endpoint (for grok-imagine/image-to-video)
       `${baseUrl}/api/v1/jobs/recordInfo?taskId=${taskId}`,
       
+      // Grok-imagine specific endpoint (if it exists)
+      `${baseUrl}/api/v1/grok-imagine/record-info?taskId=${taskId}`,
+      
+      // Veo endpoint (fallback for other models)
+      `${baseUrl}/api/v1/veo/record-info?taskId=${taskId}`,
+
       // Fallback: direct task endpoint
       `${baseUrl}/api/v1/task/${taskId}`,
     ];
@@ -214,8 +219,41 @@ export async function GET(request: NextRequest) {
           
           // Normalize response for frontend
           // Map 'state' to 'status' (Kie.ai uses 'state' sometimes)
-          if (statusData.state && !statusData.status) {
+          if (statusData.data?.state && !statusData.status) {
+            // Map Kie.ai states to our status format
+            const state = statusData.data.state.toLowerCase();
+            if (state === 'waiting' || state === 'processing' || state === 'generating') {
+              statusData.status = 'processing';
+            } else if (state === 'success' || state === 'completed') {
+              statusData.status = 'completed';
+            } else if (state === 'fail' || state === 'failed') {
+              statusData.status = 'failed';
+              statusData.error = statusData.data.failMsg || statusData.data.failCode || 'Video generation failed';
+            } else {
+              statusData.status = state;
+            }
+          } else if (statusData.state && !statusData.status) {
             statusData.status = statusData.state;
+          }
+          
+          // Check for resultJson with resultUrls (grok-imagine format)
+          if (statusData.data?.resultJson && statusData.status !== 'completed') {
+            try {
+              const resultJson = typeof statusData.data.resultJson === 'string'
+                ? tryParseJson(statusData.data.resultJson)
+                : statusData.data.resultJson;
+              
+              if (resultJson && typeof resultJson === 'object') {
+                const videoUrl = (resultJson as any)?.resultUrls?.[0];
+                if (videoUrl && typeof videoUrl === 'string' && videoUrl.startsWith('http')) {
+                  statusData.videoUrl = videoUrl;
+                  statusData.status = 'completed';
+                  console.log('✅ Found video URL in resultJson:', videoUrl);
+                }
+              }
+            } catch (e) {
+              console.error('Failed to parse resultJson:', e);
+            }
           }
           
           // Map 'successFlag' from record-info endpoint

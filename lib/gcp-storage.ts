@@ -4,7 +4,7 @@ import { parseServiceAccountFromEnv } from './credentials';
 // Initialize GCP Storage client (server-side only)
 let storageClient: Storage | null = null;
 
-function getStorageClient(): Storage {
+function getStorageClient(): Storage | null {
   if (typeof window !== 'undefined') {
     throw new Error('GCP Storage can only be used server-side. Use API routes instead.');
   }
@@ -16,13 +16,27 @@ function getStorageClient(): Storage {
       credentials = parseServiceAccountFromEnv();
     } catch (error) {
       console.error('Error parsing GCP_SERVICE_ACCOUNT_KEY:', error);
+      // Return null if credentials can't be parsed (for local dev fallback)
+      return null;
     }
 
-    storageClient = new Storage({
-      projectId: process.env.GCP_PROJECT_ID || 'bunnydanceai',
-      credentials,
-      // If no credentials provided, will use default credentials from GCP
-    });
+    // If no credentials, try to use default credentials
+    if (!credentials) {
+      try {
+        storageClient = new Storage({
+          projectId: process.env.GCP_PROJECT_ID || 'bunnydanceai',
+          // Will use default credentials from GCP if available
+        });
+      } catch (error) {
+        console.warn('Could not initialize GCP Storage client:', error);
+        return null;
+      }
+    } else {
+      storageClient = new Storage({
+        projectId: process.env.GCP_PROJECT_ID || 'bunnydanceai',
+        credentials,
+      });
+    }
   }
   return storageClient;
 }
@@ -43,6 +57,9 @@ export async function uploadImage(
 ): Promise<string> {
   try {
     const storage = getStorageClient();
+    if (!storage) {
+      throw new Error('GCP Storage client not available. Please configure GCP credentials.');
+    }
     const bucket = storage.bucket(BUCKET_NAME);
 
     let fileBuffer: Buffer;
@@ -97,6 +114,9 @@ export async function uploadVideo(
 ): Promise<string> {
   try {
     const storage = getStorageClient();
+    if (!storage) {
+      throw new Error('GCP Storage client not available. Please configure GCP credentials.');
+    }
     const bucket = storage.bucket(BUCKET_NAME);
 
     let fileBuffer: Buffer;
@@ -147,6 +167,9 @@ export async function uploadVideo(
 export async function deleteFile(fileUrl: string): Promise<void> {
   try {
     const storage = getStorageClient();
+    if (!storage) {
+      throw new Error('GCP Storage client not available. Please configure GCP credentials.');
+    }
     const bucket = storage.bucket(BUCKET_NAME);
 
     // Extract file path from URL
@@ -173,10 +196,17 @@ export async function deleteFile(fileUrl: string): Promise<void> {
 export async function getSignedUrl(
   filePath: string,
   expiresIn: number = 3600
-): Promise<string> {
+): Promise<string | null> {
   try {
     const storage = getStorageClient();
-
+    
+    // If no storage client available (missing credentials), return null
+    // The caller should fall back to direct URL
+    if (!storage) {
+      console.warn('GCP Storage client not available, cannot generate signed URL');
+      return null;
+    }
+    
     // Extract bucket + object path from URL forms when provided.
     // Supports:
     // - https://storage.googleapis.com/<bucket>/<object>
@@ -193,9 +223,9 @@ export async function getSignedUrl(
       const url = new URL(filePath);
       const pathParts = url.pathname.split('/').filter((p) => p);
       bucketName = pathParts[0] || BUCKET_NAME;
-      gcsPath = pathParts.slice(1).join('/');
+        gcsPath = pathParts.slice(1).join('/');
     }
-
+    
     const bucket = storage.bucket(bucketName);
     const fileRef = bucket.file(gcsPath);
 
@@ -207,7 +237,8 @@ export async function getSignedUrl(
     return url;
   } catch (error) {
     console.error('Error generating signed URL:', error);
-    throw error;
+    // Return null instead of throwing, so caller can fall back to direct URL
+    return null;
   }
 }
 

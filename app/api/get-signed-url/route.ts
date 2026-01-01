@@ -31,6 +31,20 @@ export async function GET(request: NextRequest) {
 
     const signedUrl = await getSignedUrl(gcsPath, 86400); // 24 hour expiry (for Kie.ai to access)
 
+    // If signed URL generation failed (e.g., missing credentials), fall back to direct URL
+    // This works for public buckets or when credentials aren't configured locally
+    if (!signedUrl) {
+      console.warn('Signed URL generation failed, falling back to direct URL');
+      // Return the original URL if it's already a full URL, otherwise construct it
+      const fallbackUrl = filePath.startsWith('http') 
+        ? filePath 
+        : `https://storage.googleapis.com/${process.env.GCP_STORAGE_BUCKET || 'bunnydanceai-storage'}/${gcsPath}`;
+      
+      return NextResponse.json({
+        url: fallbackUrl,
+      });
+    }
+
     return NextResponse.json({
       url: signedUrl,
     });
