@@ -433,30 +433,40 @@ export async function POST(request: NextRequest) {
     const generationMode = intensityToMode[template.intensity] || 'normal';
     console.log(`🎨 Using generation mode: ${generationMode} (from template intensity: ${template.intensity})`);
 
+    // CRITICAL: Ensure prompt is never empty - use fallback if needed
+    const finalPrompt = trimmedPrompt && trimmedPrompt.trim().length > 0 
+      ? trimmedPrompt.trim()
+      : baseTemplatePrompt || safeFallbackPrompt || 'A beautiful woman performs a graceful dance in a luxurious setting.';
+    
+    console.log('🔍 Pre-request validation:');
+    console.log('   - trimmedPrompt length:', trimmedPrompt?.length || 0);
+    console.log('   - finalPrompt length:', finalPrompt?.length || 0);
+    console.log('   - finalPrompt preview:', finalPrompt.substring(0, 100) + '...');
+
+    if (!finalPrompt || finalPrompt.trim().length === 0) {
+      console.error('❌ CRITICAL: All prompt sources are empty!');
+      throw new Error('Cannot generate video: No prompt available from template or fallback');
+    }
+
     const baseRequestBody: any = {
       model: 'grok-imagine/image-to-video',
       ...(callbackUrl && { callBackUrl: callbackUrl }), // Only include if set
       input: {
         image_urls: [accessibleImageUrl], // Array with single URL
         index: 0,
-        prompt: trimmedPrompt,
+        prompt: finalPrompt, // Use guaranteed non-empty prompt
         mode: generationMode,
       },
     };
 
-    // Critical validation: Ensure prompt is present and non-empty
-    console.log('🔍 Pre-request validation:');
-    console.log('   - trimmedPrompt length:', trimmedPrompt?.length || 0);
-    console.log('   - baseRequestBody.input.prompt length:', baseRequestBody.input?.prompt?.length || 0);
-    console.log('   - prompt field exists:', 'prompt' in baseRequestBody.input);
-    console.log('   - prompt field is truthy:', !!baseRequestBody.input.prompt);
-
+    // Final validation after constructing request body
     if (!baseRequestBody.input.prompt || baseRequestBody.input.prompt.trim().length === 0) {
-      console.error('❌ CRITICAL: Request body has empty prompt!');
-      console.error('   - trimmedPrompt:', JSON.stringify(trimmedPrompt));
+      console.error('❌ CRITICAL: Request body has empty prompt after construction!');
       console.error('   - baseRequestBody.input:', JSON.stringify(baseRequestBody.input, null, 2));
       throw new Error('Request body contains empty prompt field');
     }
+    
+    console.log('✅ Request body validated - prompt length:', baseRequestBody.input.prompt.length);
 
     console.log('📋 Request summary:', {
       model: baseRequestBody.model,
@@ -475,6 +485,12 @@ export async function POST(request: NextRequest) {
     try {
       console.log('🚀 Sending sync request to Kie.ai...');
       console.log('📝 Request body:', JSON.stringify(requestBody, null, 2));
+      console.log('🔍 Request body validation:');
+      console.log('   - Has input:', !!requestBody.input);
+      console.log('   - Input type:', typeof requestBody.input);
+      console.log('   - Has prompt in input:', !!requestBody.input?.prompt);
+      console.log('   - Prompt value:', requestBody.input?.prompt ? requestBody.input.prompt.substring(0, 100) + '...' : 'MISSING');
+      console.log('   - Prompt length:', requestBody.input?.prompt?.length || 0);
       lastVeoRequestBody = requestBody;
 
       response = await fetch(grokApiUrl, {
@@ -574,19 +590,31 @@ export async function POST(request: NextRequest) {
       console.log('⚠️ Synchronous request failed, trying async mode:', syncError instanceof Error ? syncError.message : String(syncError));
 
       // Fall back to async request - try different parameter formats
-      const cleanPrompt = trimmedPrompt.replace(/\n\s*\n/g, '\n').replace(/\n/g, ' ').trim();
+      // Use finalPrompt (which is guaranteed non-empty) instead of trimmedPrompt
+      const cleanPrompt = finalPrompt.replace(/\n\s*\n/g, '\n').replace(/\n/g, ' ').trim();
       const simplePrompt = baseTemplatePrompt || safeFallbackPrompt;
 
-      // Ensure all prompts are non-empty for fallbacks
-      const guaranteedPrompt = trimmedPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
+      // Ensure all prompts are non-empty for fallbacks - use finalPrompt as base
+      const guaranteedPrompt = finalPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
       const guaranteedCleanPrompt = cleanPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
       const guaranteedSimplePrompt = simplePrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
+      
+      console.log('🔄 Fallback prompts prepared:');
+      console.log('   - guaranteedPrompt length:', guaranteedPrompt.length);
+      console.log('   - guaranteedCleanPrompt length:', guaranteedCleanPrompt.length);
+      console.log('   - guaranteedSimplePrompt length:', guaranteedSimplePrompt.length);
 
       const asyncRequestBodies = [
         // 1) Normal mode (default) - Input as Object
         { url: grokApiUrl, body: { ...baseRequestBody } },
-        // 2) Input as JSON String (Matches previous successful logs)
-        { url: grokApiUrl, body: { ...baseRequestBody, input: typeof baseRequestBody.input === 'object' ? JSON.stringify(baseRequestBody.input) : baseRequestBody.input } },
+        // 2) Input as JSON String (Matches previous successful logs) - but ensure prompt is in the stringified input
+        { url: grokApiUrl, body: { 
+          ...baseRequestBody, 
+          input: JSON.stringify({
+            ...baseRequestBody.input,
+            prompt: guaranteedPrompt // Ensure prompt is present in stringified version
+          })
+        } },
         // 3) Clean Prompt (No Newlines) - Some validators are strict
         { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: guaranteedCleanPrompt } } },
         // 4) Simple Prompt (No Identity Wrapper) - Avoid safety filters
