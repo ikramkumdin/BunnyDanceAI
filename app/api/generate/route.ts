@@ -607,58 +607,69 @@ export async function POST(request: NextRequest) {
       const grokImagineEndpoint = 'https://api.kie.ai/api/v1/grok-imagine/image-to-video';
 
       const asyncRequestBodies = [
-        // 1) Normal mode (default) - Input as Object
-        { url: grokApiUrl, body: { ...baseRequestBody } },
-
-        // 2) Input as JSON String (Task API often requires this)
+        // 1) Diagnostic SUCCESS Mimic (The exact format that worked in test-credentials)
         {
-          url: grokApiUrl, body: {
-            ...baseRequestBody,
+          url: grokApiUrl,
+          body: {
+            model: 'grok-imagine/image-to-video',
+            input: {
+              image_urls: [accessibleImageUrl],
+              prompt: guaranteedCleanPrompt, // Clean prompt works better with validators
+              index: 0
+            }
+          }
+        },
+
+        // 2) Standard with callback
+        {
+          url: grokApiUrl,
+          body: {
+            model: 'grok-imagine/image-to-video',
+            callBackUrl: callbackUrl,
+            input: {
+              image_urls: [accessibleImageUrl],
+              prompt: guaranteedPrompt,
+              index: 0,
+              mode: generationMode === 'spicy' ? 'spicy' : 'normal'
+            }
+          }
+        },
+
+        // 3) Stringified Input (Legacy successful format)
+        {
+          url: grokApiUrl,
+          body: {
+            model: 'grok-imagine/image-to-video',
             input: JSON.stringify({
-              ...baseRequestBody.input,
-              prompt: guaranteedPrompt
+              image_urls: [accessibleImageUrl],
+              prompt: guaranteedPrompt,
+              index: 0
             })
           }
         },
 
-        // 3) FLAT Structure (No 'input' object, everything at top level like Veo model)
+        // 4) FLAT Structure (Some Kie models expect this)
         {
-          url: grokApiUrl, body: {
-            model: baseRequestBody.model,
-            prompt: guaranteedPrompt,
+          url: grokApiUrl,
+          body: {
+            model: 'grok-imagine/image-to-video',
+            prompt: guaranteedCleanPrompt,
             image_urls: [accessibleImageUrl],
-            index: 0,
-            callBackUrl: baseRequestBody.callBackUrl
+            index: 0
           }
         },
 
-        // 4) FLAT Structure (Alternative key 'text')
+        // 5) Simplified Without Mode (Kie sometimes rejects 'mode' for external URLs)
         {
-          url: grokApiUrl, body: {
-            model: baseRequestBody.model,
-            text: guaranteedPrompt,
-            image_urls: [accessibleImageUrl],
-            callBackUrl: baseRequestBody.callBackUrl
+          url: grokApiUrl,
+          body: {
+            model: 'grok-imagine/image-to-video',
+            input: {
+              image_urls: [accessibleImageUrl],
+              prompt: guaranteedCleanPrompt
+            }
           }
-        },
-
-        // 5) Clean Prompt (No Newlines) - Some validators are strict
-        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: guaranteedCleanPrompt } } },
-
-        // 6) Simple Prompt (No Identity Wrapper) - Avoid safety filters
-        { url: grokApiUrl, body: { ...baseRequestBody, input: { ...baseRequestBody.input, prompt: guaranteedSimplePrompt } } },
-
-        // 7) Try WITHOUT callBackUrl (Kie sometimes fails if callback reaches invalid URL)
-        { url: grokApiUrl, body: { ...baseRequestBody, callBackUrl: undefined } },
-
-        // 8) Try Direct Model Endpoint (Alternative to jobs/createTask)
-        { url: grokImagineEndpoint, body: { ...baseRequestBody } },
-
-        // 9) Try with prompt at Top Level combined with 'input'
-        { url: grokImagineEndpoint, body: { ...baseRequestBody, prompt: guaranteedPrompt, text: guaranteedPrompt } },
-
-        // 10) Simplest Possible Format (Only model and input)
-        { url: grokApiUrl, body: { model: baseRequestBody.model, input: { image_urls: [accessibleImageUrl], prompt: guaranteedPrompt } } },
+        }
       ];
 
       // Add a potential direct model endpoint fallback if createTask fails
@@ -671,10 +682,17 @@ export async function POST(request: NextRequest) {
           console.log(`\n🔄 [FALLBACK ${i + 1}/${asyncRequestBodies.length}]`);
           console.log(`🔗 URL: ${reqConfig.url}`);
           // REDACTED LOGGING: only log keys and value summaries to avoid log truncation
-          const bodyPeek = { ...reqConfig.body };
+          const bodyPeek = { ...reqConfig.body } as any;
           if (typeof bodyPeek.input === 'string') bodyPeek.input = bodyPeek.input.substring(0, 50) + '...';
           console.log('📝 Body Keys:', Object.keys(reqConfig.body));
-          console.log('📝 Prompt Preview:', (reqConfig.body.input?.prompt || reqConfig.body.prompt || '').substring(0, 50) + '...');
+
+          let promptToLog = '';
+          if (reqConfig.body.input && typeof reqConfig.body.input === 'object') {
+            promptToLog = (reqConfig.body.input as any).prompt || '';
+          } else if (reqConfig.body.prompt) {
+            promptToLog = reqConfig.body.prompt as string;
+          }
+          console.log('📝 Prompt Preview:', promptToLog.substring(0, 50) + '...');
 
           lastVeoRequestBody = reqConfig.body;
 
