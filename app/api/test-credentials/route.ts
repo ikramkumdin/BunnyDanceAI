@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadImage } from '@/lib/storage';
 import { parseServiceAccountFromEnv } from '@/lib/credentials';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   const envStatus = {
     GROK_API_KEY: !!process.env.GROK_API_KEY,
@@ -47,9 +50,8 @@ export async function GET(request: NextRequest) {
         const testBody = {
           model: 'grok-imagine/image-to-video',
           input: {
-            image_urls: ['https://storage.googleapis.com/bunnydanceai-storage/test-user/debug/1767281371939-image-1767281371939.jpg'],
+            image_urls: ['https://storage.googleapis.com/bunnydanceai-storage/test-user/debug/1735827415555-image-1735827415555.jpg'],
             prompt: 'Diagnostic test prompt: A person dancing.',
-            index: 0
           }
         };
 
@@ -88,7 +90,6 @@ export async function GET(request: NextRequest) {
           model: 'grok-imagine/text-to-video',
           input: {
             prompt: 'Diagnostic test: A forest in autumn.',
-            index: 0
           }
         };
 
