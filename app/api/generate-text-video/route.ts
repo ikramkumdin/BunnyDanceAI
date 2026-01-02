@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+// Deployment Trigger: Consolidating Grok Text-to-Video logic for production stability.
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
