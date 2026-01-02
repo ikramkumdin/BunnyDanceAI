@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadImage } from '@/lib/storage';
 import { parseServiceAccountFromEnv } from '@/lib/credentials';
@@ -41,6 +40,48 @@ export async function GET(request: NextRequest) {
       results.gcsUpload = `ERROR: ${e instanceof Error ? e.message : String(e)}`;
     }
 
+    // 3. Test Kie.ai API Key and basic task creation
+    try {
+      const grokApiKey = process.env.GROK_API_KEY;
+      if (!grokApiKey) {
+        results.kieTest = 'ERROR: GROK_API_KEY missing';
+      } else {
+        const testBody = {
+          model: 'grok-imagine/image-to-video',
+          input: {
+            image_urls: ['https://storage.googleapis.com/bunnydanceai-storage/test-user/debug/1767281371939-image-1767281371939.jpg'],
+            prompt: 'Diagnostic test prompt: A person dancing.',
+            index: 0
+          }
+        };
+
+        const startTime = Date.now();
+        const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${grokApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(testBody)
+        });
+        const duration = Date.now() - startTime;
+
+        results.kieStatus = kieResponse.status;
+        results.kieDuration = `${duration}ms`;
+
+        const kieData = await kieResponse.json();
+        results.kieResponse = kieData;
+
+        if (kieResponse.ok && kieData.code === 200) {
+          results.kieTest = 'SUCCESS';
+        } else {
+          results.kieTest = `FAILED: ${kieData.msg || kieData.message || 'Unknown error'}`;
+        }
+      }
+    } catch (e) {
+      results.kieTest = `ERROR: ${e instanceof Error ? e.message : String(e)}`;
+    }
+
     return NextResponse.json(results);
   } catch (error) {
     return NextResponse.json({
@@ -50,4 +91,3 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
-
