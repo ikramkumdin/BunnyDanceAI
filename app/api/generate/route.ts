@@ -365,12 +365,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Call Kie.ai image-to-video endpoint using the new jobs/createTask API
-    const defaultApiUrl = 'https://api.kie.ai/api/v1/jobs/createTask';
-    const grokApiUrl =
-      typeof process.env.GROK_API_URL === 'string' && process.env.GROK_API_URL.trim()
-        ? process.env.GROK_API_URL.trim()
-        : defaultApiUrl;
-    console.log('🎯 Using API URL:', grokApiUrl);
+    // Fixed: Always use createTask for grok-imagine model to avoid "Invalid model" errors
+    // that happen if GROK_API_URL is set to a VEO-specific endpoint in Vercel.
+    const grokApiUrl = 'https://api.kie.ai/api/v1/jobs/createTask';
+    console.log('🎯 Using API URL (Hardcoded for stability):', grokApiUrl);
 
     console.log('✅ API key configured, proceeding with generation...');
     console.log('🔗 API URL:', grokApiUrl);
