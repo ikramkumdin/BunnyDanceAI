@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     const { prompt, userId } = await request.json();
@@ -11,11 +14,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('🎬 Text-to-video generation started');
+    console.log('🎬 Text-to-video generation started (Grok Imagine)');
     console.log('📝 Prompt:', prompt);
     console.log('👤 User ID:', userId);
 
-    const grokApiUrl = 'https://api.kie.ai/api/v1/veo/generate';
+    const grokApiUrl = 'https://api.kie.ai/api/v1/jobs/createTask';
     const apiKey = process.env.GROK_API_KEY;
 
     if (!apiKey) {
@@ -26,22 +29,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ API key configured, proceeding with generation...');
+    // Sanitize prompt
+    const sanitizedPrompt = prompt.replace(/\r?\n|\r/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Try synchronous request first
     const requestBody = {
-      prompt: prompt,
-      model: "veo3_fast",
-      aspectRatio: "9:16", // Vertical video for mobile
-      generationType: "TEXT_2_VIDEO",
-      enableFallback: true,
-      enableTranslation: true,
-      sync: true,
-      waitForCompletion: true
+      model: 'grok-imagine/text-to-video',
+      input: {
+        prompt: sanitizedPrompt,
+        index: 0
+      }
     };
 
     console.log('🚀 Sending text-to-video request to Kie.ai...');
-    console.log('📝 Request body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(grokApiUrl, {
       method: 'POST',
@@ -52,53 +51,23 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(requestBody),
     });
 
-    console.log('📊 Response status:', response.status);
-    
     const data = await response.json();
-    console.log('📊 Response:', JSON.stringify(data, null, 2));
+    console.log('📊 Response:', JSON.stringify(data));
 
-    if (response.ok) {
-      // Check if we got a direct video URL (synchronous success)
-      const videoUrl = data.videoUrl || data.url || data.result?.videoUrl || data.output?.url || data.data?.videoUrl;
-      if (videoUrl) {
-        console.log('✅ Synchronous generation succeeded:', videoUrl);
-        return NextResponse.json({
-          success: true,
-          videoUrl: videoUrl,
-          message: 'Video generated successfully'
-        });
-      }
-
-      // Check if we got a taskId (async generation)
-      const taskId = data.taskId || data.data?.taskId || data.id;
+    if (response.ok && (data.code === 200 || !data.code)) {
+      const taskId = data.taskId || data.data?.taskId || data.id || data.recordId || data.data?.recordId;
       if (taskId) {
-        console.log('✅ Got taskId from request:', taskId);
         return NextResponse.json({
           success: true,
           taskId: taskId,
           message: 'Video generation started'
         });
       }
-
-      // If we got here, response was OK but no video URL or taskId
-      console.error('❌ Response OK but no video URL or taskId:', data);
-      return NextResponse.json(
-        { error: 'Unexpected response format from Kie.ai', details: data },
-        { status: 500 }
-      );
     }
 
-    // Handle error responses
-    const errorMsg = data.msg || data.message || data.error || 'Unknown error';
-    console.error('❌ Kie.ai API error:', errorMsg);
-    console.error('📊 Full error response:', data);
-
     return NextResponse.json(
-      { 
-        error: `Video generation failed: ${errorMsg}`,
-        details: data
-      },
-      { status: response.status }
+      { error: 'Video generation failed', details: data },
+      { status: response.status || 500 }
     );
 
   } catch (error) {
@@ -109,7 +78,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-
-
-
