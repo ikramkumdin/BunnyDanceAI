@@ -607,20 +607,34 @@ export async function POST(request: NextRequest) {
       const grokImagineEndpoint = 'https://api.kie.ai/api/v1/grok-imagine/image-to-video';
 
       const asyncRequestBodies = [
-        // 1) Diagnostic SUCCESS Mimic (The exact format that worked in test-credentials)
+        // 1) PURE ACTION Pattern (No identity wrapper, no newlines)
+        // This exactly matches the successful diagnostic pattern: "Diagnostic test prompt: ..."
         {
           url: grokApiUrl,
           body: {
             model: 'grok-imagine/image-to-video',
             input: {
               image_urls: [accessibleImageUrl],
-              prompt: guaranteedCleanPrompt, // Clean prompt works better with validators
+              prompt: guaranteedSimplePrompt, // baseTemplatePrompt WITHOUT wrapper, sanitized
               index: 0
             }
           }
         },
 
-        // 2) Standard with callback
+        // 2) Original pattern but Sanitized (Cleaned of newlines)
+        {
+          url: grokApiUrl,
+          body: {
+            model: 'grok-imagine/image-to-video',
+            input: {
+              image_urls: [accessibleImageUrl],
+              prompt: guaranteedCleanPrompt, // Full prompt (with wrapper) but cleaned
+              index: 0
+            }
+          }
+        },
+
+        // 3) Standard with callback and mode
         {
           url: grokApiUrl,
           body: {
@@ -628,46 +642,34 @@ export async function POST(request: NextRequest) {
             callBackUrl: callbackUrl,
             input: {
               image_urls: [accessibleImageUrl],
-              prompt: guaranteedPrompt,
+              prompt: guaranteedSimplePrompt,
               index: 0,
               mode: generationMode === 'spicy' ? 'spicy' : 'normal'
             }
           }
         },
 
-        // 3) Stringified Input (Legacy successful format)
+        // 4) Stringified Input (Alternative format)
         {
           url: grokApiUrl,
           body: {
             model: 'grok-imagine/image-to-video',
             input: JSON.stringify({
               image_urls: [accessibleImageUrl],
-              prompt: guaranteedPrompt,
+              prompt: guaranteedSimplePrompt,
               index: 0
             })
           }
         },
 
-        // 4) FLAT Structure (Some Kie models expect this)
+        // 5) FLAT Structure (Top-level fields)
         {
           url: grokApiUrl,
           body: {
             model: 'grok-imagine/image-to-video',
-            prompt: guaranteedCleanPrompt,
+            prompt: guaranteedSimplePrompt,
             image_urls: [accessibleImageUrl],
             index: 0
-          }
-        },
-
-        // 5) Simplified Without Mode (Kie sometimes rejects 'mode' for external URLs)
-        {
-          url: grokApiUrl,
-          body: {
-            model: 'grok-imagine/image-to-video',
-            input: {
-              image_urls: [accessibleImageUrl],
-              prompt: guaranteedCleanPrompt
-            }
           }
         }
       ];
