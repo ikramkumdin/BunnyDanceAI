@@ -588,32 +588,28 @@ export async function POST(request: NextRequest) {
       console.log('⚠️ Synchronous request failed, trying async mode:', syncError instanceof Error ? syncError.message : String(syncError));
 
       // Fall back to async request - try different parameter formats
-      // Use finalPrompt (which is guaranteed non-empty) instead of trimmedPrompt
-      const cleanPrompt = finalPrompt.replace(/\n\s*\n/g, '\n').replace(/\n/g, ' ').trim();
+      const cleanPrompt = finalPrompt.replace(/\r?\n|\r/g, ' ').replace(/\s+/g, ' ').trim();
       const simplePrompt = baseTemplatePrompt || safeFallbackPrompt;
+      const cleanSimplePrompt = simplePrompt.replace(/\r?\n|\r/g, ' ').replace(/\s+/g, ' ').trim();
 
-      // Ensure all prompts are non-empty for fallbacks - use finalPrompt as base
-      const guaranteedPrompt = finalPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
+      // Ensure all prompts are non-empty for fallbacks
       const guaranteedCleanPrompt = cleanPrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
-      const guaranteedSimplePrompt = simplePrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
+      const guaranteedCleanSimplePrompt = cleanSimplePrompt || 'A beautiful woman performs a sensual dance in a luxurious setting.';
 
       console.log('🔄 Fallback prompts prepared:');
-      console.log('   - guaranteedPrompt length:', guaranteedPrompt.length);
       console.log('   - guaranteedCleanPrompt length:', guaranteedCleanPrompt.length);
-      console.log('   - guaranteedSimplePrompt length:', guaranteedSimplePrompt.length);
-
-      const grokImagineEndpoint = 'https://api.kie.ai/api/v1/grok-imagine/image-to-video';
+      console.log('   - guaranteedCleanSimplePrompt length:', guaranteedCleanSimplePrompt.length);
 
       const asyncRequestBodies = [
         // 1) PURE ACTION Pattern (No identity wrapper, no newlines)
-        // This exactly matches the successful diagnostic pattern: "Diagnostic test prompt: ..."
+        // This exactly matches the successful diagnostic pattern.
         {
           url: grokApiUrl,
           body: {
             model: 'grok-imagine/image-to-video',
             input: {
               image_urls: [accessibleImageUrl],
-              prompt: guaranteedSimplePrompt, // baseTemplatePrompt WITHOUT wrapper, sanitized
+              prompt: guaranteedCleanSimplePrompt,
               index: 0
             }
           }
@@ -640,7 +636,7 @@ export async function POST(request: NextRequest) {
             callBackUrl: callbackUrl,
             input: {
               image_urls: [accessibleImageUrl],
-              prompt: guaranteedSimplePrompt,
+              prompt: guaranteedCleanSimplePrompt,
               index: 0,
               mode: generationMode === 'spicy' ? 'spicy' : 'normal'
             }
@@ -654,7 +650,7 @@ export async function POST(request: NextRequest) {
             model: 'grok-imagine/image-to-video',
             input: JSON.stringify({
               image_urls: [accessibleImageUrl],
-              prompt: guaranteedSimplePrompt,
+              prompt: guaranteedCleanSimplePrompt,
               index: 0
             })
           }
@@ -665,7 +661,7 @@ export async function POST(request: NextRequest) {
           url: grokApiUrl,
           body: {
             model: 'grok-imagine/image-to-video',
-            prompt: guaranteedSimplePrompt,
+            prompt: guaranteedCleanSimplePrompt,
             image_urls: [accessibleImageUrl],
             index: 0
           }
@@ -820,7 +816,6 @@ export async function POST(request: NextRequest) {
     // Legacy code below - unreachable but kept for reference until confirmed fix
     console.log('═══════════════════════════════════════════════');
     console.log('🎬 Calling Kie.ai API:', grokApiUrl);
-    ...
     */
   } catch (error) {
     console.error('Generation error:', error);
