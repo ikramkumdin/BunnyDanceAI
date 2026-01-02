@@ -40,12 +40,10 @@ export async function GET(request: NextRequest) {
       results.gcsUpload = `ERROR: ${e instanceof Error ? e.message : String(e)}`;
     }
 
-    // 3. Test Kie.ai API Key and basic task creation
+    // 3. Test Kie.ai I2V
     try {
       const grokApiKey = process.env.GROK_API_KEY;
-      if (!grokApiKey) {
-        results.kieTest = 'ERROR: GROK_API_KEY missing';
-      } else {
+      if (grokApiKey) {
         const testBody = {
           model: 'grok-imagine/image-to-video',
           input: {
@@ -80,6 +78,36 @@ export async function GET(request: NextRequest) {
       }
     } catch (e) {
       results.kieTest = `ERROR: ${e instanceof Error ? e.message : String(e)}`;
+    }
+
+    // 4. Test Kie.ai T2V
+    try {
+      const grokApiKey = process.env.GROK_API_KEY;
+      if (grokApiKey) {
+        const testBody = {
+          model: 'grok-imagine/text-to-video',
+          input: {
+            prompt: 'Diagnostic test: A forest in autumn.',
+            index: 0
+          }
+        };
+
+        const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${grokApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(testBody)
+        });
+
+        const kieData = await kieResponse.json();
+        results.kieT2VStatus = kieResponse.status;
+        results.kieT2VResponse = kieData;
+        results.kieT2VTest = (kieResponse.ok && kieData.code === 200) ? 'SUCCESS' : 'FAILED';
+      }
+    } catch (e) {
+      results.kieT2VTest = `ERROR: ${e instanceof Error ? e.message : String(e)}`;
     }
 
     return NextResponse.json(results);

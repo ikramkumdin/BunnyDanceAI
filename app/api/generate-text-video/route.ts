@@ -89,6 +89,8 @@ export async function POST(request: NextRequest) {
       try {
         const reqConfig = asyncRequestBodies[i];
         console.log(`\n🔄 [T2V FALLBACK ${i + 1}/${asyncRequestBodies.length}]`);
+        console.log(`🔗 URL: ${reqConfig.url}`);
+        console.log(`📝 Body Keys: ${Object.keys(reqConfig.body).join(', ')}`);
 
         const response = await fetch(reqConfig.url, {
           method: 'POST',
@@ -103,17 +105,20 @@ export async function POST(request: NextRequest) {
         lastResponse = data;
         console.log(`📊 Response ${i + 1} (Status ${response.status}):`, JSON.stringify(data));
 
-        if (response.ok && (data.code === 200 || !data.code)) {
+        if (response.ok && (data.code === 200 || data.code === '200' || !data.code)) {
           taskId = data.taskId || data.data?.taskId || data.id || data.recordId || data.data?.recordId;
           if (taskId) {
             console.log(`✅ Success with format ${i + 1}, taskId:`, taskId);
             break;
+          } else {
+            console.warn(`⚠️ Response OK but no taskId found in structure:`, Object.keys(data));
           }
         }
 
         lastError = data.msg || data.message || JSON.stringify(data);
+        console.log(`❌ Attempt ${i + 1} failed:`, lastError);
       } catch (err) {
-        console.warn(`⚠️ Attempt ${i + 1} failed:`, err instanceof Error ? err.message : String(err));
+        console.warn(`⚠️ Attempt ${i + 1} exception:`, err instanceof Error ? err.message : String(err));
         lastError = err instanceof Error ? err.message : String(err);
       }
     }
