@@ -32,6 +32,7 @@ export default function GeneratePage() {
   const [isSavingGeneratedImage, setIsSavingGeneratedImage] = useState(false);
   const [hasSavedGeneratedImage, setHasSavedGeneratedImage] = useState(false);
   const [videoUrls, setVideoUrls] = useState<{ [key: string]: string }>({});
+  const [showTemplateHint, setShowTemplateHint] = useState(false);
 
   const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
   const { user } = useUser();
@@ -172,12 +173,16 @@ export default function GeneratePage() {
       setStoreUploadedImage(imageData.gcpUrl);
     }
     setGeneratedVideo(null);
+    if (activeMode === 'image-to-video' && !selectedTemplate) {
+      setShowTemplateHint(true);
+    }
   };
 
   // Handle template selection
   const handleTemplateSelect = (template: Template) => {
     setSelectedTemplate(template);
     setStoreTemplate(template);
+    setShowTemplateHint(false);
   };
 
   // Poll for video status
@@ -1041,6 +1046,16 @@ export default function GeneratePage() {
 
           </div>
         </div>
+
+        {/* Template Selection Hint */}
+        {showTemplateHint && activeMode === 'image-to-video' && !selectedTemplate && (
+          <div className="flex justify-center -mt-2 mb-4 animate-bounce">
+            <div className="bg-primary/90 text-white px-6 py-2 rounded-full shadow-lg border border-white/20 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm font-bold uppercase tracking-wider">Now select a dance template below!</span>
+            </div>
+          </div>
+        )}
 
         {/* Template Selection - Only show for image-to-video mode */}
         {activeMode === 'image-to-video' && (
