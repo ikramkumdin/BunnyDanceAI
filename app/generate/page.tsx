@@ -40,6 +40,7 @@ export default function GeneratePage() {
   const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
   const { user } = useUser();
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const activeTaskIdRef = useRef<string | null>(null);
 
   const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -70,6 +71,7 @@ export default function GeneratePage() {
     setShowTemplateHint(false);
     setIsGenerating(false);
     setGenerationProgress('');
+    activeTaskIdRef.current = null;
     if (pollingTimeoutRef.current) {
       clearTimeout(pollingTimeoutRef.current);
     }
@@ -226,6 +228,12 @@ export default function GeneratePage() {
             const pollData = await pollResponse.json();
             console.log('📊 Kie.ai poll response:', pollData);
 
+            // Check if this task is still the active one
+            if (activeTaskIdRef.current !== taskId) {
+              console.log('🛑 Polling result ignored: task ID mismatch (mode might have changed)');
+              return;
+            }
+
             // Check if video is ready (look for various possible response formats)
             const videoUrl = pollData.videoUrl || pollData.url || pollData.result?.videoUrl || pollData.output?.videoUrl;
 
@@ -259,6 +267,12 @@ export default function GeneratePage() {
       console.log('📊 Database check response:', data);
 
       if (data.ready && data.videoUrl) {
+        // Check if this task is still the active one
+        if (taskId && activeTaskIdRef.current !== taskId) {
+          console.log('🛑 Database result ignored: task ID mismatch');
+          return;
+        }
+
         console.log('🎬 Video ready from database:', data.videoUrl);
         setGeneratedVideo(data.videoUrl);
         setShowGeneratedVideoActions(true);
@@ -276,7 +290,10 @@ export default function GeneratePage() {
       // Increase max polling time to 20 minutes (Kie.ai can be slow)
       // Check every 10 seconds
       if (elapsed < 20 * 60 * 1000) {
-        setTimeout(() => pollVideoStatus(startTime, taskId), 10000);
+        // Only schedule next poll if this is still the active task
+        if (!taskId || activeTaskIdRef.current === taskId) {
+          pollingTimeoutRef.current = setTimeout(() => pollVideoStatus(startTime, taskId), 10000);
+        }
       } else {
         console.log('⏰ Video generation timeout after 20 minutes');
         setIsGenerating(false);
@@ -328,6 +345,7 @@ export default function GeneratePage() {
         } else if (data.taskId) {
           // Async generation - start polling
           console.log('🎬 Started async generation, polling for completion...');
+          activeTaskIdRef.current = data.taskId;
           pollVideoStatus(Date.now(), data.taskId);
         } else {
           showNotification('Generation started but no task ID received. Please check back later.', 'error');
@@ -378,6 +396,7 @@ export default function GeneratePage() {
         } else if (data.taskId) {
           // Async generation - start polling
           console.log('🎬 Started text-to-video generation, polling for completion...');
+          activeTaskIdRef.current = data.taskId;
           pollVideoStatus(Date.now(), data.taskId);
         } else {
           showNotification('Generation started but no task ID received. Please check back later.', 'error');
