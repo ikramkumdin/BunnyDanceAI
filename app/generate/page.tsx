@@ -131,7 +131,7 @@ export default function GeneratePage() {
   const saveGeneratedVideoToAssets = useCallback(async () => {
     if (!generatedVideo) return;
     if (!user) {
-      alert('Please sign in to save to Assets.');
+      showNotification('Please sign in to save to Assets.', 'error');
       return;
     }
     if (hasSavedGeneratedVideo) return;
@@ -163,7 +163,7 @@ export default function GeneratePage() {
         return;
       }
       await navigator.clipboard.writeText(url);
-      alert('Video link copied to clipboard.');
+      showNotification('Video link copied to clipboard!', 'success');
     } catch (e) {
       console.error('Share failed:', e);
       showNotification('Could not share automatically. Try downloading or copying the link.', 'error');
@@ -310,7 +310,7 @@ export default function GeneratePage() {
           console.log('🎬 Started async generation, polling for completion...');
           pollVideoStatus(Date.now(), data.taskId);
         } else {
-          alert('Generation started but no task ID received. Please check back later.');
+          showNotification('Generation started but no task ID received. Please check back later.', 'error');
           setIsGenerating(false);
         }
       } else {
@@ -327,7 +327,7 @@ export default function GeneratePage() {
   // Handle text-to-video generation
   const handleTextToVideo = async () => {
     if (!textPrompt || !user) {
-      alert('Please enter a prompt for your video');
+      showNotification('Please enter a prompt for your video', 'error');
       return;
     }
 
@@ -360,16 +360,16 @@ export default function GeneratePage() {
           console.log('🎬 Started text-to-video generation, polling for completion...');
           pollVideoStatus(Date.now(), data.taskId);
         } else {
-          alert('Generation started but no task ID received. Please check back later.');
+          showNotification('Generation started but no task ID received. Please check back later.', 'error');
           setIsGenerating(false);
         }
       } else {
-        alert('Generation failed: ' + (data.error || 'Unknown error'));
+        showNotification(`Generation failed: ${data.error || 'Unknown error'}`, 'error');
         setIsGenerating(false);
       }
     } catch (error) {
       console.error('Text-to-video error:', error);
-      alert('Failed to generate video. Please try again.');
+      showNotification('Failed to generate video. Please try again.', 'error');
       setIsGenerating(false);
     }
   };
@@ -423,7 +423,7 @@ export default function GeneratePage() {
       }
       // Fallback: copy to clipboard
       await navigator.clipboard.writeText(url);
-      alert('Image link copied to clipboard.');
+      showNotification('Image link copied to clipboard!', 'success');
     } catch (e) {
       console.error('Share failed:', e);
       showNotification('Could not share automatically.', 'error');
@@ -433,7 +433,7 @@ export default function GeneratePage() {
   const saveGeneratedImageToAssets = useCallback(async () => {
     if (!uploadedImage) return;
     if (!user) {
-      alert('Please sign in to save to Assets.');
+      showNotification('Please sign in to save to Assets.', 'error');
       return;
     }
     if (hasSavedGeneratedImage) return;
@@ -455,7 +455,7 @@ export default function GeneratePage() {
   // Handle text-to-image generation
   const handleTextToImage = async () => {
     if (!textPrompt || !user) {
-      alert('Please enter a prompt for your image');
+      showNotification('Please enter a prompt for your image', 'error');
       return;
     }
 
@@ -567,7 +567,7 @@ export default function GeneratePage() {
         pollingTimeoutRef.current = setTimeout(pollLoop, POLL_INTERVAL_MS); // Initial slight delay
 
       } else {
-        alert('Generation started but no task ID received.');
+        showNotification('Generation started but no task ID received.', 'error');
         setIsGenerating(false);
       }
     } catch (error) {
