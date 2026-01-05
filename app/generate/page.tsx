@@ -55,6 +55,26 @@ export default function GeneratePage() {
     };
   }, []);
 
+  // Handle mode change and clear session states
+  const handleModeChange = (mode: 'image-to-video' | 'text-to-video' | 'text-to-image') => {
+    setActiveMode(mode);
+    setGeneratedVideo(null);
+    setUploadedImage(null);
+    setBase64Image(null);
+    setImageUrl(null);
+    setTextPrompt('');
+    setHasSavedGeneratedVideo(false);
+    setHasSavedGeneratedImage(false);
+    setShowGeneratedVideoActions(false);
+    setShowGeneratedImageActions(false);
+    setShowTemplateHint(false);
+    setIsGenerating(false);
+    setGenerationProgress('');
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+    }
+  };
+
   // Get signed URLs for all template videos
   useEffect(() => {
     const fetchSignedUrls = async () => {
@@ -602,7 +622,7 @@ export default function GeneratePage() {
         {/* Mode Toggle - Trending Style Tabs */}
         <div className="flex gap-4 border-b border-gray-800 pb-2 mb-2">
           <button
-            onClick={() => setActiveMode('image-to-video')}
+            onClick={() => handleModeChange('image-to-video')}
             className={`px-4 py-2 font-semibold transition-colors ${activeMode === 'image-to-video'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
@@ -611,7 +631,7 @@ export default function GeneratePage() {
             IMAGE TO VIDEO
           </button>
           <button
-            onClick={() => setActiveMode('text-to-video')}
+            onClick={() => handleModeChange('text-to-video')}
             className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${activeMode === 'text-to-video'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
@@ -621,7 +641,7 @@ export default function GeneratePage() {
             TEXT TO VIDEO
           </button>
           <button
-            onClick={() => setActiveMode('text-to-image')}
+            onClick={() => handleModeChange('text-to-image')}
             className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${activeMode === 'text-to-image'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
