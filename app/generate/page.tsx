@@ -199,6 +199,15 @@ export default function GeneratePage() {
 
             // Check if video is ready (look for various possible response formats)
             const videoUrl = pollData.videoUrl || pollData.url || pollData.result?.videoUrl || pollData.output?.videoUrl;
+
+            if (pollData.status === 'failed' || pollData.status === 'error') {
+              const errorMsg = pollData.error || pollData.details || pollData.msg || 'Video generation failed';
+              console.error('❌ Video generation failed at provider:', errorMsg);
+              alert(`Generation Failed: ${errorMsg}`);
+              setIsGenerating(false);
+              return; // STOP POLLING
+            }
+
             if (videoUrl && (pollData.status === 'completed' || pollData.status === 'success' || pollData.completed)) {
               console.log('🎬 Video ready from Kie.ai:', videoUrl);
               setGeneratedVideo(videoUrl);
