@@ -11,6 +11,8 @@ import { useUser } from '@/hooks/useUser';
 import Layout from '@/components/Layout';
 import { saveImage, saveVideo } from '@/lib/firestore';
 import { MAX_RETRIES, POLL_INTERVAL_MS } from '@/config/polling';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle } from 'lucide-react';
 
 export default function GeneratePage() {
   const router = useRouter();
@@ -33,10 +35,16 @@ export default function GeneratePage() {
   const [hasSavedGeneratedImage, setHasSavedGeneratedImage] = useState(false);
   const [videoUrls, setVideoUrls] = useState<{ [key: string]: string }>({});
   const [showTemplateHint, setShowTemplateHint] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
   const { user } = useUser();
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000); // Auto-dismiss after 5s
+  }, []);
 
   // Clear any existing timeouts when the component unmounts
   useEffect(() => {
@@ -132,6 +140,7 @@ export default function GeneratePage() {
     try {
       await saveVideoToAssets(generatedVideo, 'Text-to-Video', 'text-to-video', generatedVideo);
       setHasSavedGeneratedVideo(true);
+      showNotification('Video saved to assets!', 'success');
     } finally {
       setIsSavingGeneratedVideo(false);
     }
@@ -157,9 +166,9 @@ export default function GeneratePage() {
       alert('Video link copied to clipboard.');
     } catch (e) {
       console.error('Share failed:', e);
-      alert('Could not share automatically. Try downloading or copying the link.');
+      showNotification('Could not share automatically. Try downloading or copying the link.', 'error');
     }
-  }, []);
+  }, [showNotification]);
 
   // Handle image selection
   const handleImageSelect = (imageData: { gcpUrl: string; base64Url: string }) => {
@@ -203,7 +212,7 @@ export default function GeneratePage() {
             if (pollData.status === 'failed' || pollData.status === 'error') {
               const errorMsg = pollData.error || pollData.details || pollData.msg || 'Video generation failed';
               console.error('❌ Video generation failed at provider:', errorMsg);
-              alert(`Generation Failed: ${errorMsg}`);
+              showNotification(`Generation Failed: ${errorMsg}`, 'error');
               setIsGenerating(false);
               return; // STOP POLLING
             }
@@ -251,14 +260,14 @@ export default function GeneratePage() {
       } else {
         console.log('⏰ Video generation timeout after 20 minutes');
         setIsGenerating(false);
-        alert('Video generation is taking longer than expected. The video may still complete - please refresh the page in a few minutes to check.');
+        showNotification('Video generation is taking longer than expected. Please check back in a few minutes.', 'error');
       }
     } catch (error) {
       console.error('Polling error:', error);
       setIsGenerating(false);
-      alert('Error checking video status. Please try again.');
+      showNotification('Error checking video status. Please try again.', 'error');
     }
-  }, [user?.id, selectedTemplate, saveVideoToAssets]);
+  }, [user?.id, selectedTemplate, saveVideoToAssets, showNotification]);
 
   // Handle generation
   const handleGenerate = async () => {
@@ -266,7 +275,7 @@ export default function GeneratePage() {
     const hasHttpImageUrl = !!imageUrl && imageUrl.startsWith('http');
     const hasBase64Image = !!base64Image && base64Image.startsWith('data:image/');
     if (!hasHttpImageUrl && !hasBase64Image) {
-      alert('Image is not ready yet. Please re-upload and wait for the preview to appear before generating.');
+      showNotification('Image is not ready yet. Please wait for the preview.', 'error');
       return;
     }
 
@@ -305,12 +314,12 @@ export default function GeneratePage() {
           setIsGenerating(false);
         }
       } else {
-        alert('Generation failed: ' + (data.error || 'Unknown error'));
+        showNotification(`Generation failed: ${data.error || 'Unknown error'}`, 'error');
         setIsGenerating(false);
       }
     } catch (error) {
       console.error('Generation error:', error);
-      alert('Failed to generate video. Please try again.');
+      showNotification('Failed to generate video. Please try again.', 'error');
       setIsGenerating(false);
     }
   };
@@ -417,9 +426,9 @@ export default function GeneratePage() {
       alert('Image link copied to clipboard.');
     } catch (e) {
       console.error('Share failed:', e);
-      alert('Could not share automatically. Please copy the link from your browser address bar or open the image in a new tab.');
+      showNotification('Could not share automatically.', 'error');
     }
-  }, []);
+  }, [showNotification]);
 
   const saveGeneratedImageToAssets = useCallback(async () => {
     if (!uploadedImage) return;
@@ -434,8 +443,9 @@ export default function GeneratePage() {
       const ok = await saveImageToAssets(uploadedImage, textPrompt, 'text-to-image');
       if (ok) {
         setHasSavedGeneratedImage(true);
+        showNotification('Image saved to assets!', 'success');
       } else {
-        alert('Could not save to Assets. Please try again.');
+        showNotification('Could not save to Assets. Please try again.', 'error');
       }
     } finally {
       setIsSavingGeneratedImage(false);
@@ -505,13 +515,7 @@ export default function GeneratePage() {
             console.log('💡 The image might still be generating. Check Kie.ai dashboard: https://kie.ai/logs');
             setIsGenerating(false);
             setGenerationProgress('');
-            alert(`Image generation timed out after ${Math.round(MAX_RETRIES * POLL_INTERVAL_MS / 60000)} minutes.\n\n` +
-              `Task ID: ${data.taskId}\n\n` +
-              `The image might still be processing. Please:\n` +
-              `1. Go to https://kie.ai/logs\n` +
-              `2. Find task ID: ${data.taskId}\n` +
-              `3. If it shows "SUCCESS", click "Retry Callback" button\n` +
-              `4. Then refresh this page and try again`);
+            showNotification('Image generation timed out. It might still be processing.', 'error');
             return;
           }
 
@@ -535,7 +539,7 @@ export default function GeneratePage() {
               console.log('🎉 Found image via polling!', finalImageUrl);
             } else if (pollData.status === 'FAILED') {
               console.error('❌ Image generation failed:', pollData.error);
-              alert('Image generation failed: ' + (pollData.error || 'Unknown error'));
+              showNotification(`Image generation failed: ${pollData.error || 'Unknown error'}`, 'error');
               setIsGenerating(false);
               setGenerationProgress('');
               return;
@@ -568,7 +572,7 @@ export default function GeneratePage() {
       }
     } catch (error) {
       console.error('Text-to-image error:', error);
-      alert('Failed to generate image. Please try again.');
+      showNotification('Failed to generate image. Please try again.', 'error');
       setIsGenerating(false);
       setGenerationProgress('');
     }
@@ -749,8 +753,13 @@ export default function GeneratePage() {
                     <button
                       onClick={() => {
                         setUploadedImage(null);
+                        setBase64Image(null);
+                        setImageUrl(null);
                         setSelectedTemplate(null);
                         setGeneratedVideo(null);
+                        setHasSavedGeneratedVideo(false);
+                        setShowGeneratedVideoActions(false);
+                        setShowTemplateHint(false);
                       }}
                       className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
                     >
@@ -1156,6 +1165,41 @@ export default function GeneratePage() {
           </div>
         )}
       </div>
+
+      {/* Global Toast Notification */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md"
+          >
+            <div className={`
+              px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-md flex items-center gap-4
+              ${notification.type === 'error'
+                ? 'bg-red-500/90 border-red-400/50 text-white'
+                : 'bg-green-500/90 border-green-400/50 text-white'}
+            `}>
+              <div className="bg-white/20 p-2 rounded-full">
+                {notification.type === 'error' ? <AlertCircle className="w-5 h-5 text-white" /> : <Sparkles className="w-5 h-5 text-white" />}
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-sm uppercase tracking-tight">
+                  {notification.type === 'error' ? 'Something went wrong' : 'Success'}
+                </p>
+                <p className="text-xs opacity-90 font-medium">{notification.message}</p>
+              </div>
+              <button
+                onClick={() => setNotification(null)}
+                className="hover:bg-white/10 p-1.5 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }
