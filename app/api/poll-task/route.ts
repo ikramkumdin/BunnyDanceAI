@@ -157,8 +157,8 @@ export async function GET(request: NextRequest) {
     // Try different possible endpoints for task status
     // Based on search results and common Kie.ai patterns
     const kieApiUrl = process.env.GROK_API_URL || 'https://api.kie.ai/api/v1/jobs/createTask';
-    const baseUrl = kieApiUrl.includes('/api/v1') 
-      ? kieApiUrl.split('/api/v1')[0] 
+    const baseUrl = kieApiUrl.includes('/api/v1')
+      ? kieApiUrl.split('/api/v1')[0]
       : 'https://api.kie.ai';
 
     // Try common task status endpoints and variations based on Kie.ai patterns
@@ -166,10 +166,10 @@ export async function GET(request: NextRequest) {
     const possibleEndpoints = [
       // Jobs API endpoint (for grok-imagine/image-to-video)
       `${baseUrl}/api/v1/jobs/recordInfo?taskId=${taskId}`,
-      
+
       // Grok-imagine specific endpoint (if it exists)
       `${baseUrl}/api/v1/grok-imagine/record-info?taskId=${taskId}`,
-      
+
       // Veo endpoint (fallback for other models)
       `${baseUrl}/api/v1/veo/record-info?taskId=${taskId}`,
 
@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
       `${baseUrl}/api/v1/task/status`,
       `${baseUrl}/api/v1/status`,
     ];
-    
+
     // Try each GET endpoint until one works
     let lastError: any = null;
     for (const statusUrl of possibleEndpoints) {
@@ -196,12 +196,13 @@ export async function GET(request: NextRequest) {
             'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
             'Content-Type': 'application/json',
           },
+          cache: 'no-store',
         });
 
         if (statusResponse.ok) {
           let statusData = await statusResponse.json();
           console.log('✅ Poll response (GET):', JSON.stringify(statusData, null, 2));
-          
+
           // Handle Kie.ai API wrapper response (code 200/422 in the body)
           if (statusData.code === 422) {
             // This endpoint returned 422 "recordInfo is null" - task might still be processing or endpoint is wrong
@@ -209,14 +210,14 @@ export async function GET(request: NextRequest) {
             lastError = { status: 422, message: statusData.msg || 'recordInfo is null' };
             continue;
           }
-          
+
           // If code is not 200, skip to next endpoint
           if (statusData.code && statusData.code !== 200) {
             console.log(`⚠️ Endpoint ${statusUrl} returned code ${statusData.code}, trying next...`);
             lastError = { status: statusData.code, message: statusData.msg };
             continue;
           }
-          
+
           // Normalize response for frontend
           // Map 'state' to 'status' (Kie.ai uses 'state' sometimes)
           if (statusData.data?.state && !statusData.status) {
@@ -225,7 +226,16 @@ export async function GET(request: NextRequest) {
             if (state === 'waiting' || state === 'processing' || state === 'generating') {
               statusData.status = 'processing';
             } else if (state === 'success' || state === 'completed') {
-              statusData.status = 'completed';
+              // Only mark as completed if we actually have a video URL
+              // Kie.ai sometimes says 'success' before the CDN URL is ready
+              const picked = pickVideoUrl(statusData);
+              if (picked) {
+                statusData.status = 'completed';
+                statusData.videoUrl = picked;
+              } else {
+                console.log('⚠️ Kie.ai reported success but no video URL found yet, keeping status as processing');
+                statusData.status = 'processing';
+              }
             } else if (state === 'fail' || state === 'failed') {
               statusData.status = 'failed';
               statusData.error = statusData.data.failMsg || statusData.data.failCode || 'Video generation failed';
@@ -235,14 +245,14 @@ export async function GET(request: NextRequest) {
           } else if (statusData.state && !statusData.status) {
             statusData.status = statusData.state;
           }
-          
+
           // Check for resultJson with resultUrls (grok-imagine format)
           if (statusData.data?.resultJson && statusData.status !== 'completed') {
             try {
               const resultJson = typeof statusData.data.resultJson === 'string'
                 ? tryParseJson(statusData.data.resultJson)
                 : statusData.data.resultJson;
-              
+
               if (resultJson && typeof resultJson === 'object') {
                 const videoUrl = (resultJson as any)?.resultUrls?.[0];
                 if (videoUrl && typeof videoUrl === 'string' && videoUrl.startsWith('http')) {
@@ -255,20 +265,20 @@ export async function GET(request: NextRequest) {
               console.error('Failed to parse resultJson:', e);
             }
           }
-          
+
           // Map 'successFlag' from record-info endpoint
           // 0: Generating, 1: Success, 2/3: Failed
           if (statusData.data?.successFlag !== undefined) {
             const flag = statusData.data.successFlag;
-            
+
             // Check if response field has video URLs (task might be complete even if flag is 0)
             let hasVideoUrl = false;
             if (statusData.data.response) {
               try {
-                const response = typeof statusData.data.response === 'string' 
-                  ? tryParseJson(statusData.data.response) 
+                const response = typeof statusData.data.response === 'string'
+                  ? tryParseJson(statusData.data.response)
                   : statusData.data.response;
-                
+
                 // Check if response is an array of URLs
                 const picked = pickVideoUrl({ data: { response } });
                 if (picked) {
@@ -282,7 +292,7 @@ export async function GET(request: NextRequest) {
                 console.error('Failed to parse response field:', e);
               }
             }
-            
+
             // Only check successFlag if we didn't find a video URL in response
             if (!hasVideoUrl) {
               if (flag === 0) {
@@ -290,7 +300,7 @@ export async function GET(request: NextRequest) {
               } else if (flag === 1) {
                 statusData.status = 'completed';
                 statusData.completed = true;
-                
+
                 // Extract from resultJson/response/resultUrls
                 const picked = pickVideoUrl(statusData);
                 if (picked) statusData.videoUrl = picked;
@@ -300,16 +310,22 @@ export async function GET(request: NextRequest) {
               }
             }
           }
-          
+
           // Ensure status is lowercase for comparison
           if (statusData.status) {
             statusData.status = statusData.status.toLowerCase();
           }
 
-          // Extract video URL if nested and not already found
+          // Final extraction of video URL if not already done
           if (!statusData.videoUrl) {
             const picked = pickVideoUrl(statusData);
-            if (picked) statusData.videoUrl = picked;
+            if (picked) {
+              statusData.videoUrl = picked;
+              // If we found a URL late, ensure status is completed
+              if (statusData.status === 'processing' && (statusData.data?.state?.toLowerCase() === 'success' || statusData.state?.toLowerCase() === 'success')) {
+                statusData.status = 'completed';
+              }
+            }
           }
 
           return NextResponse.json(statusData);
@@ -347,28 +363,29 @@ export async function GET(request: NextRequest) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ taskId }),
+          cache: 'no-store',
         });
 
         if (statusResponse.ok) {
           let statusData = await statusResponse.json();
           console.log('✅ Poll response (POST):', JSON.stringify(statusData, null, 2));
-          
+
           // Normalize response for frontend
           if (statusData.state && !statusData.status) {
             statusData.status = statusData.state;
           }
-          
+
           if (statusData.status) {
             statusData.status = statusData.status.toLowerCase();
           }
 
           if (!statusData.videoUrl) {
-             statusData.videoUrl = statusData.url || 
-                                  statusData.result?.videoUrl || 
-                                  statusData.output?.videoUrl || 
-                                  statusData.data?.videoUrl ||
-                                  statusData.result?.url ||
-                                  statusData.output?.url;
+            statusData.videoUrl = statusData.url ||
+              statusData.result?.videoUrl ||
+              statusData.output?.videoUrl ||
+              statusData.data?.videoUrl ||
+              statusData.result?.url ||
+              statusData.output?.url;
           }
 
           return NextResponse.json(statusData);
@@ -383,10 +400,10 @@ export async function GET(request: NextRequest) {
         continue;
       }
     }
-    
+
     // If all endpoints failed, return error
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to check task status - all endpoints failed',
         details: lastError?.message || 'Unknown error',
         suggestion: 'Please configure KIE_CALLBACK_URL in .env.local to use webhook-based completion instead of polling'
