@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
 
     console.log('🎬 Extracted data:', { userId, templateId, templateName, taskId, videoUrl });
     const status = body.status || body.data?.status;
-    
+
     if (!videoUrl) {
       return NextResponse.json(
         { error: 'No video URL in callback', received: body },
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
         error: body.error || body.data?.error || body.failMsg || body.data?.failMsg,
       });
     }
-    
+
     // If we have userId, save the video
     if (userId) {
       try {
@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
         // Save video metadata to Firestore
         const videoId = generateVideoId();
         const isWatermarked = false;
-        
+
         await saveVideo({
           videoUrl: finalVideoUrl,
           thumbnail: thumbnail || '',
@@ -230,16 +230,17 @@ export async function POST(request: NextRequest) {
           createdAt: new Date().toISOString(),
           isWatermarked,
           userId,
+          taskId: taskId || '',
           type: 'video',
           tags: ['video'],
         });
-        
+
         console.log('Video saved successfully:', { videoId, finalVideoUrl });
       } catch (saveError) {
         console.error('Error saving video:', saveError);
       }
     }
-    
+
     return NextResponse.json({
       success: true,
       message: 'Callback processed',

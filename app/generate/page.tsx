@@ -41,6 +41,7 @@ export default function GeneratePage() {
   const { user } = useUser();
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activeTaskIdRef = useRef<string | null>(null);
+  const activeModeRef = useRef<'image-to-video' | 'text-to-video' | 'text-to-image' | null>('image-to-video');
 
   const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -72,6 +73,9 @@ export default function GeneratePage() {
     setIsGenerating(false);
     setGenerationProgress('');
     activeTaskIdRef.current = null;
+    activeModeRef.current = mode; // Update ref for polling validation
+    setStoreTemplate(null);
+    setStoreUploadedImage(null);
     if (pollingTimeoutRef.current) {
       clearTimeout(pollingTimeoutRef.current);
     }
@@ -218,6 +222,7 @@ export default function GeneratePage() {
 
   // Poll for video status
   const pollVideoStatus = useCallback(async (startTime = Date.now(), taskId = null) => {
+    const initialMode = activeMode; // Capture mode when poll started
     try {
       // First try polling Kie.ai directly for task status
       if (taskId) {
@@ -246,6 +251,11 @@ export default function GeneratePage() {
             }
 
             if (videoUrl && (pollData.status === 'completed' || pollData.status === 'success' || pollData.completed)) {
+              // Check if mode or task changed while fetching
+              if (activeModeRef.current !== initialMode || (taskId && activeTaskIdRef.current !== taskId)) {
+                console.log('🛑 Poll result discarded: mode or task changed');
+                return;
+              }
               console.log('🎬 Video ready from Kie.ai:', videoUrl);
               setGeneratedVideo(videoUrl);
               setShowGeneratedVideoActions(true);
@@ -261,15 +271,20 @@ export default function GeneratePage() {
 
       // Fallback: Check our database for completed videos
       console.log('🔍 Checking database for completed videos...');
+
+      // Check if task is still active before making network call
+      if (taskId && activeTaskIdRef.current !== taskId) return;
+      if (activeModeRef.current !== activeMode) return;
+
       const response = await fetch(`/api/check-video?userId=${user?.id}${taskId ? `&taskId=${taskId}` : ''}`);
       const data = await response.json();
 
       console.log('📊 Database check response:', data);
 
       if (data.ready && data.videoUrl) {
-        // Check if this task is still the active one
-        if (taskId && activeTaskIdRef.current !== taskId) {
-          console.log('🛑 Database result ignored: task ID mismatch');
+        // Double check task and mode before updating state
+        if ((taskId && activeTaskIdRef.current !== taskId) || activeModeRef.current !== initialMode) {
+          console.log('🛑 Database result ignored: task ID mismatch or mode changed');
           return;
         }
 
@@ -304,7 +319,7 @@ export default function GeneratePage() {
       setIsGenerating(false);
       showNotification('Error checking video status. Please try again.', 'error');
     }
-  }, [user?.id, selectedTemplate, saveVideoToAssets, showNotification]);
+  }, [user?.id, selectedTemplate, saveVideoToAssets, showNotification, activeMode]);
 
   // Handle generation
   const handleGenerate = async () => {

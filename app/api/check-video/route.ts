@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
-    const taskId = searchParams.get('taskId');
+    let taskId = searchParams.get('taskId');
+    if (taskId === 'null' || taskId === 'undefined') taskId = null;
 
     console.log('🔍 Check-video API called:', { userId, taskId });
 
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       const videos: GeneratedVideo[] = querySnapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -39,29 +40,35 @@ export async function GET(request: NextRequest) {
           templateId: data.templateId || '',
           templateName: data.templateName || '',
           createdAt: data.createdAt?.toDate?.()?.toISOString() ||
-                     (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
+            (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
           isWatermarked: data.isWatermarked || false,
           tags: data.tags || [],
           userId: data.userId || '',
+          taskId: data.taskId || '',
           type: 'video' as const,
         };
       });
-      
+
       // Sort by createdAt in memory (no index needed)
       videos.sort((a, b) => {
         const timeA = new Date(a.createdAt).getTime();
         const timeB = new Date(b.createdAt).getTime();
         return timeB - timeA; // Most recent first
       });
-      
+
       console.log(`📹 Found ${videos.length} videos for user ${userId}`);
 
+      // Check if we have a video that was recently created (within last 5 minutes)
       // Check if we have a video that was recently created (within last 5 minutes)
       const recentVideo = videos.find(video => {
         const createdAt = new Date(video.createdAt).getTime();
         const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-        console.log(`🎥 Video ${video.id}: created ${new Date(createdAt).toISOString()}, within 5min: ${createdAt > fiveMinutesAgo}`);
-        return createdAt > fiveMinutesAgo;
+
+        const isRecent = createdAt > fiveMinutesAgo;
+        const matchesTaskId = taskId ? video.taskId === taskId : true;
+
+        console.log(`🎥 Video ${video.id}: created ${new Date(createdAt).toISOString()}, matchesTaskId: ${matchesTaskId}, within 5min: ${isRecent}`);
+        return isRecent && matchesTaskId;
       });
 
       if (recentVideo) {
@@ -88,7 +95,7 @@ export async function GET(request: NextRequest) {
           where('userId', '==', userId)
         );
         const querySnapshot = await getDocs(q);
-        
+
         const videos: GeneratedVideo[] = querySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -98,25 +105,28 @@ export async function GET(request: NextRequest) {
             templateId: data.templateId || '',
             templateName: data.templateName || '',
             createdAt: data.createdAt?.toDate?.()?.toISOString() ||
-                       (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
+              (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
             isWatermarked: data.isWatermarked || false,
             tags: data.tags || [],
             userId: data.userId || '',
+            taskId: data.taskId || '',
             type: 'video' as const,
           };
         });
-        
+
         // Sort in memory
         videos.sort((a, b) => {
           const timeA = new Date(a.createdAt).getTime();
           const timeB = new Date(b.createdAt).getTime();
           return timeB - timeA;
         });
-        
+
         const recentVideo = videos.find(video => {
           const createdAt = new Date(video.createdAt).getTime();
           const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-          return createdAt > fiveMinutesAgo;
+          const isRecent = createdAt > fiveMinutesAgo;
+          const matchesTaskId = taskId ? video.taskId === taskId : true;
+          return isRecent && matchesTaskId;
         });
 
         if (recentVideo) {

@@ -26,6 +26,7 @@ export interface GeneratedVideo {
   isWatermarked: boolean;
   tags?: string[];
   userId?: string; // User who generated the video
+  taskId?: string; // Original provider task ID
   type: 'video'; // Asset type
 }
 
