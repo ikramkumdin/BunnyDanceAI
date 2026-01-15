@@ -1329,7 +1329,7 @@ export default function GeneratePage() {
                 <div
                   key={template.id}
                   onClick={() => (uploadedImage || base64Image) && handleTemplateSelect(template)}
-                  className={`relative aspect-[9/16] bg-gray-800 rounded-lg overflow-hidden transition-all ${(uploadedImage || base64Image)
+                  className={`relative aspect-[9/16] bg-gray-800 rounded-lg overflow-hidden transition-all group ${(uploadedImage || base64Image)
                     ? `cursor-pointer hover:scale-105 ${selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''}`
                     : 'cursor-not-allowed opacity-50'
                     }`}
@@ -1357,7 +1357,7 @@ export default function GeneratePage() {
 
                   {/* Apply/Upgrade Hover Button */}
                   {(uploadedImage || base64Image) && (
-                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 backdrop-blur-[2px] z-20 group">
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 backdrop-blur-[2px] z-20">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1369,10 +1369,10 @@ export default function GeneratePage() {
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }
                         }}
-                        className="bg-primary hover:bg-primary-dark text-white text-[10px] font-bold py-2 px-3 rounded-full flex items-center gap-1.5 shadow-2xl transform translate-y-2 group-hover:translate-y-0 transition-all duration-300"
+                        className="bg-primary hover:bg-primary-dark text-white text-[10px] sm:text-xs font-bold py-2 sm:py-2.5 px-3 sm:px-4 rounded-full flex items-center gap-1.5 shadow-2xl transform translate-y-2 group-hover:translate-y-0 transition-all duration-300"
                       >
                         <Sparkles className="w-3.5 h-3.5 fill-white" />
-                        {template.id === 'kneel-and-crawl' ? 'Upgrade' : 'Apply'}
+                        {template.id === 'kneel-and-crawl' ? 'Upgrade to Apply' : 'Apply to my picture'}
                       </button>
                     </div>
                   )}
