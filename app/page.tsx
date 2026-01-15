@@ -322,6 +322,18 @@ export default function Home() {
                 <p className="text-gray-400 text-sm leading-relaxed line-clamp-2">
                   {template!.description}
                 </p>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Redirect to Stripe checkout for Pro upgrade
+                    window.location.href = 'https://buy.stripe.com/test_placeholder';
+                  }}
+                  className="w-full mt-3 bg-[#FF2D78] hover:opacity-90 text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+                >
+                  <Sparkles className="w-5 h-5 fill-white" />
+                  {template!.id === 'kneel-and-crawl' ? 'Upgrade to Apply' : 'Apply to my picture'}
+                </button>
               </div>
             </div>
           ))}
@@ -434,6 +446,20 @@ export default function Home() {
                     <div className="text-white text-sm font-semibold">{template.name}</div>
                   </div>
                 )}
+
+                {/* Apply/Upgrade Hover Button */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4 backdrop-blur-[2px]">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.location.href = 'https://buy.stripe.com/test_placeholder';
+                    }}
+                    className="bg-[#FF2D78] hover:opacity-90 text-white text-xs font-bold py-3 px-4 rounded-full flex items-center gap-2 shadow-2xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"
+                  >
+                    <Sparkles className="w-4 h-4 fill-white" />
+                    {template.id === 'kneel-and-crawl' ? 'Upgrade to Apply' : 'Apply to my picture'}
+                  </button>
+                </div>
               </div>
             );
           })}
