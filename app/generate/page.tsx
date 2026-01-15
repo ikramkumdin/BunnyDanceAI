@@ -793,6 +793,43 @@ export default function GeneratePage() {
                               {hasSavedGeneratedVideo ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
                             </button>
                           </div>
+
+                          <div className="flex justify-center gap-6 mt-6 pt-6 border-t border-white/10">
+                            <a
+                              href={`https://t.me/share/url?url=${encodeURIComponent(generatedVideo)}&text=${encodeURIComponent('Check out my dance video from BunnyDance AI! 🐰🕺')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex flex-col items-center gap-1.5 group"
+                            >
+                              <div className="p-2.5 bg-[#0088cc]/10 group-hover:bg-[#0088cc]/20 rounded-full transition-colors">
+                                <svg className="w-5 h-5 fill-[#0088cc]" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.52-.45-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.03-.78 4.04-1.76 6.74-2.92 8.09-3.48 3.85-1.6 4.64-1.88 5.17-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.03.19z" /></svg>
+                              </div>
+                              <span className="text-[10px] text-gray-400">Telegram</span>
+                            </a>
+                            <a
+                              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(generatedVideo)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex flex-col items-center gap-1.5 group"
+                            >
+                              <div className="p-2.5 bg-[#1877F2]/10 group-hover:bg-[#1877F2]/20 rounded-full transition-colors">
+                                <svg className="w-5 h-5 fill-[#1877F2]" viewBox="0 0 24 24"><path d="M22.675 0h-21.35c-.732 0-1.325.593-1.325 1.325v21.351c0 .731.593 1.324 1.325 1.324h11.495v-9.294h-3.128v-3.622h3.128v-2.671c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24l-1.918.001c-1.504 0-1.795.715-1.795 1.763v2.313h3.587l-.467 3.622h-3.12v9.293h6.116c.73 0 1.323-.593 1.323-1.325v-21.35c0-.732-.593-1.325-1.325-1.325z" /></svg>
+                              </div>
+                              <span className="text-[10px] text-gray-400">Facebook</span>
+                            </a>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(generatedVideo);
+                                showNotification('Link copied! Paste in TikTok to share.', 'success');
+                              }}
+                              className="flex flex-col items-center gap-1.5 group"
+                            >
+                              <div className="p-2.5 bg-white/10 group-hover:bg-white/20 rounded-full transition-colors">
+                                <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.86-.6-4.12-1.31a6.345 6.345 0 0 1-1.87-1.53c-.02 3.1-.03 6.19-.04 9.29-.08 1.8-.54 3.59-1.54 5.06-1.01 1.47-2.52 2.63-4.24 3.23-1.72.6-3.62.77-5.38.48-1.76-.29-3.41-1.12-4.72-2.35-1.31-1.23-2.19-2.85-2.5-4.63-.31-1.78-.07-3.64.65-5.31.72-1.68 1.94-3.14 3.49-4.1 1.55-.96 3.41-1.42 5.23-1.32 0 3.96 0 3.96 0 3.96-.54-.1-1.1-.07-1.63.09-.53.16-1.02.46-1.4.88-.38.42-.64.95-.75 1.51-.11.56-.05 1.14.18 1.66.23.52.61.96 1.09 1.25.48.29 1.04.43 1.6.41.56-.02 1.11-.2 1.58-.52.47-.32.84-.77 1.06-1.28.22-.51.3-1.08.3-1.65.01-4.11.02-8.21.03-12.31z" /></svg>
+                              </div>
+                              <span className="text-[10px] text-gray-400">TikTok</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -841,6 +878,9 @@ export default function GeneratePage() {
                         setHasSavedGeneratedVideo(false);
                         setShowGeneratedVideoActions(false);
                         setShowTemplateHint(false);
+                        // Also clear store state
+                        setStoreTemplate(null);
+                        setStoreUploadedImage(null);
                       }}
                       className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
                     >
@@ -1038,6 +1078,9 @@ export default function GeneratePage() {
                         setUploadedImage(null);
                         setTextPrompt('');
                         setHasSavedGeneratedImage(false);
+                        // Also clear store state
+                        setStoreUploadedImage(null);
+                        setStoreTemplate(null);
                       }}
                       className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
                     >
@@ -1092,6 +1135,43 @@ export default function GeneratePage() {
                               title={hasSavedGeneratedImage ? 'Saved' : 'Save'}
                             >
                               {hasSavedGeneratedImage ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
+                            </button>
+                          </div>
+
+                          <div className="flex justify-center gap-6 mt-6 pt-6 border-t border-white/10">
+                            <a
+                              href={`https://t.me/share/url?url=${encodeURIComponent(uploadedImage)}&text=${encodeURIComponent('Check out my creation from BunnyDance AI! 🐰🕺')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex flex-col items-center gap-1.5 group"
+                            >
+                              <div className="p-2.5 bg-[#0088cc]/10 group-hover:bg-[#0088cc]/20 rounded-full transition-colors">
+                                <svg className="w-5 h-5 fill-[#0088cc]" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.52-.45-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.03-.78 4.04-1.76 6.74-2.92 8.09-3.48 3.85-1.6 4.64-1.88 5.17-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.03.19z" /></svg>
+                              </div>
+                              <span className="text-[10px] text-gray-400">Telegram</span>
+                            </a>
+                            <a
+                              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(uploadedImage || '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex flex-col items-center gap-1.5 group"
+                            >
+                              <div className="p-2.5 bg-[#1877F2]/10 group-hover:bg-[#1877F2]/20 rounded-full transition-colors">
+                                <svg className="w-5 h-5 fill-[#1877F2]" viewBox="0 0 24 24"><path d="M22.675 0h-21.35c-.732 0-1.325.593-1.325 1.325v21.351c0 .731.593 1.324 1.325 1.324h11.495v-9.294h-3.128v-3.622h3.128v-2.671c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24l-1.918.001c-1.504 0-1.795.715-1.795 1.763v2.313h3.587l-.467 3.622h-3.12v9.293h6.116c.73 0 1.323-.593 1.323-1.325v-21.35c0-.732-.593-1.325-1.325-1.325z" /></svg>
+                              </div>
+                              <span className="text-[10px] text-gray-400">Facebook</span>
+                            </a>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(uploadedImage || '');
+                                showNotification('Link copied! Paste in TikTok to share.', 'success');
+                              }}
+                              className="flex flex-col items-center gap-1.5 group"
+                            >
+                              <div className="p-2.5 bg-white/10 group-hover:bg-white/20 rounded-full transition-colors">
+                                <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.86-.6-4.12-1.31a6.345 6.345 0 0 1-1.87-1.53c-.02 3.1-.03 6.19-.04 9.29-.08 1.8-.54 3.59-1.54 5.06-1.01 1.47-2.52 2.63-4.24 3.23-1.72.6-3.62.77-5.38.48-1.76-.29-3.41-1.12-4.72-2.35-1.31-1.23-2.19-2.85-2.5-4.63-.31-1.78-.07-3.64.65-5.31.72-1.68 1.94-3.14 3.49-4.1 1.55-.96 3.41-1.42 5.23-1.32 0 3.96 0 3.96 0 3.96-.54-.1-1.1-.07-1.63.09-.53.16-1.02.46-1.4.88-.38.42-.64.95-.75 1.51-.11.56-.05 1.14.18 1.66.23.52.61.96 1.09 1.25.48.29 1.04.43 1.6.41.56-.02 1.11-.2 1.58-.52.47-.32.84-.77 1.06-1.28.22-.51.3-1.08.3-1.65.01-4.11.02-8.21.03-12.31z" /></svg>
+                              </div>
+                              <span className="text-[10px] text-gray-400">TikTok</span>
                             </button>
                           </div>
                         </div>
