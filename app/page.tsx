@@ -479,8 +479,8 @@ export default function Home() {
                 <ChevronDown className="w-6 h-6 group-open:rotate-180 transition-transform text-primary" />
               </summary>
               <div className="mt-6 text-gray-400 text-lg leading-relaxed">
-                Simply upload your photo, select the 'Twerk Girl' effect from our trending library, and hit generate.
-                Our AI handles the professional-grade animation, delivering a viral-ready video that's perfect for OnlyFans, TikTok, or Instagram.
+                Simply upload your photo, select the &apos;Twerk Girl&apos; effect from our trending library, and hit generate.
+                Our AI handles the professional-grade animation, delivering a viral-ready video that&apos;s perfect for OnlyFans, TikTok, or Instagram.
               </div>
             </details>
 
@@ -491,7 +491,7 @@ export default function Home() {
               </summary>
               <div className="mt-6 text-gray-400 text-lg leading-relaxed">
                 Yes! BunnyDance AI is designed to support both real-life photography and diverse anime styles.
-                Whether it's a fan-art piece or an official character shot, our AI accurately captures the aesthetic and transforms it into a fluid hip-shake or dance fantasy.
+                Whether it&apos;s a fan-art piece or an official character shot, our AI accurately captures the aesthetic and transforms it into a fluid hip-shake or dance fantasy.
               </div>
             </details>
 

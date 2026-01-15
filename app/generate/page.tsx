@@ -12,6 +12,7 @@ import Layout from '@/components/Layout';
 import { saveImage, saveVideo } from '@/lib/firestore';
 import { MAX_RETRIES, POLL_INTERVAL_MS } from '@/config/polling';
 import { motion, AnimatePresence } from 'framer-motion';
+import NextImage from 'next/image';
 import { AlertCircle } from 'lucide-react';
 
 export default function GeneratePage() {
@@ -170,7 +171,7 @@ export default function GeneratePage() {
     } finally {
       setIsSavingGeneratedVideo(false);
     }
-  }, [generatedVideo, user, hasSavedGeneratedVideo, saveVideoToAssets]);
+  }, [generatedVideo, user, hasSavedGeneratedVideo, saveVideoToAssets, showNotification]);
 
   const downloadVideo = useCallback((url: string) => {
     const a = document.createElement('a');
@@ -319,7 +320,7 @@ export default function GeneratePage() {
       setIsGenerating(false);
       showNotification('Error checking video status. Please try again.', 'error');
     }
-  }, [user?.id, selectedTemplate, saveVideoToAssets, showNotification, activeMode]);
+  }, [activeMode, showNotification]);
 
   // Handle generation
   const handleGenerate = async () => {
@@ -504,7 +505,7 @@ export default function GeneratePage() {
     } finally {
       setIsSavingGeneratedImage(false);
     }
-  }, [uploadedImage, user, hasSavedGeneratedImage, saveImageToAssets, textPrompt]);
+  }, [uploadedImage, user, hasSavedGeneratedImage, saveImageToAssets, textPrompt, showNotification]);
 
   // Handle text-to-image generation
   const handleTextToImage = async () => {
@@ -774,13 +775,15 @@ export default function GeneratePage() {
                   </div>
                 ) : uploadedImage ? (
                   <div className="w-full h-full relative bg-gray-800 rounded-lg overflow-hidden">
-                    <img
-                      src={base64Image || uploadedImage}
+                    <NextImage
+                      src={base64Image || uploadedImage || ''}
                       alt="Your upload"
-                      className="w-full h-full object-cover"
+                      fill
+                      unoptimized
+                      className="object-cover"
                       onError={(e) => {
                         // If base64 fails, try GCP URL, then signed URL
-                        const imgElement = e.currentTarget;
+                        const imgElement = e.currentTarget as HTMLImageElement;
                         const currentSrc = imgElement.src;
                         if (currentSrc === base64Image && uploadedImage) {
                           imgElement.src = uploadedImage;
@@ -993,10 +996,12 @@ export default function GeneratePage() {
                   </>
                 ) : (
                   <div className="w-full h-full relative">
-                    <img
-                      src={uploadedImage}
+                    <NextImage
+                      src={uploadedImage || ''}
                       alt="Generated image"
-                      className="w-full h-full object-cover"
+                      fill
+                      unoptimized
+                      className="object-cover cursor-pointer"
                       onClick={() => setShowGeneratedImageActions(true)}
                     />
                     <button

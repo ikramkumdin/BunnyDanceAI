@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useUser } from '@/hooks/useUser';
+import NextImage from 'next/image';
 
 interface PhotoUploadProps {
   onImageSelect: (imageData: { gcpUrl: string; base64Url: string }) => void;
@@ -206,8 +207,8 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
 
     // Show preview immediately and get base64 (use processed file so preview matches what we upload)
     const base64Promise = fileToDataUrl(uploadFile).then((result) => {
-        setPreview(result); // Show base64 immediately
-        setBase64Fallback(result); // Keep base64 as fallback
+      setPreview(result); // Show base64 immediately
+      setBase64Fallback(result); // Keep base64 as fallback
       return result;
     });
 
@@ -314,13 +315,15 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
             </div>
           )}
-          <img
+          <NextImage
             src={preview || uploadedImage || base64Fallback || ''}
             alt="Upload preview"
-            className="w-full h-full object-cover"
+            fill
+            unoptimized
+            className="object-cover"
             onError={(e) => {
               // If GCP URL fails, try signed URL, then fallback to base64
-              const imgElement = e.currentTarget;
+              const imgElement = e.currentTarget as HTMLImageElement;
               if (!imgElement) return;
 
               const currentSrc = imgElement.src;
@@ -362,11 +365,10 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
       ) : (
         <div
           {...getRootProps()}
-          className={`w-full h-full border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors flex flex-col items-center justify-center ${
-            isDragActive
-              ? 'border-primary bg-primary/10'
-              : 'border-gray-600 hover:border-gray-500 bg-gray-800'
-          }`}
+          className={`w-full h-full border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors flex flex-col items-center justify-center ${isDragActive
+            ? 'border-primary bg-primary/10'
+            : 'border-gray-600 hover:border-gray-500 bg-gray-800'
+            }`}
         >
           <input {...getInputProps()} />
           <Upload className="w-8 h-8 mb-2 text-gray-400" />
