@@ -1343,10 +1343,32 @@ export default function GeneratePage() {
                     <p className="text-gray-300 text-xs mt-0.5 line-clamp-2 drop-shadow">{template.description}</p>
                   </div>
 
+                  {/* Apply/Upgrade Hover Button */}
+                  {(uploadedImage || base64Image) && (
+                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 backdrop-blur-[2px] z-20 group">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (template.id === 'kneel-and-crawl') {
+                            window.location.href = 'https://buy.stripe.com/test_placeholder';
+                          } else {
+                            handleTemplateSelect(template);
+                            // Scroll to top to show the generate button
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }
+                        }}
+                        className="bg-primary hover:bg-primary-dark text-white text-[10px] font-bold py-2 px-3 rounded-full flex items-center gap-1.5 shadow-2xl transform translate-y-2 group-hover:translate-y-0 transition-all duration-300"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 fill-white" />
+                        {template.id === 'kneel-and-crawl' ? 'Upgrade' : 'Apply'}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Selected Indicator */}
                   {selectedTemplate?.id === template.id && (
-                    <div className="absolute top-2 right-2 bg-primary text-white px-2 py-1 rounded-full text-xs font-semibold shadow-lg">
-                      Selected
+                    <div className="absolute top-2 right-2 bg-primary text-white px-2 py-1 rounded-full text-[8px] font-extrabold uppercase tracking-tighter shadow-lg z-30 animate-pulse">
+                      Active
                     </div>
                   )}
                 </div>
