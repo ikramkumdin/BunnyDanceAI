@@ -9,19 +9,19 @@ import { GeneratedVideo, GeneratedImage } from '@/types';
 import { Download, Trash2, Share2, Image as ImageIcon } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
+import { useStore } from '@/store/useStore';
 
 type AssetType = 'all' | 'video' | 'image';
 
 export default function AssetsPage() {
   const { user, isLoading: userLoading } = useUser();
+  const { videos, setVideos, images, setImages } = useStore();
   const [activeTab, setActiveTab] = useState<AssetType>('all');
-  const [videos, setVideos] = useState<GeneratedVideo[]>([]);
-  const [images, setImages] = useState<GeneratedImage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(videos.length === 0 && images.length === 0);
 
   const loadAssets = async () => {
     if (!user) return;
-    
+
     setIsLoading(true);
     try {
       const [userVideos, userImages] = await Promise.all([
@@ -52,7 +52,7 @@ export default function AssetsPage() {
 
   const handleDeleteVideo = async (videoId: string) => {
     if (!confirm('Are you sure you want to delete this video?')) return;
-    
+
     try {
       await deleteVideo(videoId);
       setVideos(videos.filter(v => v.id !== videoId));
@@ -64,7 +64,7 @@ export default function AssetsPage() {
 
   const handleDeleteImage = async (imageId: string) => {
     if (!confirm('Are you sure you want to delete this image?')) return;
-    
+
     try {
       await deleteImage(imageId);
       setImages(images.filter(i => i.id !== imageId));
@@ -132,8 +132,8 @@ export default function AssetsPage() {
   const hasAssets = filteredVideos.length > 0 || filteredImages.length > 0;
 
   return (
-    <Layout 
-      showBackButton 
+    <Layout
+      showBackButton
       backLabel="Assets"
       tabs={[
         { label: 'All', value: 'all' },
@@ -145,11 +145,11 @@ export default function AssetsPage() {
     >
       <div className="p-6">
         {isLoading || userLoading ? (
-            <div className="flex justify-center items-center py-12">
+          <div className="flex justify-center items-center py-12">
             <LoadingSpinner size="lg" text="Loading assets..." />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {!hasAssets ? (
               <div className="col-span-full text-center py-12">
                 <p className="text-gray-400 text-lg">No assets yet</p>
@@ -161,21 +161,21 @@ export default function AssetsPage() {
               <>
                 {/* Videos */}
                 {filteredVideos.map((video) => (
-                <div key={video.id} className="space-y-2">
-                  <VideoPlayer
-                    videoUrl={video.videoUrl}
-                    thumbnail={video.thumbnail}
-                    isWatermarked={video.isWatermarked}
-                  />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">{video.templateName}</p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(video.createdAt).toLocaleDateString()}
-                      </p>
-                      {renderTagPills(video.tags && video.tags.length ? video.tags : ['video', 'text-to-video'])}
-                    </div>
-                    <div className="flex gap-2">
+                  <div key={video.id} className="space-y-2">
+                    <VideoPlayer
+                      videoUrl={video.videoUrl}
+                      thumbnail={video.thumbnail}
+                      isWatermarked={video.isWatermarked}
+                    />
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold">{video.templateName}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(video.createdAt).toLocaleDateString()}
+                        </p>
+                        {renderTagPills(video.tags && video.tags.length ? video.tags : ['video', 'text-to-video'])}
+                      </div>
+                      <div className="flex gap-2">
                         <button
                           onClick={() => handleShare(video.videoUrl, 'video', video.templateName)}
                           className="p-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors"
@@ -183,23 +183,23 @@ export default function AssetsPage() {
                         >
                           <Share2 className="w-4 h-4" />
                         </button>
-                      <button
-                        onClick={() => handleDownload(video.videoUrl, video.id)}
-                        className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-                        title="Download"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button
+                        <button
+                          onClick={() => handleDownload(video.videoUrl, video.id)}
+                          className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => handleDeleteVideo(video.id)}
-                        className="p-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                          className="p-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
                 ))}
 
                 {/* Images */}
@@ -230,8 +230,8 @@ export default function AssetsPage() {
                           image.tags && image.tags.length
                             ? image.tags
                             : ['image', image.source || 'text-to-image']
-              )}
-            </div>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleShare(image.imageUrl, 'image', image.prompt)}

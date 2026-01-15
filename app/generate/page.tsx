@@ -42,7 +42,9 @@ export default function GeneratePage() {
     selectedTemplate: persistedTemplate,
     uploadedImage: persistedImage,
     setSelectedTemplate: setStoreTemplate,
-    setUploadedImage: setStoreUploadedImage
+    setUploadedImage: setStoreUploadedImage,
+    addVideo: addVideoToStore,
+    addImage: addImageToStore
   } = useStore();
   const { user } = useUser();
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -140,7 +142,19 @@ export default function GeneratePage() {
     if (!user) return false;
 
     try {
-      await saveImage({
+      const imageId = await saveImage({
+        userId: user.id,
+        imageUrl,
+        prompt: prompt || textPrompt,
+        source,
+        tags: ['photo', source],
+        type: 'image',
+        createdAt: new Date().toISOString(),
+      });
+
+      // Update local store for immediate persistence
+      addImageToStore({
+        id: imageId,
         userId: user.id,
         imageUrl,
         prompt: prompt || textPrompt,
@@ -162,7 +176,21 @@ export default function GeneratePage() {
     if (!user) return;
 
     try {
-      await saveVideo({
+      const videoId = await saveVideo({
+        userId: user.id,
+        videoUrl,
+        thumbnail: thumbnail || videoUrl,
+        templateId,
+        templateName,
+        isWatermarked: false,
+        tags: ['video'],
+        type: 'video',
+        createdAt: new Date().toISOString(),
+      });
+
+      // Update local store for immediate persistence
+      addVideoToStore({
+        id: videoId,
         userId: user.id,
         videoUrl,
         thumbnail: thumbnail || videoUrl,

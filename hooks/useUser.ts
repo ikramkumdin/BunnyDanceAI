@@ -15,24 +15,49 @@ export function useUser() {
 
   const initializeUser = async () => {
     try {
-      // Try to get user ID from localStorage (for persistence across sessions)
-      let userId = localStorage.getItem('bunnyDance_userId');
-      
-      if (userId) {
-        // Fetch user from Firestore
-        const firestoreUser = await getUser(userId);
+      // Try to get user ID from localStorage
+      const storedUserId = localStorage.getItem('bunnyDance_userId');
+
+      if (storedUserId) {
+        // Fetch user from Firestore with retry
+        let firestoreUser = null;
+        let retries = 0;
+        while (!firestoreUser && retries < 2) {
+          firestoreUser = await getUser(storedUserId);
+          if (!firestoreUser) await new Promise(r => setTimeout(r, 1000));
+          retries++;
+        }
+
         if (firestoreUser) {
           setUser(firestoreUser);
+          setIsLoading(false);
+          return;
+        } else {
+          // If Firestore is still unreachable but we have a stored ID,
+          // assume the user is valid and continue with the stored ID to avoid losing assets.
+          console.warn('⚠️ Firestore unreachable, using stored user ID');
+          setUser({
+            id: storedUserId,
+            tier: 'free',
+            credits: 0,
+            dailyVideoCount: 0,
+            lastVideoDate: new Date().toISOString(),
+            isAgeVerified: false,
+            createdAt: new Date().toISOString(),
+          } as User);
           setIsLoading(false);
           return;
         }
       }
 
-      // Create new user if none exists
+      // Create new user if no ID exists in localStorage
       await createDefaultUser();
     } catch (error) {
       console.error('Error initializing user:', error);
-      await createDefaultUser();
+      // Only create a totally new user if we really have no choice
+      if (!localStorage.getItem('bunnyDance_userId')) {
+        await createDefaultUser();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +104,7 @@ export function useUser() {
       try {
         // Update in Firestore
         await updateUserInFirestore(user.id, updates);
-        
+
         // Update local state
         const updatedUser = { ...user, ...updates };
         setUser(updatedUser);
@@ -96,7 +121,7 @@ export function useUser() {
     if (user) {
       const today = new Date().toISOString().split('T')[0];
       const lastDate = user.lastVideoDate.split('T')[0];
-      
+
       if (today !== lastDate) {
         updateUser({
           dailyVideoCount: 0,
