@@ -329,7 +329,7 @@ export default function Home() {
                     // Redirect to Stripe checkout for Pro upgrade
                     window.location.href = 'https://buy.stripe.com/test_placeholder';
                   }}
-                  className="w-full mt-3 bg-[#FF2D78] hover:opacity-90 text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+                  className="w-full mt-3 bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
                 >
                   <Sparkles className="w-5 h-5 fill-white" />
                   {template!.id === 'kneel-and-crawl' ? 'Upgrade to Apply' : 'Apply to my picture'}
@@ -454,7 +454,7 @@ export default function Home() {
                       e.stopPropagation();
                       window.location.href = 'https://buy.stripe.com/test_placeholder';
                     }}
-                    className="bg-[#FF2D78] hover:opacity-90 text-white text-xs font-bold py-3 px-4 rounded-full flex items-center gap-2 shadow-2xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"
+                    className="bg-primary hover:bg-primary-dark text-white text-xs font-bold py-3 px-4 rounded-full flex items-center gap-2 shadow-2xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"
                   >
                     <Sparkles className="w-4 h-4 fill-white" />
                     {template.id === 'kneel-and-crawl' ? 'Upgrade to Apply' : 'Apply to my picture'}
