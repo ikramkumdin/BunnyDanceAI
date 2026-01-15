@@ -1,0 +1,16 @@
+export const beautyPrompts = [
+    "A stunning ultra-realistic portrait of a beautiful woman with long flowing hair, wearing an elegant dress, cinematic lighting, 8k resolution, masterpiece, highly detailed skin texture.",
+    "Breathtaking anime girl with sparkling eyes and colorful hair, wearing a stylish outfit, vibrant colors, high-quality digital art, dreamy atmosphere.",
+    "A glamorous fashion model posing for a magazine cover, dramatic sunset lighting, high-end fashion, flawless makeup, sharp focus, professional photography.",
+    "Ethereal goddess-like beauty with silver hair and glowing skin, draped in silk, mystical forest background, soft bokeh, magical atmosphere.",
+    "A beautiful Japanese woman in a traditional kimono standing under cherry blossoms, soft spring sunlight, delicate features, photorealistic.",
+    "Cyberpunk beauty with neon accents and futuristic clothing, night city background with rain, cinematic composition, high detail, edgy aesthetic.",
+    "Sultry dance instructor in a professional studio, athletic build, leggings and crop top, dynamic pose, professional lighting, workout aesthetic.",
+    "Mysterious desert princess with golden jewelry and flowing veils, sand dunes at twilight, warm glowing light, cinematic wide shot.",
+    "Nordic shield-maiden with braided hair and blue eyes, snowy mountain background, cinematic lighting, fur and leather clothing, fierce yet beautiful.",
+    "Elegant ballerina in a white tutu performing a graceful pose, soft stage lighting, atmospheric fog, delicate movements, high resolution.",
+    "Tropical island beauty with flowers in her hair, turquoise beach background, bright sunlight, vibrant colors, photorealistic style.",
+    "Vintage 1950s Hollywood starlet with red lips and wavy hair, classic glamor, black and white portrait, dramatic shadows.",
+    "Futuristic pilot girl in a high-tech flight suit, cockpit background with holographic displays, sci-fi aesthetic, sharp detail.",
+    "Enchanting forest fairy with shimmering wings and a crown of leaves, soft magical glow, fantasy art style, detailed nature elements.",
+];

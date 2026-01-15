@@ -2,9 +2,32 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BunnyDance AI - AI Video Generator",
-  description: "Create stunning dance videos from photos with AI",
-  viewport: "width=device-width, initial-scale=1",
+  title: "BunnyDance AI - AI Dance Video Generator for Twerk & Anime Waifu Animations",
+  description: "Upload a photo (real or anime) to BunnyDance AI and generate short sensual dance videos instantly—twerking, hip shakes, pole dances & more. Perfect for TikTok creators, OnlyFans content, or private waifu collections. Free trial now!",
+  keywords: ["AI dance video generator", "twerk AI animator", "anime waifu dance", "OnlyFans content creator", "TikTok viral videos", "sensual photo animation", "hip shake AI", "pole dance generator"],
+  robots: "index, follow",
+  openGraph: {
+    title: "BunnyDance AI: Create Sensual Dance Videos from Photos",
+    description: "AI tool for twerking, hip shaking & waifu animations. Ideal for creators and collectors.",
+    url: "https://bunny-dance-ai.vercel.app/",
+    siteName: "BunnyDance AI",
+    images: [
+      {
+        url: "/og-images/sensual-dance-preview.png",
+        width: 1200,
+        height: 630,
+        alt: "BunnyDance AI preview",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BunnyDance AI: Create Sensual Dance Videos from Photos",
+    description: "AI tool for twerking, hip shaking & waifu animations. Ideal for creators and collectors.",
+    images: ["/og-images/sensual-dance-preview.png"],
+  },
 };
 
 export default function RootLayout({
@@ -14,6 +37,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "BunnyDance AI",
+              "description": "AI tool for creating short sensual dance videos from photos. Targets creators on OnlyFans/TikTok and anime waifu enthusiasts.",
+              "applicationCategory": "MultimediaSoftware",
+              "featureList": ["Twerk Animation", "Anime Waifu Dance", "Viral Content Generator"],
+              "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+            })
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

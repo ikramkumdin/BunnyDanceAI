@@ -56,9 +56,9 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const kieApiKey = process.env.KIE_API_KEY;
+  const kieApiKey = process.env.GROK_API_KEY;
   if (!kieApiKey) {
-    console.error('KIE_API_KEY is not set');
+    console.error('GROK_API_KEY is not set');
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
   }
 
