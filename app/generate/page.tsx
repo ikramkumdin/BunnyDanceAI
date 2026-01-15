@@ -38,7 +38,12 @@ export default function GeneratePage() {
   const [showTemplateHint, setShowTemplateHint] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const { setSelectedTemplate: setStoreTemplate, setUploadedImage: setStoreUploadedImage } = useStore();
+  const {
+    selectedTemplate: persistedTemplate,
+    uploadedImage: persistedImage,
+    setSelectedTemplate: setStoreTemplate,
+    setUploadedImage: setStoreUploadedImage
+  } = useStore();
   const { user } = useUser();
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activeTaskIdRef = useRef<string | null>(null);
@@ -57,6 +62,25 @@ export default function GeneratePage() {
       }
     };
   }, []);
+
+  // Sync with store on mount (handles "Use for Video" and Home page template selection)
+  useEffect(() => {
+    if (persistedImage && !uploadedImage) {
+      console.log('🔄 Syncing image from store:', persistedImage);
+      setUploadedImage(persistedImage);
+      setImageUrl(persistedImage);
+
+      // Trigger template hint if we have an image but no template yet
+      if (activeMode === 'image-to-video' && !selectedTemplate && !persistedTemplate) {
+        setShowTemplateHint(true);
+      }
+    }
+    if (persistedTemplate && !selectedTemplate) {
+      console.log('🔄 Syncing template from store:', persistedTemplate.id);
+      setSelectedTemplate(persistedTemplate);
+      setShowTemplateHint(false);
+    }
+  }, [persistedImage, persistedTemplate, activeMode]);
 
   // Handle mode change and clear session states
   const handleModeChange = (mode: 'image-to-video' | 'text-to-video' | 'text-to-image') => {
