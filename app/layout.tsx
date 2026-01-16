@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "WaifuDance AI: Create Sensual Dance Videos from Photos",
     description: "AI tool for twerking, hip shaking & waifu animations. Ideal for creators and collectors.",
-    url: "https://bunny-dance-ai.vercel.app/",
+    url: "https://www.waifudance.com/",
     siteName: "WaifuDance AI",
     images: [
       {

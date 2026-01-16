@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://bunny-dance-ai.vercel.app/sitemap.xml
+Sitemap: https://www.waifudance.com/sitemap.xml
