@@ -143,13 +143,13 @@ export default function AssetsPage() {
       activeTab={activeTab}
       onTabChange={(tab) => setActiveTab(tab as AssetType)}
     >
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {isLoading || userLoading ? (
           <div className="flex justify-center items-center py-12">
             <LoadingSpinner size="lg" text="Loading assets..." />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {!hasAssets ? (
               <div className="col-span-full text-center py-12">
                 <p className="text-gray-400 text-lg">No assets yet</p>

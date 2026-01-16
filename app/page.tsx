@@ -177,13 +177,13 @@ export default function Home() {
 
   return (
     <Layout onSearch={(query) => setSearchQuery(query)}>
-      <div className="flex flex-col gap-12 p-6 max-w-7xl mx-auto">
+      <div className="flex flex-col gap-8 sm:gap-12 p-4 sm:p-6 max-w-7xl mx-auto">
         {/* HERO Section */}
         <section className="flex flex-col gap-6 text-center py-12 border-b border-gray-800">
-          <h1 className="text-4xl md:text-6xl font-bold text-white bg-gradient-to-r from-primary via-purple-400 to-accent bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-bold text-white bg-gradient-to-r from-primary via-purple-400 to-accent bg-clip-text text-transparent px-4">
             WaifuDance AI: Instant AI Dance Video Generator
           </h1>
-          <p className="text-gray-300 text-lg md:text-xl max-w-4xl mx-auto leading-relaxed">
+          <p className="text-gray-300 text-sm sm:text-base md:text-lg lg:text-xl max-w-4xl mx-auto leading-relaxed px-4">
             Upload any photo—real or anime—and create short sensual dance videos with effects like twerking, hip shaking, and pole dancing.
             For creators on TikTok, OnlyFans, or Tinder: Generate viral-ready content in seconds.
             For anime fans: Turn your waifu into a private dance fantasy collection.
@@ -213,7 +213,7 @@ export default function Home() {
           {/* Randomly Generated Image Result */}
           {(randomImageUrl || isGeneratingRandom || randomError) && (
             <div className="mt-8 flex flex-col items-center">
-              <div className="relative aspect-[2/3] w-64 md:w-80 bg-gray-900 rounded-2xl overflow-hidden border-2 border-dashed border-gray-800 flex items-center justify-center group shadow-2xl">
+              <div className="relative aspect-[2/3] w-full max-w-64 sm:max-w-80 mx-auto bg-gray-900 rounded-2xl overflow-hidden border-2 border-dashed border-gray-800 flex items-center justify-center group shadow-2xl">
                 {isGeneratingRandom && (
                   <div className="flex flex-col items-center gap-3 p-4 text-center">
                     <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -267,13 +267,13 @@ export default function Home() {
         </section>
 
         {/* TRENDING EFFECTS Header */}
-        <div className="flex flex-col gap-2">
-          <h2 className="text-3xl font-bold text-white">Trending Sensual Dance Effects</h2>
-          <p className="text-gray-400 text-lg">Select a trending effect to create your viral dance animation.</p>
+        <div className="flex flex-col gap-2 px-2 sm:px-0">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white">Trending Sensual Dance Effects</h2>
+          <p className="text-gray-400 text-base sm:text-lg">Select a trending effect to create your viral dance animation.</p>
         </div>
 
         {/* Featured Effects Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {[
             templates.find(t => t.id === 'lustful-touch'),
             templates.find(t => t.id === 'twerk-girl'),
@@ -314,12 +314,12 @@ export default function Home() {
                   HOT
                 </div>
               </div>
-              <div className="p-6 flex flex-col gap-3">
-                <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors flex items-center gap-2">
+              <div className="p-4 sm:p-6 flex flex-col gap-2 sm:gap-3">
+                <h3 className="text-lg sm:text-xl font-bold text-white group-hover:text-primary transition-colors flex items-center gap-2">
                   {template!.name}
-                  <Sparkles className="w-4 h-4 text-primary" />
+                  <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
                 </h3>
-                <p className="text-gray-400 text-sm leading-relaxed line-clamp-2">
+                <p className="text-gray-400 text-xs sm:text-sm leading-relaxed line-clamp-2">
                   {template!.description}
                 </p>
 
@@ -329,10 +329,11 @@ export default function Home() {
                     // Redirect to Stripe checkout for Pro upgrade
                     window.location.href = 'https://buy.stripe.com/test_placeholder';
                   }}
-                  className="w-full mt-3 bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+                  className="w-full mt-2 sm:mt-3 bg-primary hover:bg-primary-dark text-white font-bold py-2 sm:py-3 rounded-full flex items-center justify-center gap-1 sm:gap-2 shadow-lg transition-all active:scale-95 text-sm sm:text-base"
                 >
-                  <Sparkles className="w-5 h-5 fill-white" />
-                  {template!.id === 'kneel-and-crawl' ? 'Upgrade to Apply' : 'Apply to my picture'}
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 fill-white" />
+                  <span className="hidden sm:inline">{template!.id === 'kneel-and-crawl' ? 'Upgrade to Apply' : 'Apply to my picture'}</span>
+                  <span className="sm:hidden">{template!.id === 'kneel-and-crawl' ? 'Upgrade' : 'Apply'}</span>
                 </button>
               </div>
             </div>
@@ -340,10 +341,10 @@ export default function Home() {
         </div>
 
         {/* TRENDING / MY EFFECT Tabs */}
-        <div className="flex gap-4 border-b border-gray-800 pb-2">
+        <div className="flex gap-2 sm:gap-4 border-b border-gray-800 pb-2 overflow-x-auto">
           <button
             onClick={() => setActiveTab('trending')}
-            className={`px-4 py-2 font-semibold transition-colors ${activeTab === 'trending'
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 font-semibold transition-colors text-sm sm:text-base whitespace-nowrap ${activeTab === 'trending'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
               }`}
@@ -352,7 +353,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setActiveTab('my-effect')}
-            className={`px-4 py-2 font-semibold transition-colors ${activeTab === 'my-effect'
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 font-semibold transition-colors text-sm sm:text-base whitespace-nowrap ${activeTab === 'my-effect'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
               }`}
@@ -362,7 +363,7 @@ export default function Home() {
         </div>
 
         {/* Category Filter Buttons */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
           {[
             { label: 'All', value: 'all' as TemplateCategory },
             { label: 'For You', value: 'for-you' as TemplateCategory },
@@ -376,7 +377,7 @@ export default function Home() {
             <button
               key={cat.value}
               onClick={() => setSelectedCategory(cat.value)}
-              className={`px-4 py-2 rounded-full transition-colors text-sm ${selectedCategory === cat.value
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full transition-colors text-xs sm:text-sm whitespace-nowrap ${selectedCategory === cat.value
                 ? 'bg-primary text-white'
                 : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
                 }`}
@@ -387,7 +388,7 @@ export default function Home() {
         </div>
 
         {/* Template Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
           {filteredTemplates.map((template) => {
             const isTopChoice = topChoiceTemplates.includes(template);
             return (
@@ -466,10 +467,10 @@ export default function Home() {
         </div>
 
         {/* Audience-Specific Sections */}
-        <div className="grid md:grid-cols-2 gap-8 py-12 border-t border-gray-800">
-          <section className="bg-gray-900/40 p-10 rounded-3xl border border-gray-800/50 backdrop-blur-sm">
-            <h2 className="text-3xl font-bold text-primary mb-6">For Creators: Fast Viral Content</h2>
-            <ul className="space-y-4 text-gray-300 text-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 py-8 sm:py-12 border-t border-gray-800">
+          <section className="bg-gray-900/40 p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl border border-gray-800/50 backdrop-blur-sm">
+            <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4 sm:mb-6">For Creators: Fast Viral Content</h2>
+            <ul className="space-y-3 sm:space-y-4 text-gray-300 text-base sm:text-lg">
               <li className="flex gap-4 items-start">
                 <span className="text-primary text-xl">✨</span>
                 <span>Generate TikTok-ready twerk and pole dance videos from selfies in seconds.</span>
@@ -485,9 +486,9 @@ export default function Home() {
             </ul>
           </section>
 
-          <section className="bg-gray-900/40 p-10 rounded-3xl border border-gray-800/50 backdrop-blur-sm">
-            <h2 className="text-3xl font-bold text-purple-400 mb-6">For Anime Fans: Private Waifu Fantasies</h2>
-            <p className="text-gray-300 text-lg leading-relaxed">
+          <section className="bg-gray-900/40 p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl border border-gray-800/50 backdrop-blur-sm">
+            <h2 className="text-2xl sm:text-3xl font-bold text-purple-400 mb-4 sm:mb-6">For Anime Fans: Private Waifu Fantasies</h2>
+            <p className="text-gray-300 text-base sm:text-lg leading-relaxed">
               Animate your favorite anime characters with alluring hip shaking or lustful touches.
               Our AI is specifically optimized for anime styles, ensuring your waifu transitions from static art to immersive, high-quality dance animations.
               Build your private collection of sensual fantasies discreetly and instantly.
@@ -496,37 +497,37 @@ export default function Home() {
         </div>
 
         {/* FAQ Section */}
-        <section className="flex flex-col gap-8 py-12 border-t border-gray-800">
-          <h2 className="text-4xl font-bold text-white text-center">FAQs: AI Sensual Dance Video Creation</h2>
+        <section className="flex flex-col gap-6 sm:gap-8 py-8 sm:py-12 border-t border-gray-800 px-2 sm:px-0">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center">FAQs: AI Sensual Dance Video Creation</h2>
           <div className="grid gap-6 max-w-4xl mx-auto w-full">
-            <details className="group bg-gray-900/50 rounded-2xl border border-gray-800 p-6 cursor-pointer hover:border-primary/50 transition-colors">
-              <summary className="flex justify-between items-center text-xl font-bold text-white list-none">
+            <details className="group bg-gray-900/50 rounded-xl sm:rounded-2xl border border-gray-800 p-4 sm:p-6 cursor-pointer hover:border-primary/50 transition-colors">
+              <summary className="flex justify-between items-center text-base sm:text-lg md:text-xl font-bold text-white list-none gap-2">
                 How to create twerk videos for OnlyFans?
                 <ChevronDown className="w-6 h-6 group-open:rotate-180 transition-transform text-primary" />
               </summary>
-              <div className="mt-6 text-gray-400 text-lg leading-relaxed">
+              <div className="mt-4 sm:mt-6 text-gray-400 text-sm sm:text-base md:text-lg leading-relaxed">
                 Simply upload your photo, select the &apos;Twerk Girl&apos; effect from our trending library, and hit generate.
                 Our AI handles the professional-grade animation, delivering a viral-ready video that&apos;s perfect for OnlyFans, TikTok, or Instagram.
               </div>
             </details>
 
-            <details className="group bg-gray-900/50 rounded-2xl border border-gray-800 p-6 cursor-pointer hover:border-primary/50 transition-colors">
-              <summary className="flex justify-between items-center text-xl font-bold text-white list-none">
+            <details className="group bg-gray-900/50 rounded-xl sm:rounded-2xl border border-gray-800 p-4 sm:p-6 cursor-pointer hover:border-primary/50 transition-colors">
+              <summary className="flex justify-between items-center text-base sm:text-lg md:text-xl font-bold text-white list-none gap-2">
                 Can I animate anime waifus?
                 <ChevronDown className="w-6 h-6 group-open:rotate-180 transition-transform text-purple-400" />
               </summary>
-              <div className="mt-6 text-gray-400 text-lg leading-relaxed">
+              <div className="mt-4 sm:mt-6 text-gray-400 text-sm sm:text-base md:text-lg leading-relaxed">
                 Yes! WaifuDance AI is designed to support both real-life photography and diverse anime styles.
                 Whether it&apos;s a fan-art piece or an official character shot, our AI accurately captures the aesthetic and transforms it into a fluid hip-shake or dance fantasy.
               </div>
             </details>
 
-            <details className="group bg-gray-900/50 rounded-2xl border border-gray-800 p-6 cursor-pointer hover:border-primary/50 transition-colors">
-              <summary className="flex justify-between items-center text-xl font-bold text-white list-none">
+            <details className="group bg-gray-900/50 rounded-xl sm:rounded-2xl border border-gray-800 p-4 sm:p-6 cursor-pointer hover:border-primary/50 transition-colors">
+              <summary className="flex justify-between items-center text-base sm:text-lg md:text-xl font-bold text-white list-none gap-2">
                 How long does it take to generate a video?
                 <ChevronDown className="w-6 h-6 group-open:rotate-180 transition-transform text-accent" />
               </summary>
-              <div className="mt-6 text-gray-400 text-lg leading-relaxed">
+              <div className="mt-4 sm:mt-6 text-gray-400 text-sm sm:text-base md:text-lg leading-relaxed">
                 Most sensual dance videos are generated in under 30 seconds. We prioritize both speed and quality so you can create content at the pace of your creativity.
               </div>
             </details>

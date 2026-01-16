@@ -707,12 +707,12 @@ export default function GeneratePage() {
 
   return (
     <Layout>
-      <div className="flex flex-col gap-4 p-6">
+      <div className="flex flex-col gap-4 p-4 sm:p-6">
         {/* Mode Toggle - Trending Style Tabs */}
-        <div className="flex gap-4 border-b border-gray-800 pb-2 mb-2">
+        <div className="flex gap-2 sm:gap-4 border-b border-gray-800 pb-2 mb-2 overflow-x-auto">
           <button
             onClick={() => handleModeChange('image-to-video')}
-            className={`px-4 py-2 font-semibold transition-colors ${activeMode === 'image-to-video'
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 font-semibold transition-colors text-sm sm:text-base whitespace-nowrap ${activeMode === 'image-to-video'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
               }`}
@@ -721,7 +721,7 @@ export default function GeneratePage() {
           </button>
           <button
             onClick={() => handleModeChange('text-to-video')}
-            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${activeMode === 'text-to-video'
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 font-semibold transition-colors flex items-center gap-1 sm:gap-2 text-sm sm:text-base whitespace-nowrap ${activeMode === 'text-to-video'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
               }`}
@@ -731,7 +731,7 @@ export default function GeneratePage() {
           </button>
           <button
             onClick={() => handleModeChange('text-to-image')}
-            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 ${activeMode === 'text-to-image'
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 font-semibold transition-colors flex items-center gap-1 sm:gap-2 text-sm sm:text-base whitespace-nowrap ${activeMode === 'text-to-image'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
               }`}
@@ -743,7 +743,7 @@ export default function GeneratePage() {
 
         {/* Main Content Area - Same size as templates */}
         <div className="flex justify-center">
-          <div className="relative aspect-[9/16] w-80 bg-gray-800 rounded-lg overflow-hidden">
+          <div className="relative aspect-[9/16] w-full max-w-80 mx-auto bg-gray-800 rounded-lg overflow-hidden">
             {/* Image-to-Video Mode: Show uploader */}
             {activeMode === 'image-to-video' && (
               <>
@@ -800,7 +800,7 @@ export default function GeneratePage() {
                             <X className="w-4 h-4 text-white" />
                           </button>
 
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-3 gap-2 sm:gap-3">
                             <button
                               onClick={() => setShowSocialShare(!showSocialShare)}
                               className={`transition-colors py-3 rounded-lg flex items-center justify-center ${showSocialShare ? 'bg-primary text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
@@ -932,7 +932,7 @@ export default function GeneratePage() {
 
             {/* Text-to-Video Mode: Show text area with preview */}
             {activeMode === 'text-to-video' && (
-              <div className={`w-full h-full flex flex-col ${generatedVideo ? 'p-0' : 'p-4'} gap-3`}>
+              <div className={`w-full h-full flex flex-col ${generatedVideo ? 'p-0' : 'p-3 sm:p-4'} gap-2 sm:gap-3`}>
                 {generatedVideo ? (
                   <div className="w-full h-full relative">
                     <video
@@ -984,7 +984,7 @@ export default function GeneratePage() {
                             <X className="w-4 h-4 text-white" />
                           </button>
 
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-3 gap-2 sm:gap-3">
                             <button
                               onClick={() => shareVideo(generatedVideo)}
                               className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
@@ -1056,7 +1056,7 @@ export default function GeneratePage() {
 
             {/* Text-to-Image Mode: Show text area with preview */}
             {activeMode === 'text-to-image' && (
-              <div className={`w-full h-full flex flex-col ${uploadedImage ? 'p-0' : 'p-4'} gap-3`}>
+              <div className={`w-full h-full flex flex-col ${uploadedImage ? 'p-0' : 'p-3 sm:p-4'} gap-2 sm:gap-3`}>
                 {!uploadedImage ? (
                   <>
                     <div className="flex-1 flex flex-col gap-2">
@@ -1146,7 +1146,7 @@ export default function GeneratePage() {
                           </button>
 
                           {/* Icon-only actions */}
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-3 gap-2 sm:gap-3">
                             <button
                               onClick={() => setShowSocialShare(!showSocialShare)}
                               className={`transition-colors py-3 rounded-lg flex items-center justify-center ${showSocialShare ? 'bg-primary text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
@@ -1224,7 +1224,7 @@ export default function GeneratePage() {
 
             {/* Selected Template Preview in Left Corner - Only for image-to-video mode */}
             {activeMode === 'image-to-video' && selectedTemplate && !generatedVideo && (
-              <div className="absolute top-2 left-2 w-20 h-24 bg-gray-800 rounded-lg overflow-hidden border-2 border-primary z-50 shadow-lg">
+              <div className="absolute top-2 left-2 w-16 h-20 sm:w-20 sm:h-24 bg-gray-800 rounded-lg overflow-hidden border-2 border-primary z-50 shadow-lg">
                 <div className="absolute top-0 left-0 right-0 bg-primary text-white px-1 py-0.5 text-[6px] font-semibold text-center z-10">
                   Template
                 </div>
@@ -1247,7 +1247,7 @@ export default function GeneratePage() {
 
             {/* Image-to-Video Mode: Generate Button */}
             {activeMode === 'image-to-video' && selectedTemplate && uploadedImage && !generatedVideo && (
-              <div className="absolute bottom-4 left-4 right-4">
+              <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4">
                 {isGenerating ? (
                   <div className="w-full bg-black/80 backdrop-blur-sm rounded-lg p-3 text-center">
                     <div className="animate-spin rounded-full w-8 h-8 border-t-2 border-b-2 border-primary mx-auto mb-2"></div>
@@ -1270,10 +1270,10 @@ export default function GeneratePage() {
 
         {/* Template Selection Hint */}
         {showTemplateHint && activeMode === 'image-to-video' && !selectedTemplate && (
-          <div className="flex justify-center -mt-2 mb-4 animate-bounce">
-            <div className="bg-primary/90 text-white px-6 py-2 rounded-full shadow-lg border border-white/20 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              <span className="text-sm font-bold uppercase tracking-wider">Now select a dance template below!</span>
+          <div className="flex justify-center -mt-2 mb-4 animate-bounce px-2">
+            <div className="bg-primary/90 text-white px-4 sm:px-6 py-2 rounded-full shadow-lg border border-white/20 flex items-center gap-2">
+              <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-center">Now select a dance template below!</span>
             </div>
           </div>
         )}
@@ -1282,17 +1282,17 @@ export default function GeneratePage() {
         {activeMode === 'image-to-video' && (
           <div className="space-y-4">
             {/* Search and Category Tags in Same Row */}
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
               {/* Search Tag - Same style as category tags */}
               <div className="relative">
-                <div className="flex items-center gap-1 px-4 py-2 rounded-full bg-gray-800 border border-slate-700 hover:bg-gray-700 transition-colors">
+                <div className="flex items-center gap-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gray-800 border border-slate-700 hover:bg-gray-700 transition-colors">
                   <Search className="w-3 h-3 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="bg-transparent border-none outline-none text-sm text-white placeholder-gray-500 w-20 focus:w-32 transition-all"
+                    className="bg-transparent border-none outline-none text-xs sm:text-sm text-white placeholder-gray-500 w-16 sm:w-20 focus:w-24 sm:focus:w-32 transition-all"
                   />
                 </div>
               </div>
@@ -1313,7 +1313,7 @@ export default function GeneratePage() {
                 <button
                   key={cat.value}
                   onClick={() => setSelectedCategory(cat.value)}
-                  className={`px-4 py-2 rounded-full text-sm transition-colors ${selectedCategory === cat.value
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${selectedCategory === cat.value
                     ? 'bg-primary text-white'
                     : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
                     }`}
@@ -1324,7 +1324,7 @@ export default function GeneratePage() {
             </div>
 
             {/* Template Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {filteredTemplates.map((template) => (
                 <div
                   key={template.id}
@@ -1398,7 +1398,7 @@ export default function GeneratePage() {
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md"
+            className="fixed bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-[100] w-[95%] sm:w-[90%] max-w-md"
           >
             <div className={`
               px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-md flex items-center gap-4

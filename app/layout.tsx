@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   description: "Upload a photo (real or anime) to WaifuDance AI and generate short sensual dance videos instantly—twerking, hip shakes, pole dances & more. Perfect for TikTok creators, OnlyFans content, or private waifu collections. Free trial now!",
   keywords: ["AI dance video generator", "twerk AI animator", "anime waifu dance", "OnlyFans content creator", "TikTok viral videos", "sensual photo animation", "hip shake AI", "pole dance generator"],
   robots: "index, follow",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=5",
   openGraph: {
     title: "WaifuDance AI: Create Sensual Dance Videos from Photos",
     description: "AI tool for twerking, hip shaking & waifu animations. Ideal for creators and collectors.",

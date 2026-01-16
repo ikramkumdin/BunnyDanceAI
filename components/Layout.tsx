@@ -26,7 +26,7 @@ export default function Layout({
   return (
     <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <Header 
           showBackButton={showBackButton} 
           backLabel={backLabel}
@@ -35,7 +35,7 @@ export default function Layout({
           onTabChange={onTabChange}
           onSearch={onSearch}
         />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pt-16 lg:pt-0">
           {children}
         </main>
       </div>

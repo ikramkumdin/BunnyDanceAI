@@ -39,24 +39,24 @@ export default function Header({
   };
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between gap-4">
-      <div className="flex items-center gap-4 flex-1 min-w-0">
+    <header className="bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4 fixed top-0 left-0 right-0 z-30 lg:static">
+      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
         {!showBackButton && <Logo size="sm" />}
         {showBackButton && (
           <button
             onClick={() => router.back()}
-            className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+            className="text-gray-400 hover:text-white transition-colors flex-shrink-0 p-1"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
         )}
-        {backLabel && <h1 className="text-xl font-semibold flex-shrink-0">{backLabel}</h1>}
+        {backLabel && <h1 className="text-lg sm:text-xl font-semibold flex-shrink-0 hidden sm:block">{backLabel}</h1>}
         
         {/* Search Bar */}
         {!showBackButton && (
-          <form onSubmit={handleSearch} className="flex-1 max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search..."
@@ -67,19 +67,19 @@ export default function Header({
                     onSearch(e.target.value);
                   }
                 }}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 sm:pl-10 pr-4 py-1.5 sm:py-2 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
           </form>
         )}
         
         {tabs && (
-          <div className="flex gap-2 ml-6">
+          <div className="flex gap-1 sm:gap-2 ml-2 sm:ml-6 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.value}
                 onClick={() => onTabChange?.(tab.value)}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm whitespace-nowrap ${
                   activeTab === tab.value
                     ? 'bg-primary text-white'
                     : 'text-gray-400 hover:text-white hover:bg-slate-800'
@@ -92,32 +92,34 @@ export default function Header({
         )}
       </div>
 
-      <div className="flex items-center gap-4 flex-shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 md:gap-4 flex-shrink-0">
         {showBackButton && (
           <button
             onClick={handleUploadClick}
-            className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg transition-colors font-semibold"
+            className="hidden sm:flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition-colors font-semibold text-sm sm:text-base"
           >
-            <Camera className="w-5 h-5" />
-            <span>Start with a photo</span>
+            <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden md:inline">Start with a photo</span>
+            <span className="md:hidden">Start</span>
           </button>
         )}
         {!showBackButton && (
           <button
             onClick={handleUploadClick}
-            className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors font-medium"
+            className="flex items-center gap-1 sm:gap-2 bg-primary hover:bg-primary-dark text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors font-medium text-xs sm:text-sm"
           >
-            <Upload className="w-4 h-4" />
-            <span className="text-sm">Upload a photo</span>
+            <Upload className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Upload a photo</span>
+            <span className="sm:hidden">Upload</span>
           </button>
         )}
-        <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-          <MessageCircle className="w-5 h-5" />
-          <span className="text-sm">Join us</span>
+        <button className="hidden sm:flex items-center gap-1 sm:gap-2 text-gray-400 hover:text-white transition-colors text-xs sm:text-sm">
+          <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="hidden md:inline">Join us</span>
         </button>
-        <div className="flex items-center gap-2">
-          <Gem className="w-5 h-5 text-primary" />
-          <span className="text-sm font-semibold">{user?.credits ?? 0}</span>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+          <span className="text-xs sm:text-sm font-semibold">{user?.credits ?? 0}</span>
         </div>
       </div>
     </header>

@@ -1,13 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Image, Grid3x3, Sparkles, Menu } from 'lucide-react';
+import { Home, Image, Grid3x3, Sparkles, Menu, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { isAgeVerified } = useStore();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
@@ -23,39 +25,72 @@ export default function Sidebar() {
     return currentPath?.startsWith(path);
   };
 
+  const handleNavClick = (path: string) => {
+    router.push(path);
+    setIsMobileOpen(false); // Close mobile menu after navigation
+  };
+
   return (
-    <div className="w-20 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 gap-4">
-      <Menu className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white" />
-      
-      {navItems.map((item) => {
-        const Icon = item.icon;
-        const currentPath = pathname || '';
+    <>
+      {/* Mobile Hamburger Button */}
+      <button
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 bg-slate-900 p-2 rounded-lg border border-slate-800 text-gray-400 hover:text-white transition-colors"
+        aria-label="Toggle menu"
+      >
+        {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      </button>
+
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-20 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 gap-4 transition-transform duration-300 ${
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        <div className="hidden lg:block">
+          <Menu className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white" />
+        </div>
         
-        // Only one button should be active at a time
-        // Generate is active only when on generate page
-        // Other buttons are active when on their respective pages
-        const active = isActive(item.path, currentPath);
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const currentPath = pathname || '';
+          
+          // Only one button should be active at a time
+          // Generate is active only when on generate page
+          // Other buttons are active when on their respective pages
+          const active = isActive(item.path, currentPath);
+          
+          return (
+            <button
+              key={item.path}
+              onClick={() => handleNavClick(item.path)}
+              className={`flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-lg transition-colors w-full h-16 ${
+                active
+                  ? 'bg-secondary text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-slate-800'
+              }`}
+              title={item.label}
+            >
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              <span className="text-[10px] leading-tight text-center break-words">{item.label}</span>
+            </button>
+          );
+        })}
         
-        return (
-          <button
-            key={item.path}
-            onClick={() => router.push(item.path)}
-            className={`flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-lg transition-colors w-full h-16 ${
-              active
-                ? 'bg-secondary text-white'
-                : 'text-gray-400 hover:text-white hover:bg-slate-800'
-            }`}
-            title={item.label}
-          >
-            <Icon className="w-5 h-5 flex-shrink-0" />
-            <span className="text-[10px] leading-tight text-center break-words">{item.label}</span>
-          </button>
-        );
-      })}
-      
-      <div className="flex-1" />
-      <Menu className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white" />
-    </div>
+        <div className="flex-1" />
+        <div className="hidden lg:block">
+          <Menu className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white" />
+        </div>
+      </div>
+    </>
   );
 }
 
