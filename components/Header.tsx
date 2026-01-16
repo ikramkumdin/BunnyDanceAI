@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, MessageCircle, Gem, Upload, Search, Camera } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Gem, Upload, Search, Camera, Menu } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import Logo from './Logo';
 
@@ -13,6 +13,8 @@ interface HeaderProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
   onSearch?: (query: string) => void;
+  isMobileMenuOpen?: boolean;
+  setIsMobileMenuOpen?: (open: boolean) => void;
 }
 
 export default function Header({ 
@@ -21,7 +23,9 @@ export default function Header({
   tabs,
   activeTab,
   onTabChange,
-  onSearch
+  onSearch,
+  isMobileMenuOpen = false,
+  setIsMobileMenuOpen
 }: HeaderProps) {
   const router = useRouter();
   const { user } = useStore();
@@ -41,8 +45,18 @@ export default function Header({
   return (
     <header className="bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4 fixed top-0 left-0 right-0 z-30 lg:static">
       <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+        {/* Mobile Hamburger Button - inside header */}
+        {!showBackButton && setIsMobileMenuOpen && (
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="lg:hidden p-2 -ml-2 text-gray-400 hover:text-white transition-colors"
+            aria-label="Toggle menu"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        )}
         {!showBackButton && (
-          <div className="lg:hidden ml-14 sm:ml-0">
+          <div className="lg:hidden">
             <Logo size="sm" />
           </div>
         )}

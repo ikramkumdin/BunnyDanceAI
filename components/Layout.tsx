@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
@@ -23,9 +23,11 @@ export default function Layout({
   onTabChange,
   onSearch
 }: LayoutProps) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
-      <Sidebar />
+      <Sidebar isMobileOpen={isMobileMenuOpen} setIsMobileOpen={setIsMobileMenuOpen} />
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <Header 
           showBackButton={showBackButton} 
@@ -34,6 +36,8 @@ export default function Layout({
           activeTab={activeTab}
           onTabChange={onTabChange}
           onSearch={onSearch}
+          isMobileMenuOpen={isMobileMenuOpen}
+          setIsMobileMenuOpen={setIsMobileMenuOpen}
         />
         <main className="flex-1 overflow-y-auto pt-16 lg:pt-0">
           {children}

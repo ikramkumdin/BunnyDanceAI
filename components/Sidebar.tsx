@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, Image, Grid3x3, Sparkles, Menu, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 
-export default function Sidebar() {
+interface SidebarProps {
+  isMobileOpen: boolean;
+  setIsMobileOpen: (open: boolean) => void;
+}
+
+export default function Sidebar({ isMobileOpen, setIsMobileOpen }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAgeVerified } = useStore();
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
@@ -32,15 +35,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Hamburger Button */}
-      <button
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 bg-slate-900 p-2 rounded-lg border border-slate-800 text-gray-400 hover:text-white transition-colors"
-        aria-label="Toggle menu"
-      >
-        <Menu className="w-6 h-6" />
-      </button>
-
       {/* Mobile Overlay */}
       {isMobileOpen && (
         <div
