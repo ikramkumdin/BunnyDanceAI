@@ -831,7 +831,7 @@ export default function GeneratePage() {
                           {showSocialShare && (
                             <div className="flex justify-center gap-6 mt-6 pt-6 border-t border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                               <a
-                                href={`https://t.me/share/url?url=${encodeURIComponent(generatedVideo)}&text=${encodeURIComponent('Check out my dance video from BunnyDance AI! 🐰🕺')}`}
+                                href={`https://t.me/share/url?url=${encodeURIComponent(generatedVideo)}&text=${encodeURIComponent('Check out my dance video from WaifuDance AI! 🐰🕺')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex flex-col items-center gap-1.5 group"
@@ -1179,7 +1179,7 @@ export default function GeneratePage() {
                           {showSocialShare && (
                             <div className="flex justify-center gap-6 mt-6 pt-6 border-t border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                               <a
-                                href={`https://t.me/share/url?url=${encodeURIComponent(uploadedImage || '')}&text=${encodeURIComponent('Check out my creation from BunnyDance AI! 🐰🕺')}`}
+                                href={`https://t.me/share/url?url=${encodeURIComponent(uploadedImage || '')}&text=${encodeURIComponent('Check out my creation from WaifuDance AI! 🐰🕺')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex flex-col items-center gap-1.5 group"

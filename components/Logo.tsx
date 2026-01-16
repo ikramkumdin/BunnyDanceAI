@@ -27,7 +27,7 @@ export default function Logo({ size = 'md', showText = true }: LogoProps) {
       </div>
       {showText && (
         <span className={`${textSizes[size]} font-bold text-white`}>
-          BunnyDance AI
+          WaifuDance AI
         </span>
       )}
     </div>

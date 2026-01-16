@@ -45,7 +45,7 @@ export default function FullScreenVideoModal({
     } else {
       const link = document.createElement('a');
       link.href = videoUrl;
-      link.download = `bunny-dance-${Date.now()}.mp4`;
+      link.download = `waifudance-${Date.now()}.mp4`;
       link.click();
     }
   };

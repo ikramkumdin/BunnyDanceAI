@@ -46,7 +46,7 @@ export default function AssetsPage() {
   const handleDownload = (videoUrl: string, videoId: string) => {
     const link = document.createElement('a');
     link.href = videoUrl;
-    link.download = `bunny-dance-${videoId}.mp4`;
+    link.download = `waifudance-${videoId}.mp4`;
     link.click();
   };
 
@@ -77,14 +77,14 @@ export default function AssetsPage() {
   const handleDownloadImage = (imageUrl: string, imageId: string) => {
     const link = document.createElement('a');
     link.href = imageUrl;
-    link.download = `bunny-dance-image-${imageId}.png`;
+    link.download = `waifudance-image-${imageId}.png`;
     link.click();
   };
 
   const handleShare = async (url: string, type: 'video' | 'image', title?: string) => {
     const shareData = {
-      title: title || 'Bunny Dance AI',
-      text: `Check out this ${type} generated with Bunny Dance AI!`,
+      title: title || 'WaifuDance AI',
+      text: `Check out this ${type} generated with WaifuDance AI!`,
       url: url,
     };
 

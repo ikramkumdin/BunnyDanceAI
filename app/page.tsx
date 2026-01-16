@@ -102,7 +102,7 @@ export default function Home() {
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = `bunny-dance-beauty-${Date.now()}.png`;
+      link.download = `waifudance-beauty-${Date.now()}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -181,7 +181,7 @@ export default function Home() {
         {/* HERO Section */}
         <section className="flex flex-col gap-6 text-center py-12 border-b border-gray-800">
           <h1 className="text-4xl md:text-6xl font-bold text-white bg-gradient-to-r from-primary via-purple-400 to-accent bg-clip-text text-transparent">
-            BunnyDance AI: Instant AI Dance Video Generator
+            WaifuDance AI: Instant AI Dance Video Generator
           </h1>
           <p className="text-gray-300 text-lg md:text-xl max-w-4xl mx-auto leading-relaxed">
             Upload any photo—real or anime—and create short sensual dance videos with effects like twerking, hip shaking, and pole dancing.
@@ -516,7 +516,7 @@ export default function Home() {
                 <ChevronDown className="w-6 h-6 group-open:rotate-180 transition-transform text-purple-400" />
               </summary>
               <div className="mt-6 text-gray-400 text-lg leading-relaxed">
-                Yes! BunnyDance AI is designed to support both real-life photography and diverse anime styles.
+                Yes! WaifuDance AI is designed to support both real-life photography and diverse anime styles.
                 Whether it&apos;s a fan-art piece or an official character shot, our AI accurately captures the aesthetic and transforms it into a fluid hip-shake or dance fantasy.
               </div>
             </details>
