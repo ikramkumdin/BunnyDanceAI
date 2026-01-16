@@ -218,7 +218,7 @@ export default function Home() {
                   <div className="flex flex-col items-center gap-3 p-4 text-center">
                     <Loader2 className="w-10 h-10 animate-spin text-primary" />
                     <p className="text-gray-400 font-medium">Creating masterpiece...</p>
-                    <p className="text-gray-500 text-xs px-4">Kie.ai is processing your unique beauty request. This usually takes 30-60 seconds.</p>
+                    <p className="text-gray-500 text-xs px-4">We are processing your unique beauty request. This usually takes 30-60 seconds.</p>
                   </div>
                 )}
                 {randomError && (
