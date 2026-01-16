@@ -41,7 +41,16 @@ export default function Header({
   return (
     <header className="bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4 fixed top-0 left-0 right-0 z-30 lg:static">
       <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-        {!showBackButton && <Logo size="sm" />}
+        {!showBackButton && (
+          <div className="lg:hidden ml-14 sm:ml-0">
+            <Logo size="sm" />
+          </div>
+        )}
+        {!showBackButton && (
+          <div className="hidden lg:block">
+            <Logo size="sm" />
+          </div>
+        )}
         {showBackButton && (
           <button
             onClick={() => router.back()}

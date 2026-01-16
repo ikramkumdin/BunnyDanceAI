@@ -38,7 +38,7 @@ export default function Sidebar() {
         className="lg:hidden fixed top-4 left-4 z-50 bg-slate-900 p-2 rounded-lg border border-slate-800 text-gray-400 hover:text-white transition-colors"
         aria-label="Toggle menu"
       >
-        {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        <Menu className="w-6 h-6" />
       </button>
 
       {/* Mobile Overlay */}
@@ -55,6 +55,18 @@ export default function Sidebar() {
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
+        {/* Close button for mobile - positioned at top with spacing */}
+        <button
+          onClick={() => setIsMobileOpen(false)}
+          className="lg:hidden absolute top-4 right-2 bg-slate-800 p-1.5 rounded-lg text-gray-400 hover:text-white transition-colors z-10"
+          aria-label="Close menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Spacer for mobile to push content down below close button */}
+        <div className="lg:hidden h-10 w-full" />
+        
         <div className="hidden lg:block">
           <Menu className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white" />
         </div>
