@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import NextImage from 'next/image';
 import { AlertCircle } from 'lucide-react';
 import SignInModal from '@/components/SignInModal';
+import { trackEvent } from '@/lib/analytics';
 
 export default function GeneratePage() {
   const router = useRouter();
@@ -384,6 +385,7 @@ export default function GeneratePage() {
   const handleGenerate = async () => {
     // Check if user is authenticated (has email)
     if (!user || !user.email) {
+      trackEvent('generate_redirect_signin', { mode: 'image_to_video' });
       setIsSignInModalOpen(true);
       return;
     }
@@ -429,6 +431,7 @@ export default function GeneratePage() {
       const data = await response.json();
 
       if (response.ok) {
+        trackEvent('generate_started', { mode: 'image_to_video', has_task_id: !!data.taskId });
         if (data.videoUrl) {
           // Immediate result (rare)
           setGeneratedVideo(data.videoUrl);
@@ -448,6 +451,7 @@ export default function GeneratePage() {
       } else {
         // Check if it's an authentication error
         if (response.status === 401 || response.status === 403) {
+          trackEvent('generate_unauthorized', { mode: 'image_to_video', status: response.status });
           setIsSignInModalOpen(true);
           setIsGenerating(false);
           return;
@@ -472,6 +476,7 @@ export default function GeneratePage() {
   const handleTextToVideo = async () => {
     // Check if user is authenticated (has email)
     if (!user || !user.email) {
+      trackEvent('generate_redirect_signin', { mode: 'text_to_video' });
       setIsSignInModalOpen(true);
       return;
     }
@@ -512,6 +517,7 @@ export default function GeneratePage() {
       const data = await response.json();
 
       if (response.ok) {
+        trackEvent('generate_started', { mode: 'text_to_video', has_task_id: !!data.taskId });
         if (data.videoUrl) {
           // Immediate result (rare)
           setGeneratedVideo(data.videoUrl);
@@ -529,6 +535,12 @@ export default function GeneratePage() {
           setIsGenerating(false);
         }
       } else {
+        if (response.status === 401 || response.status === 403) {
+          trackEvent('generate_unauthorized', { mode: 'text_to_video', status: response.status });
+          setIsSignInModalOpen(true);
+          setIsGenerating(false);
+          return;
+        }
         showNotification(`Generation failed: ${data.error || 'Unknown error'}`, 'error');
         setIsGenerating(false);
       }
@@ -621,6 +633,7 @@ export default function GeneratePage() {
   const handleTextToImage = async () => {
     // Check if user is authenticated (has email)
     if (!user || !user.email) {
+      trackEvent('generate_redirect_signin', { mode: 'text_to_image' });
       setIsSignInModalOpen(true);
       return;
     }
@@ -652,7 +665,10 @@ export default function GeneratePage() {
 
       const response = await fetch('/api/generate-text-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
         body: JSON.stringify({
           prompt: textPrompt,
           userId: user.id,
@@ -660,6 +676,15 @@ export default function GeneratePage() {
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          trackEvent('generate_unauthorized', { mode: 'text_to_image', status: response.status });
+          setIsSignInModalOpen(true);
+          setIsGenerating(false);
+          return;
+        }
+      }
+      trackEvent('generate_started', { mode: 'text_to_image', has_task_id: !!data.taskId });
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to initiate image generation');

@@ -11,6 +11,7 @@ import { useStore } from '@/store/useStore';
 
 import { beautyPrompts } from '@/data/beauty-prompts';
 import { useUser } from '@/hooks/useUser';
+import { trackEvent } from '@/lib/analytics';
 
 export default function Home() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function Home() {
   const handleRandomGenerate = async () => {
     // Redirect to sign-in if not authenticated
     if (!user || !user.email) {
+      trackEvent('random_beauty_redirect_signin', { from: 'home' });
       router.push(`/signin?next=${encodeURIComponent('/')}`);
       return;
     }
@@ -65,6 +67,7 @@ export default function Home() {
       if (!response.ok) {
         // If auth error, redirect to sign-in instead of showing error
         if (response.status === 401 || response.status === 403) {
+          trackEvent('random_beauty_unauthorized', { status: response.status });
           router.push(`/signin?next=${encodeURIComponent('/')}`);
           setIsGeneratingRandom(false);
           activeRandomTaskId.current = null;
@@ -72,6 +75,7 @@ export default function Home() {
         }
         throw new Error(data.error || 'Failed to start generation');
       }
+      trackEvent('random_beauty_started', { provider: data.provider || 'kie' });
 
       const taskId = data.taskId;
       activeRandomTaskId.current = taskId;

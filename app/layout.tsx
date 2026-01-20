@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import AnalyticsTracker from "@/components/AnalyticsTracker";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "WaifuDance AI - AI Dance Video Generator for Twerk & Anime Waifu Animations",
@@ -59,7 +61,12 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}>
+          <AnalyticsTracker />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }
