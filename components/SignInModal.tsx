@@ -258,7 +258,7 @@ export default function SignInModal({ isOpen, onClose }: SignInModalProps) {
                 Forgot password?
               </button>
               <div className="text-center text-gray-400">
-                Don't have an account?{' '}
+                Don&apos;t have an account?{' '}
                 <button
                   onClick={() => switchMode('signup')}
                   className="text-primary hover:text-primary-dark transition-colors font-semibold"
