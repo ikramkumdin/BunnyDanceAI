@@ -49,6 +49,26 @@ export async function getUser(userId: string): Promise<User | null> {
   }
 }
 
+export async function getUserByEmail(email: string): Promise<User | null> {
+  try {
+    const database = await getDb();
+    const q = query(
+      collection(database, USERS_COLLECTION),
+      where('email', '==', email),
+      limit(1)
+    );
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const userDoc = querySnapshot.docs[0];
+      return { id: userDoc.id, ...userDoc.data() } as User;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting user by email:', error);
+    return null;
+  }
+}
+
 export async function createUser(userData: Omit<User, 'id'>): Promise<string> {
   try {
     const database = await getDb();

@@ -14,6 +14,7 @@ import { MAX_RETRIES, POLL_INTERVAL_MS } from '@/config/polling';
 import { motion, AnimatePresence } from 'framer-motion';
 import NextImage from 'next/image';
 import { AlertCircle } from 'lucide-react';
+import SignInModal from '@/components/SignInModal';
 
 export default function GeneratePage() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function GeneratePage() {
   const [showTemplateHint, setShowTemplateHint] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showSocialShare, setShowSocialShare] = useState(false);
+  const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
 
   const {
     selectedTemplate: persistedTemplate,
@@ -154,7 +156,8 @@ export default function GeneratePage() {
         createdAt: new Date().toISOString(),
       });
 
-      // Update local store for immediate persistence
+      // Update local store for immediate UI update (not persisted to localStorage)
+      // Assets are stored in Firestore only
       addImageToStore({
         id: imageId,
         userId: user.id,
@@ -165,7 +168,7 @@ export default function GeneratePage() {
         type: 'image',
         createdAt: new Date().toISOString(),
       });
-      console.log('✅ Image saved to assets');
+      console.log('✅ Image saved to Firestore');
       return true;
     } catch (error) {
       console.error('❌ Error saving image to assets:', error);
@@ -190,7 +193,8 @@ export default function GeneratePage() {
         createdAt: new Date().toISOString(),
       });
 
-      // Update local store for immediate persistence
+      // Update local store for immediate UI update (not persisted to localStorage)
+      // Assets are stored in Firestore only
       addVideoToStore({
         id: videoId,
         userId: user.id,
@@ -203,7 +207,7 @@ export default function GeneratePage() {
         type: 'video',
         createdAt: new Date().toISOString(),
       });
-      console.log('✅ Video saved to assets');
+      console.log('✅ Video saved to Firestore');
     } catch (error) {
       console.error('❌ Error saving video to assets:', error);
     }
@@ -378,7 +382,13 @@ export default function GeneratePage() {
 
   // Handle generation
   const handleGenerate = async () => {
-    if (!uploadedImage || !selectedTemplate || !user) return;
+    // Check if user is authenticated (has email)
+    if (!user || !user.email) {
+      setIsSignInModalOpen(true);
+      return;
+    }
+
+    if (!uploadedImage || !selectedTemplate) return;
     const hasHttpImageUrl = !!imageUrl && imageUrl.startsWith('http');
     const hasBase64Image = !!base64Image && base64Image.startsWith('data:image/');
     if (!hasHttpImageUrl && !hasBase64Image) {
@@ -388,9 +398,23 @@ export default function GeneratePage() {
 
     setIsGenerating(true);
     try {
+      // Get Firebase Auth token
+      const { auth } = await import('@/lib/firebase');
+      const { getIdToken } = await import('firebase/auth');
+      const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+      
+      if (!idToken) {
+        setIsSignInModalOpen(true);
+        setIsGenerating(false);
+        return;
+      }
+
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({
           // Always include base64 when available so the server can upload directly to Kie File Upload API.
           // This avoids Kie failing to fetch from GCS URLs (signed/public access quirks).
@@ -422,11 +446,23 @@ export default function GeneratePage() {
           setIsGenerating(false);
         }
       } else {
+        // Check if it's an authentication error
+        if (response.status === 401 || response.status === 403) {
+          setIsSignInModalOpen(true);
+          setIsGenerating(false);
+          return;
+        }
         showNotification(`Generation failed: ${data.error || 'Unknown error'}`, 'error');
         setIsGenerating(false);
       }
     } catch (error) {
       console.error('Generation error:', error);
+      // Check if it's an authentication error
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
+        setIsSignInModalOpen(true);
+        setIsGenerating(false);
+        return;
+      }
       showNotification('Failed to generate video. Please try again.', 'error');
       setIsGenerating(false);
     }
@@ -434,7 +470,13 @@ export default function GeneratePage() {
 
   // Handle text-to-video generation
   const handleTextToVideo = async () => {
-    if (!textPrompt || !user) {
+    // Check if user is authenticated (has email)
+    if (!user || !user.email) {
+      setIsSignInModalOpen(true);
+      return;
+    }
+
+    if (!textPrompt) {
       showNotification('Please enter a prompt for your video', 'error');
       return;
     }
@@ -444,9 +486,23 @@ export default function GeneratePage() {
     setShowGeneratedVideoActions(false);
     setHasSavedGeneratedVideo(false);
     try {
+      // Get Firebase Auth token
+      const { auth } = await import('@/lib/firebase');
+      const { getIdToken } = await import('firebase/auth');
+      const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+      
+      if (!idToken) {
+        setIsSignInModalOpen(true);
+        setIsGenerating(false);
+        return;
+      }
+
       const response = await fetch('/api/generate-text-video', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({
           prompt: textPrompt,
           userId: user.id,
@@ -563,7 +619,13 @@ export default function GeneratePage() {
 
   // Handle text-to-image generation
   const handleTextToImage = async () => {
-    if (!textPrompt || !user) {
+    // Check if user is authenticated (has email)
+    if (!user || !user.email) {
+      setIsSignInModalOpen(true);
+      return;
+    }
+
+    if (!textPrompt) {
       showNotification('Please enter a prompt for your image', 'error');
       return;
     }
@@ -577,6 +639,17 @@ export default function GeneratePage() {
     setHasSavedGeneratedImage(false);
 
     try {
+      // Get Firebase Auth token
+      const { auth } = await import('@/lib/firebase');
+      const { getIdToken } = await import('firebase/auth');
+      const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+      
+      if (!idToken) {
+        setIsSignInModalOpen(true);
+        setIsGenerating(false);
+        return;
+      }
+
       const response = await fetch('/api/generate-text-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1425,6 +1498,10 @@ export default function GeneratePage() {
           </motion.div>
         )}
       </AnimatePresence>
+      <SignInModal 
+        isOpen={isSignInModalOpen} 
+        onClose={() => setIsSignInModalOpen(false)} 
+      />
     </Layout>
   );
 }

@@ -17,31 +17,43 @@ export default function AssetsPage() {
   const { user, isLoading: userLoading } = useUser();
   const { videos, setVideos, images, setImages } = useStore();
   const [activeTab, setActiveTab] = useState<AssetType>('all');
-  const [isLoading, setIsLoading] = useState(videos.length === 0 && images.length === 0);
+  const [isLoading, setIsLoading] = useState(true); // Always start with loading true
 
   const loadAssets = async () => {
-    if (!user) return;
+    if (!user) {
+      // Clear assets if no user
+      setVideos([]);
+      setImages([]);
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
     try {
+      // Always load from Firestore (user-based storage)
       const [userVideos, userImages] = await Promise.all([
         getUserVideos(user.id),
         getUserImages(user.id)
       ]);
+      // Update store for UI reactivity, but these are NOT persisted to localStorage
       setVideos(userVideos);
       setImages(userImages);
     } catch (error) {
       console.error('Error loading assets:', error);
+      // Clear assets on error
+      setVideos([]);
+      setImages([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user && !userLoading) {
+    // Always reload assets when user changes
+    if (!userLoading) {
       loadAssets();
     }
-  }, [user, userLoading]);
+  }, [user?.id, userLoading]); // Reload when user ID changes
 
   const handleDownload = (videoUrl: string, videoId: string) => {
     const link = document.createElement('a');

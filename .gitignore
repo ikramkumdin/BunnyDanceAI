@@ -1,3 +1,6 @@
+# Ignore mobile app folder (kept out of main web repo)
+/mobile/
+
 # Dependencies
 node_modules/
 npm-debug.log*

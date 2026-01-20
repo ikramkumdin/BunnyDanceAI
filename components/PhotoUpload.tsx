@@ -218,69 +218,34 @@ export default function PhotoUpload({ onImageSelect, maxSize = 10 }: PhotoUpload
     try {
       const base64Data = await base64Promise;
 
-      // 1) Get signed upload URL
-      const sigRes = await fetch('/api/upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          contentType: uploadFile.type,
-          fileName: uploadFile.name,
-          folder: 'images',
-        }),
+      // Use /api/upload endpoint to avoid CORS issues with direct GCS upload
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('userId', user.id);
+      
+      const response = await fetch('/api/upload', { 
+        method: 'POST', 
+        body: formData 
       });
-
-      const sigText = await sigRes.text();
-      let sigData: any = null;
+      
+      const rawText = await response.text();
+      let data: any = null;
       try {
-        sigData = sigText ? JSON.parse(sigText) : null;
+        data = rawText ? JSON.parse(rawText) : null;
       } catch {
-        sigData = null;
+        data = null;
       }
-
-      if (!sigRes.ok || !sigData?.uploadUrl || !sigData?.publicUrl) {
-        console.error('Failed to get signed upload URL:', sigRes.status, sigText);
-        // Fallback to legacy /api/upload for small files (may 413 on Vercel for larger images)
-        const formData = new FormData();
-        formData.append('file', uploadFile);
-        formData.append('userId', user.id);
-        const response = await fetch('/api/upload', { method: 'POST', body: formData });
-        const rawText = await response.text();
-        let data: any = null;
-        try {
-          data = rawText ? JSON.parse(rawText) : null;
-        } catch {
-          data = null;
-        }
-        if (response.ok && data?.imageUrl) {
-          setUploadedImage(data.imageUrl);
-          setPreview(data.imageUrl);
-          onImageSelect({ gcpUrl: data.imageUrl, base64Url: base64Data });
-          return;
-        }
-        console.error('Legacy upload failed:', response.status, rawText);
-        onImageSelect({ gcpUrl: '', base64Url: base64Data });
+      
+      if (response.ok && data?.imageUrl) {
+        setUploadedImage(data.imageUrl);
+        setPreview(data.imageUrl);
+        onImageSelect({ gcpUrl: data.imageUrl, base64Url: base64Data });
         return;
       }
-
-      // 2) PUT file directly to GCS
-      const putRes = await fetch(sigData.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': uploadFile.type },
-        body: uploadFile,
-      });
-
-      if (!putRes.ok) {
-        const putText = await putRes.text();
-        console.error('Direct upload failed:', putRes.status, putText);
-        onImageSelect({ gcpUrl: '', base64Url: base64Data });
-        return;
-      }
-
-      // 3) Use public URL for generation
-      setUploadedImage(sigData.publicUrl);
-      setPreview(sigData.publicUrl);
-      onImageSelect({ gcpUrl: sigData.publicUrl, base64Url: base64Data });
+      
+      console.error('Upload failed:', response.status, rawText);
+      // Keep base64 preview even if upload fails
+      onImageSelect({ gcpUrl: '', base64Url: base64Data });
     } catch (error) {
       console.error('Upload error:', error);
       // Keep the base64 preview even if upload fails

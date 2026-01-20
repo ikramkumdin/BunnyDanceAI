@@ -44,16 +44,18 @@ export const useStore = create<AppState>()(
     {
       name: 'bunny-dance-storage',
       partialize: (state) => ({
-        // Persist user and assets (metadata only)
+        // Only persist user, uploadedImage, selectedTemplate, and isAgeVerified
+        // Assets (videos/images) are now stored ONLY in Firestore, not localStorage
         user: state.user,
-        videos: state.videos,
-        images: state.images,
         // Only persist GCP URLs (not base64), and only if it's a URL (not base64)
         uploadedImage: state.uploadedImage && !state.uploadedImage.startsWith('data:')
           ? state.uploadedImage
           : null,
         isAgeVerified: state.isAgeVerified,
         selectedTemplate: state.selectedTemplate,
+        // Explicitly exclude videos and images from persistence
+        // videos: undefined,
+        // images: undefined,
       }),
     }
   )

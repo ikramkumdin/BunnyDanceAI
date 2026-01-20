@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, MessageCircle, Gem, Upload, Search, Camera, Menu } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Gem, Upload, Search, Camera, Menu, User, LogOut } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import Logo from './Logo';
+import SignInModal from './SignInModal';
+import { signOut } from '@/lib/auth';
 
 interface HeaderProps {
   showBackButton?: boolean;
@@ -28,8 +30,9 @@ export default function Header({
   setIsMobileMenuOpen
 }: HeaderProps) {
   const router = useRouter();
-  const { user } = useStore();
+  const { user, setUser } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +44,22 @@ export default function Header({
   const handleUploadClick = () => {
     router.push('/generate');
   };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setUser(null);
+      // Clear assets from store (they're stored in Firestore, not localStorage)
+      const { useStore } = await import('@/store/useStore');
+      const store = useStore.getState();
+      store.setVideos([]);
+      store.setImages([]);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  const isAuthenticated = user?.email;
 
   return (
     <header className="bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4 fixed top-0 left-0 right-0 z-30 lg:static">
@@ -144,7 +163,33 @@ export default function Header({
           <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
           <span className="text-xs sm:text-sm font-semibold">{user?.credits ?? 0}</span>
         </div>
+        {isAuthenticated ? (
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-2 text-gray-400 text-xs sm:text-sm">
+              <User className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden md:inline truncate max-w-[120px]">{user.email}</span>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1 sm:gap-2 text-gray-400 hover:text-white transition-colors text-xs sm:text-sm"
+              title="Sign out"
+            >
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsSignInModalOpen(true)}
+            className="flex items-center gap-1 sm:gap-2 bg-primary hover:bg-primary-dark text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors font-medium text-xs sm:text-sm"
+          >
+            <User className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Sign In</span>
+            <span className="sm:hidden">Sign In</span>
+          </button>
+        )}
       </div>
+      <SignInModal isOpen={isSignInModalOpen} onClose={() => setIsSignInModalOpen(false)} />
     </header>
   );
 }

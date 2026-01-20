@@ -3,6 +3,7 @@ import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { getAnalytics, Analytics } from "firebase/analytics";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
+import { getAuth, Auth } from "firebase/auth";
 
 // Your web app's Firebase configuration - using bunnydanceai project
 // ⚠️ SECURITY: All Firebase config values should come from environment variables
@@ -22,35 +23,57 @@ if (typeof window !== "undefined" && !firebaseConfig.apiKey) {
   console.warn("⚠️ NEXT_PUBLIC_FIREBASE_API_KEY is not set. Firebase may not work correctly.");
 }
 
+// Validate Firebase config
+if (typeof window !== "undefined" && (!firebaseConfig.apiKey || !firebaseConfig.authDomain)) {
+  console.error("❌ Firebase Auth configuration is incomplete. Please set NEXT_PUBLIC_FIREBASE_API_KEY and NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN environment variables.");
+}
+
 // Initialize Firebase
 let app: FirebaseApp;
 let analytics: Analytics | null = null;
 let db: Firestore;
 let storage: FirebaseStorage;
+let auth: Auth | null = null;
 
 if (typeof window !== "undefined") {
   // Only initialize if not already initialized
   if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-    // Analytics only works in browser
-    analytics = getAnalytics(app);
+    try {
+      app = initializeApp(firebaseConfig);
+      // Analytics only works in browser
+      analytics = getAnalytics(app);
+    } catch (error) {
+      console.error("❌ Firebase initialization error:", error);
+      throw error;
+    }
   } else {
     app = getApps()[0];
   }
 
   db = getFirestore(app);
   storage = getStorage(app);
+  
+  // Only initialize Auth if we have valid config
+  try {
+    if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
+      auth = getAuth(app);
+    } else {
+      console.warn("⚠️ Firebase Auth not initialized: Missing API key or auth domain. Please configure Firebase Auth in Firebase Console.");
+    }
+  } catch (error) {
+    console.error("❌ Firebase Auth initialization error:", error);
+    console.warn("⚠️ Firebase Auth will not be available. Please enable Authentication in Firebase Console.");
+    auth = null;
+  }
 } else {
   // Server-side initialization
   app = initializeApp(firebaseConfig);
   db = getFirestore(app);
   storage = getStorage(app);
+  // Auth is client-side only
 }
 
-// NOTE: We intentionally do NOT initialize/export Firebase Auth.
-// This app uses a localStorage/Firestore user model, and initializing Auth can
-// trigger identitytoolkit calls and noisy CONFIGURATION_NOT_FOUND errors.
-export { app, analytics, db, storage };
+export { app, analytics, db, storage, auth };
 export default app;
 
 

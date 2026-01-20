@@ -1,13 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyAuthToken } from '@/lib/verify-auth';
+import { getUserAdmin } from '@/lib/firestore-admin';
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication
+    const authUid = await verifyAuthToken(request);
+    if (!authUid) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Please sign in to generate images' },
+        { status: 401 }
+      );
+    }
+
     const { prompt, userId } = await request.json();
 
     if (!prompt) {
       return NextResponse.json(
         { error: 'Prompt is required' },
         { status: 400 }
+      );
+    }
+
+    // Verify userId matches authenticated user
+    if (userId && userId !== authUid) {
+      return NextResponse.json(
+        { error: 'Unauthorized: User ID mismatch' },
+        { status: 403 }
+      );
+    }
+
+    // Verify user exists and has email (signed in user)
+    const user = await getUserAdmin(authUid);
+    if (!user || !user.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Please sign in with email or Google to generate images' },
+        { status: 401 }
       );
     }
 

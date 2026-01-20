@@ -10,10 +10,12 @@ import Layout from '@/components/Layout';
 import { useStore } from '@/store/useStore';
 
 import { beautyPrompts } from '@/data/beauty-prompts';
+import { useUser } from '@/hooks/useUser';
 
 export default function Home() {
   const router = useRouter();
   const setStoreUploadedImage = useStore((state) => state.setUploadedImage);
+  const { user } = useUser();
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory>('all');
   const [activeTab, setActiveTab] = useState<'trending' | 'my-effect'>('trending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,6 +28,12 @@ export default function Home() {
   const activeRandomTaskId = useRef<string | null>(null);
 
   const handleRandomGenerate = async () => {
+    // Redirect to sign-in if not authenticated
+    if (!user || !user.email) {
+      router.push(`/signin?next=${encodeURIComponent('/')}`);
+      return;
+    }
+
     setIsGeneratingRandom(true);
     setRandomError(null);
     setRandomImageUrl(null);
@@ -33,14 +41,37 @@ export default function Home() {
     try {
       const randomPrompt = beautyPrompts[Math.floor(Math.random() * beautyPrompts.length)];
 
+      // Get Firebase Auth token for protected endpoint
+      const { auth } = await import('@/lib/firebase');
+      const { getIdToken } = await import('firebase/auth');
+      const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+
+      if (!idToken) {
+        router.push(`/signin?next=${encodeURIComponent('/')}`);
+        setIsGeneratingRandom(false);
+        return;
+      }
+
       const response = await fetch('/api/generate-text-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: randomPrompt }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ prompt: randomPrompt, userId: user.id }),
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to start generation');
+      if (!response.ok) {
+        // If auth error, redirect to sign-in instead of showing error
+        if (response.status === 401 || response.status === 403) {
+          router.push(`/signin?next=${encodeURIComponent('/')}`);
+          setIsGeneratingRandom(false);
+          activeRandomTaskId.current = null;
+          return;
+        }
+        throw new Error(data.error || 'Failed to start generation');
+      }
 
       const taskId = data.taskId;
       activeRandomTaskId.current = taskId;
