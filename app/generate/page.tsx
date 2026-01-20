@@ -50,7 +50,7 @@ export default function GeneratePage() {
     addImage: addImageToStore
   } = useStore();
   const { user } = useUser();
-  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTaskIdRef = useRef<string | null>(null);
   const activeModeRef = useRef<'image-to-video' | 'text-to-video' | 'text-to-image' | null>('image-to-video');
 

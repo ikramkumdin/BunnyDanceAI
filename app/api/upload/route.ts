@@ -3,9 +3,13 @@ import { uploadImage } from '@/lib/storage';
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const userId = formData.get('userId') as string || 'anonymous';
+    // NextRequest.formData() returns a web FormData (undici) at runtime, but TS can
+    // sometimes pick up a Node FormData type without .get(). Cast to the web FormData shape.
+    const formData = (await request.formData()) as unknown as {
+      get(name: string): FormDataEntryValue | null;
+    };
+    const file = formData.get('file') as File | null;
+    const userId = (formData.get('userId') as string | null) || 'anonymous';
 
     if (!file) {
       return NextResponse.json(
