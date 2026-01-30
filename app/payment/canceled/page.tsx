@@ -33,7 +33,7 @@ export default function PaymentCanceledPage() {
               What happened?
             </h2>
             <ul className="space-y-2 text-white/70">
-              <li>• You clicked "Cancel" during checkout</li>
+              <li>• You clicked &quot;Cancel&quot; during checkout</li>
               <li>• You closed the PayPal window before completing payment</li>
               <li>• The payment session timed out</li>
             </ul>

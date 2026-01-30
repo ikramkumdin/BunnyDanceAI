@@ -84,7 +84,9 @@ export async function POST(request: NextRequest) {
         id: uid,
         email: userEmail,
         tier: 'free',
-        credits: 100, // Give 100 credits to new mobile users
+        credits: 100, // Legacy field, kept for backward compatibility
+        imageCredits: 3, // Free tier: 3 image credits
+        videoCredits: 3, // Free tier: 3 video credits
         dailyVideoCount: 0,
         lastVideoDate: new Date().toISOString(),
         isAgeVerified: false,

@@ -81,7 +81,7 @@ export default function CreditsDisplay({ user, onUpgrade }: CreditsDisplayProps)
         <div className="mt-3 pt-3 border-t border-white/10">
           <p className="text-xs text-yellow-300 flex items-center gap-2">
             <Sparkles className="w-3 h-3" />
-            You've used all your free credits. Upgrade to continue!
+            You&apos;ve used all your free credits. Upgrade to continue!
           </p>
         </div>
       )}
