@@ -159,10 +159,24 @@ export default function Header({
           <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
           <span className="hidden md:inline">Join us</span>
         </button>
-        <div className="flex items-center gap-1 sm:gap-2">
-          <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-          <span className="text-xs sm:text-sm font-semibold">{user?.credits ?? 0}</span>
-        </div>
+        {/* Credits Display */}
+        {user && (
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            {user.tier === 'pro' || user.tier === 'lifetime' ? (
+              <span className="text-xs sm:text-sm font-semibold text-primary">Unlimited</span>
+            ) : (
+              <div className="flex items-center gap-1 sm:gap-2">
+                <span className="text-xs sm:text-sm font-semibold">
+                  <span className="text-green-400">{(user.imageCredits || 0)}</span>
+                  <span className="text-gray-400 mx-1">/</span>
+                  <span className="text-blue-400">{(user.videoCredits || 0)}</span>
+                </span>
+                <span className="hidden sm:inline text-xs text-gray-400">credits</span>
+              </div>
+            )}
+          </div>
+        )}
         {isAuthenticated ? (
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-2 text-gray-400 text-xs sm:text-sm">

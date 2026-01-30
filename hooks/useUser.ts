@@ -241,6 +241,19 @@ export function useUser() {
     }
   };
 
-  return { user, updateUser, resetDailyCount, isLoading };
+  const refreshUser = async () => {
+    if (user?.id) {
+      try {
+        const updatedUser = await getUser(user.id);
+        if (updatedUser) {
+          setUser(updatedUser);
+        }
+      } catch (error) {
+        console.error('Error refreshing user:', error);
+      }
+    }
+  };
+
+  return { user, updateUser, resetDailyCount, isLoading, refreshUser };
 }
 

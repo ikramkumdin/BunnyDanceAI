@@ -4,11 +4,13 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle, Mail, ExternalLink, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { useUser } from '@/hooks/useUser';
 
 function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [countdown, setCountdown] = useState(10);
+  const { refreshUser } = useUser();
 
   // Get transaction details from URL params
   const txId = searchParams.get('tx') || searchParams.get('txn_id');
@@ -17,6 +19,10 @@ function PaymentSuccessContent() {
   const payerId = searchParams.get('payer_id');
 
   useEffect(() => {
+    // Refresh user credits when payment success page loads
+    // This ensures credits are updated after PayPal payment
+    refreshUser();
+    
     // Countdown redirect to generate page
     const timer = setInterval(() => {
       setCountdown((prev) => {
@@ -30,7 +36,7 @@ function PaymentSuccessContent() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [router]);
+  }, [router, refreshUser]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-900 to-rose-900 flex items-center justify-center p-4">

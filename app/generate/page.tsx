@@ -54,7 +54,7 @@ export default function GeneratePage() {
     addVideo: addVideoToStore,
     addImage: addImageToStore
   } = useStore();
-  const { user } = useUser();
+  const { user, refreshUser } = useUser();
   const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTaskIdRef = useRef<string | null>(null);
   const activeModeRef = useRef<'image-to-video' | 'text-to-video' | 'text-to-image' | null>('image-to-video');
@@ -65,11 +65,10 @@ export default function GeneratePage() {
   }, []);
 
   const handleSelectPaymentTier = useCallback(async (tier: PaymentTier) => {
-    console.log('Selected tier:', tier);
-    // TODO: Implement actual payment flow (Stripe/Lemon Squeezy)
-    showNotification('Payment integration coming soon! Contact support to upgrade.', 'success');
-    setIsPaymentModalOpen(false);
-  }, [showNotification]);
+    // Payment is now handled directly in PaymentModal via PayPal button
+    // This callback is kept for compatibility but shouldn't be called
+    console.log('Payment handled via PayPal in PaymentModal');
+  }, []);
 
   // Clear any existing timeouts when the component unmounts
   useEffect(() => {
@@ -316,7 +315,46 @@ export default function GeneratePage() {
             if (pollData.status === 'failed' || pollData.status === 'error') {
               const errorMsg = pollData.error || pollData.details || pollData.msg || 'Video generation failed';
               console.error('❌ Video generation failed at provider:', errorMsg);
-              showNotification(`Generation Failed: ${errorMsg}`, 'error');
+              
+              // Refund credit when generation fails
+              if (user && user.tier === 'free') {
+                try {
+                  const { auth } = await import('@/lib/firebase');
+                  const { getIdToken } = await import('firebase/auth');
+                  const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+                  
+                  if (idToken) {
+                    const refundResponse = await fetch('/api/refund-credit', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`,
+                      },
+                      body: JSON.stringify({
+                        type: 'video',
+                        taskId: taskId,
+                      }),
+                    });
+                    
+                    if (refundResponse.ok) {
+                      console.log('💳 Refunded video credit due to generation failure');
+                      refreshUser(); // Refresh credits display
+                      showNotification(`Generation Failed: ${errorMsg}. Credit has been refunded.`, 'error');
+                    } else {
+                      console.error('Failed to refund credit:', await refundResponse.text());
+                      showNotification(`Generation Failed: ${errorMsg}`, 'error');
+                    }
+                  } else {
+                    showNotification(`Generation Failed: ${errorMsg}`, 'error');
+                  }
+                } catch (refundError) {
+                  console.error('Failed to refund credit:', refundError);
+                  showNotification(`Generation Failed: ${errorMsg}`, 'error');
+                }
+              } else {
+                showNotification(`Generation Failed: ${errorMsg}`, 'error');
+              }
+              
               setIsGenerating(false);
               return; // STOP POLLING
             }
@@ -332,6 +370,8 @@ export default function GeneratePage() {
               setShowGeneratedVideoActions(true);
               setHasSavedGeneratedVideo(false);
               setIsGenerating(false);
+              // Refresh user credits after successful generation
+              refreshUser();
               return;
             }
           }
@@ -362,6 +402,8 @@ export default function GeneratePage() {
         console.log('🎬 Video ready from database:', data.videoUrl);
         setGeneratedVideo(data.videoUrl);
         setShowGeneratedVideoActions(true);
+        // Refresh user credits after successful generation
+        refreshUser();
         setHasSavedGeneratedVideo(false);
         setIsGenerating(false);
         // Do NOT save again (DB already has it)
@@ -382,8 +424,36 @@ export default function GeneratePage() {
         }
       } else {
         console.log('⏰ Video generation timeout after 20 minutes');
+        
+        // Refund credit on timeout (user shouldn't lose credit for long waits)
+        if (user && user.tier === 'free' && taskId) {
+          try {
+            const { auth } = await import('@/lib/firebase');
+            const { getIdToken } = await import('firebase/auth');
+            const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+            
+            if (idToken) {
+              await fetch('/api/refund-credit', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({
+                  type: 'video',
+                  taskId: taskId,
+                }),
+              });
+              console.log('💳 Refunded video credit due to timeout');
+              refreshUser();
+            }
+          } catch (refundError) {
+            console.error('Failed to refund credit on timeout:', refundError);
+          }
+        }
+        
         setIsGenerating(false);
-        showNotification('Video generation is taking longer than expected. Please check back in a few minutes.', 'error');
+        showNotification('Video generation is taking longer than expected. Credit has been refunded. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Polling error:', error);
@@ -736,6 +806,8 @@ export default function GeneratePage() {
         setGenerationProgress('');
         setShowGeneratedImageActions(true);
         setHasSavedGeneratedImage(false);
+        // Refresh user credits after successful generation
+        refreshUser();
         return;
       }
 
@@ -756,9 +828,37 @@ export default function GeneratePage() {
           if (attempts >= MAX_RETRIES) {
             console.log(`⏰ Image generation timeout after ${MAX_RETRIES} attempts.`);
             console.log('💡 The image might still be generating. Check Kie.ai dashboard: https://kie.ai/logs');
+            
+            // Refund credit on timeout
+            if (user && user.tier === 'free' && data.taskId) {
+              try {
+                const { auth } = await import('@/lib/firebase');
+                const { getIdToken } = await import('firebase/auth');
+                const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+                
+                if (idToken) {
+                  await fetch('/api/refund-credit', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify({
+                      type: 'image',
+                      taskId: data.taskId,
+                    }),
+                  });
+                  console.log('💳 Refunded image credit due to timeout');
+                  refreshUser();
+                }
+              } catch (refundError) {
+                console.error('Failed to refund credit on timeout:', refundError);
+              }
+            }
+            
             setIsGenerating(false);
             setGenerationProgress('');
-            showNotification('Image generation timed out. It might still be processing.', 'error');
+            showNotification('Image generation timed out. Credit has been refunded. Please try again.', 'error');
             return;
           }
 
@@ -780,9 +880,49 @@ export default function GeneratePage() {
             } else if (pollData.status === 'COMPLETED' && pollData.imageUrl) {
               finalImageUrl = pollData.imageUrl;
               console.log('🎉 Found image via polling!', finalImageUrl);
-            } else if (pollData.status === 'FAILED') {
-              console.error('❌ Image generation failed:', pollData.error);
-              showNotification(`Image generation failed: ${pollData.error || 'Unknown error'}`, 'error');
+            } else if (pollData.status === 'FAILED' || pollData.status === 'failed' || pollData.status === 'error') {
+              const errorMsg = pollData.error || pollData.details || pollData.msg || 'Image generation failed';
+              console.error('❌ Image generation failed:', errorMsg);
+              
+              // Refund credit when generation fails
+              if (user && user.tier === 'free') {
+                try {
+                  const { auth } = await import('@/lib/firebase');
+                  const { getIdToken } = await import('firebase/auth');
+                  const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+                  
+                  if (idToken) {
+                    const refundResponse = await fetch('/api/refund-credit', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`,
+                      },
+                      body: JSON.stringify({
+                        type: 'image',
+                        taskId: data.taskId,
+                      }),
+                    });
+                    
+                    if (refundResponse.ok) {
+                      console.log('💳 Refunded image credit due to generation failure');
+                      refreshUser(); // Refresh credits display
+                      showNotification(`Image generation failed: ${errorMsg}. Credit has been refunded.`, 'error');
+                    } else {
+                      console.error('Failed to refund credit:', await refundResponse.text());
+                      showNotification(`Image generation failed: ${errorMsg}`, 'error');
+                    }
+                  } else {
+                    showNotification(`Image generation failed: ${errorMsg}`, 'error');
+                  }
+                } catch (refundError) {
+                  console.error('Failed to refund credit:', refundError);
+                  showNotification(`Image generation failed: ${errorMsg}`, 'error');
+                }
+              } else {
+                showNotification(`Image generation failed: ${errorMsg}`, 'error');
+              }
+              
               setIsGenerating(false);
               setGenerationProgress('');
               return;
@@ -796,6 +936,8 @@ export default function GeneratePage() {
               setGenerationProgress('');
               setShowGeneratedImageActions(true);
               setHasSavedGeneratedImage(false);
+              // Refresh user credits after successful generation
+              refreshUser();
               return;
             }
           } catch (pollingError) {
@@ -1575,8 +1717,7 @@ export default function GeneratePage() {
       />
       <PaymentModal 
         isOpen={isPaymentModalOpen} 
-        onClose={() => setIsPaymentModalOpen(false)} 
-        onSelectTier={handleSelectPaymentTier}
+        onClose={() => setIsPaymentModalOpen(false)}
       />
     </Layout>
   );
