@@ -15,7 +15,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import NextImage from 'next/image';
 import { AlertCircle } from 'lucide-react';
 import SignInModal from '@/components/SignInModal';
+import PaymentModal from '@/components/PaymentModal';
+import CreditsDisplay from '@/components/CreditsDisplay';
 import { trackEvent } from '@/lib/analytics';
+import { PaymentTier } from '@/lib/payment';
 
 export default function GeneratePage() {
   const router = useRouter();
@@ -41,6 +44,7 @@ export default function GeneratePage() {
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showSocialShare, setShowSocialShare] = useState(false);
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   const {
     selectedTemplate: persistedTemplate,
@@ -59,6 +63,13 @@ export default function GeneratePage() {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000); // Auto-dismiss after 5s
   }, []);
+
+  const handleSelectPaymentTier = useCallback(async (tier: PaymentTier) => {
+    console.log('Selected tier:', tier);
+    // TODO: Implement actual payment flow (Stripe/Lemon Squeezy)
+    showNotification('Payment integration coming soon! Contact support to upgrade.', 'success');
+    setIsPaymentModalOpen(false);
+  }, [showNotification]);
 
   // Clear any existing timeouts when the component unmounts
   useEffect(() => {
@@ -450,9 +461,17 @@ export default function GeneratePage() {
         }
       } else {
         // Check if it's an authentication error
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
           trackEvent('generate_unauthorized', { mode: 'image_to_video', status: response.status });
           setIsSignInModalOpen(true);
+          setIsGenerating(false);
+          return;
+        }
+        // Check if it's a credits error
+        if (response.status === 403 && data.needsUpgrade) {
+          trackEvent('generate_no_credits', { mode: 'image_to_video' });
+          showNotification('No credits remaining. Please upgrade to continue.', 'error');
+          setIsPaymentModalOpen(true);
           setIsGenerating(false);
           return;
         }
@@ -535,9 +554,17 @@ export default function GeneratePage() {
           setIsGenerating(false);
         }
       } else {
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
           trackEvent('generate_unauthorized', { mode: 'text_to_video', status: response.status });
           setIsSignInModalOpen(true);
+          setIsGenerating(false);
+          return;
+        }
+        // Check if it's a credits error
+        if (response.status === 403 && data.needsUpgrade) {
+          trackEvent('generate_no_credits', { mode: 'text_to_video' });
+          showNotification('No credits remaining. Please upgrade to continue.', 'error');
+          setIsPaymentModalOpen(true);
           setIsGenerating(false);
           return;
         }
@@ -677,10 +704,19 @@ export default function GeneratePage() {
 
       const data = await response.json();
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
           trackEvent('generate_unauthorized', { mode: 'text_to_image', status: response.status });
           setIsSignInModalOpen(true);
           setIsGenerating(false);
+          return;
+        }
+        // Check if it's a credits error
+        if (response.status === 403 && data.needsUpgrade) {
+          trackEvent('generate_no_credits', { mode: 'text_to_image' });
+          showNotification('No credits remaining. Please upgrade to continue.', 'error');
+          setIsPaymentModalOpen(true);
+          setIsGenerating(false);
+          setGenerationProgress('');
           return;
         }
       }
@@ -806,6 +842,14 @@ export default function GeneratePage() {
   return (
     <Layout>
       <div className="flex flex-col gap-4 p-4 sm:p-6">
+        {/* Credits Display */}
+        {user && (
+          <CreditsDisplay 
+            user={user} 
+            onUpgrade={() => setIsPaymentModalOpen(true)} 
+          />
+        )}
+        
         {/* Mode Toggle - Trending Style Tabs */}
         <div className="flex gap-2 sm:gap-4 border-b border-gray-800 pb-2 mb-2 overflow-x-auto">
           <button
@@ -1523,9 +1567,16 @@ export default function GeneratePage() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Modals */}
       <SignInModal 
         isOpen={isSignInModalOpen} 
         onClose={() => setIsSignInModalOpen(false)} 
+      />
+      <PaymentModal 
+        isOpen={isPaymentModalOpen} 
+        onClose={() => setIsPaymentModalOpen(false)} 
+        onSelectTier={handleSelectPaymentTier}
       />
     </Layout>
   );

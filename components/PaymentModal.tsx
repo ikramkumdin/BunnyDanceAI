@@ -23,15 +23,33 @@ export default function PaymentModal({ isOpen, onClose, onSelectTier }: PaymentM
           <X className="w-5 h-5" />
         </button>
         
-        <h2 className="text-2xl font-bold mb-6">Upgrade Your Plan</h2>
+        <h2 className="text-2xl font-bold mb-2">Upgrade Your Plan</h2>
+        <p className="text-gray-400 text-sm mb-6">Choose a plan to continue generating amazing content</p>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {paymentTiers.map((tier) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {paymentTiers.map((tier) => {
+            const isPopular = tier.id === 'pro-monthly';
+            const isBestValue = tier.id === 'starter-pack';
+            return (
             <div
               key={tier.id}
-              className="bg-gray-700 rounded-lg p-6 border-2 border-gray-600 hover:border-primary transition-colors cursor-pointer"
+              className={`bg-gray-700 rounded-lg p-6 border-2 transition-colors cursor-pointer relative ${
+                isPopular ? 'border-primary ring-2 ring-primary/50' : 
+                isBestValue ? 'border-green-500 ring-2 ring-green-500/50' : 
+                'border-gray-600 hover:border-primary'
+              }`}
               onClick={() => onSelectTier(tier)}
             >
+              {isPopular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full">
+                  MOST POPULAR
+                </div>
+              )}
+              {isBestValue && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  BEST FOR STARTERS
+                </div>
+              )}
               <h3 className="text-xl font-bold mb-2">{tier.name}</h3>
               <div className="mb-4">
                 <span className="text-3xl font-bold">${tier.price}</span>
@@ -51,7 +69,8 @@ export default function PaymentModal({ isOpen, onClose, onSelectTier }: PaymentM
                 Select Plan
               </button>
             </div>
-          ))}
+          )}
+          )}
         </div>
       </div>
     </div>

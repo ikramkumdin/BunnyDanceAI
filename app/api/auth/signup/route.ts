@@ -16,7 +16,7 @@ export async function OPTIONS() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { email, password, name } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -50,8 +50,23 @@ export async function POST(request: NextRequest) {
     const signUpData = await signUpResponse.json();
 
     if (!signUpResponse.ok) {
+      const errorCode = signUpData.error?.message;
+      let userMessage = 'Sign up failed. Please try again.';
+      
+      if (errorCode === 'EMAIL_EXISTS') {
+        userMessage = 'An account with this email already exists. Please sign in instead.';
+      } else if (errorCode === 'OPERATION_NOT_ALLOWED') {
+        userMessage = 'Email/password accounts are not enabled. Please contact support.';
+      } else if (errorCode === 'TOO_MANY_ATTEMPTS_TRY_LATER') {
+        userMessage = 'Too many attempts. Please try again later.';
+      } else if (errorCode === 'INVALID_EMAIL') {
+        userMessage = 'Invalid email address. Please check and try again.';
+      } else if (errorCode === 'WEAK_PASSWORD') {
+        userMessage = 'Password is too weak. Please use at least 6 characters.';
+      }
+      
       return NextResponse.json(
-        { error: signUpData.error?.message || 'Sign up failed' },
+        { error: userMessage },
         { status: 400 }
       );
     }
@@ -61,8 +76,12 @@ export async function POST(request: NextRequest) {
     // Create user in Firestore
     const userData = {
       email: userEmail,
+      name: name || undefined,
+      displayName: name || undefined,
       tier: 'free',
-      credits: 100, // Give 100 credits to new mobile users
+      credits: 0, // Legacy field
+      imageCredits: 3, // Free tier: 3 images
+      videoCredits: 3, // Free tier: 3 videos
       dailyVideoCount: 0,
       lastVideoDate: new Date().toISOString(),
       isAgeVerified: false,

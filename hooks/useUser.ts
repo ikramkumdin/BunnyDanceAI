@@ -30,6 +30,8 @@ export function useUser() {
               email: firebaseUser.email || undefined,
               tier: 'free',
               credits: 0,
+              imageCredits: 3, // Free tier: 3 images
+              videoCredits: 3, // Free tier: 3 videos
               dailyVideoCount: 0,
               lastVideoDate: new Date().toISOString(),
               isAgeVerified: false,
@@ -132,6 +134,8 @@ export function useUser() {
             id: storedUserId,
             tier: 'free',
             credits: 0,
+            imageCredits: 3,
+            videoCredits: 3,
             dailyVideoCount: 0,
             lastVideoDate: new Date().toISOString(),
             isAgeVerified: false,
@@ -160,6 +164,8 @@ export function useUser() {
       const defaultUserData: Omit<User, 'id'> = {
         tier: 'free',
         credits: 0,
+        imageCredits: 3, // Free tier: 3 images
+        videoCredits: 3, // Free tier: 3 videos
         dailyVideoCount: 0,
         lastVideoDate: new Date().toISOString(),
         isAgeVerified: false,
@@ -191,6 +197,8 @@ export function useUser() {
         id: `user_${Date.now()}`,
         tier: 'free',
         credits: 0,
+        imageCredits: 3,
+        videoCredits: 3,
         dailyVideoCount: 0,
         lastVideoDate: new Date().toISOString(),
         isAgeVerified: false,

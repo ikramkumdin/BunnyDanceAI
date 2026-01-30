@@ -5,35 +5,26 @@ export interface PaymentTier {
   id: string;
   name: string;
   price: number;
-  type: 'monthly' | 'lifetime' | 'pay-per-video';
+  type: 'weekly' | 'monthly' | 'lifetime' | 'pay-per-video';
+  credits?: number; // Optional: for credit-based tiers like weekly
   features: string[];
 }
 
 export const paymentTiers: PaymentTier[] = [
   {
-    id: 'pro-monthly',
-    name: 'Pro Monthly',
-    price: 14.99,
-    type: 'monthly',
+    id: 'pro-weekly',
+    name: 'Pro Weekly',
+    price: 5.99,
+    type: 'weekly',
+    credits: 300,
     features: [
-      'Unlimited video generation',
+      '300 Credits per week',
+      'Billed weekly',
       '4K quality videos',
-      'No watermarks',
+      'All dance effects',
+      'All templates included',
       'Priority processing',
-      'Access to all templates',
-    ],
-  },
-  {
-    id: 'lifetime',
-    name: 'Lifetime VIP',
-    price: 149,
-    type: 'lifetime',
-    features: [
-      'Everything in Pro',
-      'All future templates',
-      'Hidden Vault access',
-      'Exclusive anime templates',
-      'Lifetime updates',
+      'Cancel anytime',
     ],
   },
 ];

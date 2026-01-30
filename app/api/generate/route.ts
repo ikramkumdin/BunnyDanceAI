@@ -4,6 +4,7 @@ import { uploadImage } from '@/lib/storage';
 import { getTemplatePrompt } from '@/data/template-prompts';
 import { verifyAuthToken } from '@/lib/verify-auth';
 import { getUserAdmin } from '@/lib/firestore-admin';
+import { hasCredits, deductCredit } from '@/lib/credits';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -37,6 +38,17 @@ export async function POST(request: NextRequest) {
         { error: 'Unauthorized: Please sign in with email or Google to generate videos' },
         { status: 401 }
       );
+    }
+
+    // Check if user has video credits (unless they're pro/lifetime)
+    if (user.tier === 'free') {
+      const hasVideoCredits = await hasCredits(authUid, 'video');
+      if (!hasVideoCredits) {
+        return NextResponse.json(
+          { error: 'No video credits remaining. Please upgrade to continue generating videos.', needsUpgrade: true },
+          { status: 403 }
+        );
+      }
     }
 
     console.log('🎬 Image-to-video started');
@@ -132,6 +144,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (taskId) {
+      // Deduct credit for free users
+      if (user.tier === 'free') {
+        await deductCredit(authUid, 'video');
+        console.log('💳 Deducted 1 video credit from user');
+      }
+      
       return NextResponse.json({ success: true, taskId });
     }
 

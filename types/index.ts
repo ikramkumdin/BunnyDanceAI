@@ -46,11 +46,18 @@ export interface User {
   id: string;
   email?: string;
   tier: UserTier;
-  credits: number;
+  credits: number; // Legacy field, kept for backward compatibility
+  imageCredits: number; // Free tier: 3 images
+  videoCredits: number; // Free tier: 3 videos
   dailyVideoCount: number;
   lastVideoDate: string;
   isAgeVerified: boolean;
   createdAt: string;
+  // PayPal subscription fields
+  subscriptionType?: 'weekly' | 'monthly' | 'lifetime';
+  subscriptionStartDate?: string;
+  lastPaymentDate?: string;
+  paypalEmail?: string;
 }
 
 export interface VideoGenerationRequest {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthToken } from '@/lib/verify-auth';
 import { getUserAdmin } from '@/lib/firestore-admin';
+import { hasCredits, deductCredit } from '@/lib/credits';
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,6 +38,17 @@ export async function POST(request: NextRequest) {
         { error: 'Unauthorized: Please sign in with email or Google to generate images' },
         { status: 401 }
       );
+    }
+
+    // Check if user has image credits (unless they're pro/lifetime)
+    if (user.tier === 'free') {
+      const hasImageCredits = await hasCredits(authUid, 'image');
+      if (!hasImageCredits) {
+        return NextResponse.json(
+          { error: 'No image credits remaining. Please upgrade to continue generating images.', needsUpgrade: true },
+          { status: 403 }
+        );
+      }
     }
 
     console.log('🎨 Text-to-image generation started');
@@ -94,6 +106,13 @@ export async function POST(request: NextRequest) {
       if (taskId) {
         console.log('✅ Got taskId from Kie.ai:', taskId);
         console.log('⏰ Kie.ai will callback when ready (no polling needed!)');
+        
+        // Deduct credit for free users
+        if (user.tier === 'free') {
+          await deductCredit(authUid, 'image');
+          console.log('💳 Deducted 1 image credit from user');
+        }
+        
         return NextResponse.json({
           success: true,
           taskId: taskId,

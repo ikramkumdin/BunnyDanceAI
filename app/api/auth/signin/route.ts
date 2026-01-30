@@ -54,8 +54,21 @@ export async function POST(request: NextRequest) {
     const signInData = await signInResponse.json();
 
     if (!signInResponse.ok) {
+      const errorCode = signInData.error?.message;
+      let userMessage = 'Sign in failed. Please check your email and password.';
+      
+      if (errorCode === 'EMAIL_NOT_FOUND') {
+        userMessage = 'No account found with this email. Please sign up first.';
+      } else if (errorCode === 'INVALID_PASSWORD') {
+        userMessage = 'Incorrect password. Please try again.';
+      } else if (errorCode === 'USER_DISABLED') {
+        userMessage = 'This account has been disabled. Please contact support.';
+      } else if (errorCode === 'INVALID_EMAIL') {
+        userMessage = 'Invalid email address. Please check and try again.';
+      }
+      
       return NextResponse.json(
-        { error: signInData.error?.message || 'Sign in failed' },
+        { error: userMessage },
         { status: 401 }
       );
     }
