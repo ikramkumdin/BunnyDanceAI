@@ -14,11 +14,13 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const { user } = useUser();
   const [creemUrl, setCreemUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     const fetchCreemUrl = async () => {
       if (isOpen && user?.id) {
         setIsLoading(true);
+        setError('');
         try {
           // Get auth token
           const { auth } = await import('@/lib/firebase');
@@ -26,7 +28,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
           const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
 
           if (!idToken) {
-            console.error('No auth token available');
+            setError('Please sign in to continue');
             setIsLoading(false);
             return;
           }
@@ -40,12 +42,20 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
           if (response.ok) {
             const data = await response.json();
-            setCreemUrl(data.url);
+            if (data.url) {
+              setCreemUrl(data.url);
+            } else {
+              setError('Failed to get checkout URL. Please try again.');
+            }
           } else {
-            const errorText = await response.text();
-            console.error('Failed to get Creem checkout URL:', errorText);
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            const errorMessage = errorData.error || errorData.details || 'Failed to connect to payment service';
+            setError(errorMessage);
+            console.error('Failed to get Creem checkout URL:', errorData);
           }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Network error. Please check your connection.';
+          setError(errorMessage);
           console.error('Error fetching Creem checkout URL:', error);
         } finally {
           setIsLoading(false);
@@ -101,25 +111,42 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
           </ul>
           
           {user?.id ? (
-            <button
-              onClick={handleCreemClick}
-              disabled={isLoading || !creemUrl}
-              className="w-full bg-primary hover:bg-primary-dark disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  Subscribe with Creem
-                </>
+            <>
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+                  <p className="text-red-300 text-sm">{error}</p>
+                  <p className="text-red-400 text-xs mt-1">
+                    Check browser console for details. Make sure environment variables are set in Vercel.
+                  </p>
+                </div>
               )}
-            </button>
+              <button
+                onClick={handleCreemClick}
+                disabled={isLoading || !creemUrl}
+                className="w-full bg-primary hover:bg-primary-dark disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Loading...
+                  </>
+                ) : creemUrl ? (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    Subscribe with Creem
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    {error ? 'Error - Check Console' : 'Preparing...'}
+                  </>
+                )}
+              </button>
+            </>
           ) : (
             <p className="text-center text-gray-400 text-sm">Please sign in to upgrade</p>
           )}
