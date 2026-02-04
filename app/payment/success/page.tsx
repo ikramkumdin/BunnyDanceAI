@@ -11,8 +11,6 @@ function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const [countdown, setCountdown] = useState(10);
   const { refreshUser, user } = useUser();
-  const [isGrantingCredits, setIsGrantingCredits] = useState(false);
-  const [creditsGranted, setCreditsGranted] = useState(false);
 
   // Get transaction details from URL params (Creem may send different params)
   const txId = searchParams.get('checkout_id') || searchParams.get('tx') || searchParams.get('txn_id');
@@ -30,24 +28,22 @@ function PaymentSuccessContent() {
     return false;
   };
 
-  const handleManualGrant = async () => {
-    if (!user?.id || !txId) {
-      console.error('Missing user ID or transaction ID');
-      return;
+  // Automatically grant credits if webhook didn't process (silent fallback)
+  const autoGrantCreditsIfNeeded = async () => {
+    if (!user?.id || !txId || checkCreditsGranted()) {
+      return; // Already granted or missing info
     }
 
-    setIsGrantingCredits(true);
     try {
       const { auth } = await import('@/lib/firebase');
       const { getIdToken } = await import('firebase/auth');
       const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
 
       if (!idToken) {
-        console.error('No auth token');
-        setIsGrantingCredits(false);
         return;
       }
 
+      console.log('🔄 Auto-granting credits as fallback...');
       const response = await fetch('/api/creem/manual-grant', {
         method: 'POST',
         headers: {
@@ -57,18 +53,12 @@ function PaymentSuccessContent() {
         body: JSON.stringify({ checkoutId: txId }),
       });
 
-      const data = await response.json();
-      
       if (response.ok) {
-        setCreditsGranted(true);
+        console.log('✅ Credits auto-granted successfully');
         await refreshUser();
-      } else {
-        console.error('Failed to grant credits:', data);
       }
     } catch (error) {
-      console.error('Error granting credits:', error);
-    } finally {
-      setIsGrantingCredits(false);
+      console.error('Error auto-granting credits:', error);
     }
   };
 
@@ -76,17 +66,25 @@ function PaymentSuccessContent() {
     // Refresh user credits when payment success page loads
     // This ensures credits are updated after Creem payment
     const checkAndRefreshCredits = async () => {
-      // First refresh to get latest credits
+      // First refresh immediately
       await refreshUser();
       
-      // Wait a bit for webhook to process, then refresh again
+      // Wait 2 seconds for webhook to process, then check and refresh
       setTimeout(async () => {
         await refreshUser();
+        // If credits still not granted, auto-grant them (silent fallback)
+        if (!checkCreditsGranted()) {
+          await autoGrantCreditsIfNeeded();
+        }
       }, 2000);
       
-      // Final refresh before redirect
+      // Final check and refresh at 5 seconds
       setTimeout(async () => {
         await refreshUser();
+        // Final fallback: auto-grant if still not granted
+        if (!checkCreditsGranted()) {
+          await autoGrantCreditsIfNeeded();
+        }
       }, 5000);
     };
     
@@ -105,7 +103,7 @@ function PaymentSuccessContent() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [router, refreshUser]);
+  }, [router, refreshUser, user, txId]);
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
@@ -180,26 +178,11 @@ function PaymentSuccessContent() {
             </a>
           </div>
 
-          {/* Manual Credit Grant (if credits not showing) */}
-          {!checkCreditsGranted() && !creditsGranted && txId && (
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-4">
-              <p className="text-yellow-300 text-sm mb-3">
-                Credits may take a few seconds to update. If they don&apos;t appear, click below:
-              </p>
-              <button
-                onClick={handleManualGrant}
-                disabled={isGrantingCredits}
-                className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-              >
-                {isGrantingCredits ? 'Granting Credits...' : 'Grant Credits Now'}
-              </button>
-            </div>
-          )}
-
-          {creditsGranted && (
+          {/* Status message - only show if credits are granted */}
+          {checkCreditsGranted() && (
             <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
               <p className="text-green-300 text-sm">
-                ✅ Credits granted successfully! Your account has been updated.
+                ✅ Your subscription is active! Credits have been added to your account.
               </p>
             </div>
           )}
