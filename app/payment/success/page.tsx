@@ -27,8 +27,6 @@ function PaymentSuccessContent() {
     }
     return false;
   };
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-read_file
 
   // Automatically grant credits if webhook didn't process (silent fallback)
   const autoGrantCreditsIfNeeded = async () => {

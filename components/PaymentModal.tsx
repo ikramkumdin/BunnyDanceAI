@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
-import { paymentTiers } from '@/lib/payment';
+import { paymentTiers, PaymentTier } from '@/lib/payment';
 import { useUser } from '@/hooks/useUser';
 import { trackEvent } from '@/lib/analytics';
 
@@ -122,13 +122,13 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     }
   };
 
-  const getPrice = (tier: typeof paymentTiers[0]) => {
+  const getPrice = (tier: PaymentTier) => {
     return billingCycle === 'annual' && tier.annualPrice 
       ? tier.annualPrice 
       : tier.price;
   };
 
-  const getPriceLabel = (tier: typeof paymentTiers[0]) => {
+  const getPriceLabel = (tier: PaymentTier) => {
     if (billingCycle === 'annual' && tier.annualPrice) {
       return `$${tier.annualPrice}/year`;
     }

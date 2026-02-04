@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { addCredits } from '@/lib/credits';
-import { paymentTiers } from '@/lib/payment';
+import { paymentTiers, PaymentTier } from '@/lib/payment';
 
 /**
  * Creem Webhook Handler
@@ -240,7 +240,7 @@ async function handleInitialPayment(
   checkoutId: string, 
   planId: string,
   billingCycle: string,
-  plan: typeof paymentTiers[0]
+  plan: PaymentTier
 ) {
   console.log(`🎉 Initial subscription payment for user ${userId} - Plan: ${planId} (${billingCycle})`);
   
@@ -267,7 +267,7 @@ async function handleRenewal(
   checkoutId: string,
   planId: string,
   billingCycle: string,
-  plan: typeof paymentTiers[0]
+  plan: PaymentTier
 ) {
   console.log(`🔄 Renewal payment for user ${userId} - Plan: ${planId} (${billingCycle})`);
   
