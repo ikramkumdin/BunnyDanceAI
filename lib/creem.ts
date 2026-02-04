@@ -19,12 +19,21 @@ const IS_SANDBOX = CREEM_MODE === 'sandbox';
  */
 export async function generateCreemCheckoutUrl(userId: string): Promise<string> {
   if (!CREEM_API_KEY) {
+    console.error('❌ CREEM_API_KEY is not set');
     throw new Error('CREEM_API_KEY is not set in environment variables');
   }
 
   if (!CREEM_PRODUCT_ID) {
+    console.error('❌ CREEM_PRODUCT_ID is not set');
     throw new Error('CREEM_PRODUCT_ID is not set in environment variables');
   }
+
+  console.log('🚀 Calling Creem API to create checkout...', {
+    apiBase: CREEM_API_BASE,
+    productId: CREEM_PRODUCT_ID,
+    userId,
+    hasApiKey: !!CREEM_API_KEY,
+  });
 
   try {
     const response = await fetch(`${CREEM_API_BASE}/checkouts`, {
@@ -42,22 +51,34 @@ export async function generateCreemCheckoutUrl(userId: string): Promise<string> 
       }),
     });
 
+    console.log('📊 Creem API response status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Creem API error:', errorText);
-      throw new Error(`Failed to create checkout: ${errorText}`);
+      console.error('❌ Creem API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
+      throw new Error(`Creem API error (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('✅ Creem API response:', { hasCheckoutUrl: !!data.checkout_url });
     
     if (!data.checkout_url) {
+      console.error('❌ No checkout_url in Creem response:', data);
       throw new Error('No checkout_url in Creem response');
     }
 
+    console.log('✅ Creem checkout URL generated successfully');
     return data.checkout_url;
   } catch (error) {
-    console.error('Error generating Creem checkout URL:', error);
-    throw error;
+    console.error('❌ Error generating Creem checkout URL:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`Failed to generate checkout URL: ${String(error)}`);
   }
 }
 
