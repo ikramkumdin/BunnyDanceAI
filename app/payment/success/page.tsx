@@ -39,59 +39,56 @@ function PaymentSuccessContent() {
   }, [router, refreshUser]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-900 to-rose-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
         {/* Success Card */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 md:p-12 border border-white/20">
+        <div className="bg-slate-900 rounded-lg shadow-lg p-6 md:p-8 border border-slate-800">
           {/* Success Icon */}
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 bg-green-500 rounded-full blur-xl opacity-50 animate-pulse"></div>
-              <CheckCircle className="relative w-20 h-20 text-green-400" strokeWidth={2} />
-            </div>
+          <div className="flex justify-center mb-4">
+            <CheckCircle className="w-12 h-12 text-green-500" strokeWidth={2} />
           </div>
 
           {/* Main Heading */}
-          <h1 className="text-3xl md:text-4xl font-bold text-white text-center mb-4">
-            Payment Successful! 🎉
+          <h1 className="text-2xl md:text-3xl font-bold text-white text-center mb-2">
+            Payment Successful
           </h1>
 
-          <p className="text-xl text-white/80 text-center mb-8">
-            Thank you for your purchase. Your transaction has been completed successfully.
+          <p className="text-gray-400 text-center mb-6">
+            Your transaction has been completed successfully.
           </p>
 
           {/* Confirmation Box */}
-          <div className="bg-white/5 rounded-xl p-6 mb-6 border border-white/10">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Mail className="w-5 h-5 text-pink-400" />
-              Receipt Confirmation
+          <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
+            <h2 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+              <Mail className="w-4 h-4 text-gray-400" />
+              Receipt
             </h2>
-            <p className="text-white/70 leading-relaxed">
-              A receipt for your purchase has been emailed to you. Please check your inbox (and spam folder) for the transaction details and confirmation from Creem.
+            <p className="text-gray-400 text-sm leading-relaxed">
+              A receipt has been emailed to you. Check your inbox for transaction details.
             </p>
           </div>
 
           {/* Transaction Details */}
           {txId && (
-            <div className="bg-white/5 rounded-xl p-6 mb-6 border border-white/10">
-              <h2 className="text-lg font-semibold text-white mb-4">Transaction Details</h2>
-              <div className="space-y-3">
+            <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
+              <h2 className="text-sm font-semibold text-white mb-3">Transaction Details</h2>
+              <div className="space-y-2 text-sm">
                 {item && (
                   <div className="flex justify-between">
-                    <span className="text-white/60">Item:</span>
-                    <span className="text-white font-medium">{item}</span>
+                    <span className="text-gray-400">Item:</span>
+                    <span className="text-white">{item}</span>
                   </div>
                 )}
                 {amount && (
                   <div className="flex justify-between">
-                    <span className="text-white/60">Amount:</span>
-                    <span className="text-white font-medium">${amount} USD</span>
+                    <span className="text-gray-400">Amount:</span>
+                    <span className="text-white">${amount}</span>
                   </div>
                 )}
                 {txId && (
                   <div className="flex justify-between items-start">
-                    <span className="text-white/60">Transaction ID:</span>
-                    <span className="text-white font-mono text-sm break-all ml-4">{txId}</span>
+                    <span className="text-gray-400">Transaction ID:</span>
+                    <span className="text-gray-300 font-mono text-xs break-all ml-4">{txId}</span>
                   </div>
                 )}
               </div>
@@ -99,15 +96,15 @@ function PaymentSuccessContent() {
           )}
 
           {/* Creem Link */}
-          <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/20 rounded-xl p-6 mb-8 border border-blue-400/30">
-            <p className="text-white/80 mb-4">
-              To view full transaction details, manage your subscription, or download your receipt, log into your Creem account.
+          <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
+            <p className="text-gray-400 text-sm mb-3">
+              View full transaction details or manage your subscription in your Creem account.
             </p>
             <a
               href="https://www.creem.io/dashboard"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
+              className="inline-flex items-center gap-2 text-primary hover:text-primary-light text-sm font-medium transition-colors"
             >
               View on Creem
               <ExternalLink className="w-4 h-4" />
@@ -115,36 +112,36 @@ function PaymentSuccessContent() {
           </div>
 
           {/* Action Buttons */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <Link
               href="/generate"
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-200 shadow-lg hover:shadow-2xl"
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-colors"
             >
               Start Creating Videos
-              <ArrowRight className="w-5 h-5" />
+              <ArrowRight className="w-4 h-4" />
             </Link>
 
             <Link
               href="/assets"
-              className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-200 border border-white/20"
+              className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 px-6 rounded-lg transition-colors border border-slate-700"
             >
               View My Assets
             </Link>
           </div>
 
           {/* Auto Redirect Notice */}
-          <div className="mt-6 text-center">
-            <p className="text-white/50 text-sm">
-              Redirecting to generation page in {countdown} seconds...
+          <div className="mt-4 text-center">
+            <p className="text-gray-500 text-xs">
+              Redirecting in {countdown} seconds...
             </p>
           </div>
         </div>
 
         {/* Footer Note */}
-        <div className="mt-6 text-center">
-          <p className="text-white/40 text-sm">
-            Need help? Contact us at{' '}
-            <a href="mailto:support@waifudance.com" className="text-pink-400 hover:text-pink-300 underline">
+        <div className="mt-4 text-center">
+          <p className="text-gray-500 text-xs">
+            Need help?{' '}
+            <a href="mailto:support@waifudance.com" className="text-primary hover:text-primary-light">
               support@waifudance.com
             </a>
           </p>
@@ -157,16 +154,13 @@ function PaymentSuccessContent() {
 export default function PaymentSuccessPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-900 to-rose-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full">
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 md:p-12 border border-white/20">
-            <div className="flex justify-center mb-6">
-              <div className="relative">
-                <div className="absolute inset-0 bg-green-500 rounded-full blur-xl opacity-50 animate-pulse"></div>
-                <CheckCircle className="relative w-20 h-20 text-green-400" strokeWidth={2} />
-              </div>
+          <div className="bg-slate-900 rounded-lg shadow-lg p-6 md:p-8 border border-slate-800">
+            <div className="flex justify-center mb-4">
+              <CheckCircle className="w-12 h-12 text-gray-500" strokeWidth={2} />
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-white text-center mb-4">
+            <h1 className="text-2xl md:text-3xl font-bold text-white text-center mb-2">
               Loading...
             </h1>
           </div>
