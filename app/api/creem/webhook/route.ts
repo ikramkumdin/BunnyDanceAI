@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { addCredits } from '@/lib/credits';
+import { paymentTiers } from '@/lib/payment';
 
 /**
  * Creem Webhook Handler
@@ -100,18 +101,54 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    // Check if this is for our weekly subscription product
-    const expectedProductId = process.env.CREEM_PRODUCT_ID;
-    if (productId !== expectedProductId) {
-      console.log(`⚠️ Unknown product: ${productId}`);
-      return NextResponse.json({ received: true });
+    // Find the plan based on product ID or amount
+    // You'll need to create products in Creem for each plan and store their IDs
+    // For now, we'll match by amount and metadata
+    let planId = body.metadata?.plan_id || body.plan_id;
+    let billingCycle = body.metadata?.billing_cycle || body.billing_cycle || 'monthly';
+    
+    // If no plan_id in metadata, try to match by amount
+    if (!planId) {
+      const receivedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+      
+      // Match by amount (monthly prices)
+      if (Math.abs(receivedAmount - 9) < 0.01) {
+        planId = 'starter';
+        billingCycle = 'monthly';
+      } else if (Math.abs(receivedAmount - 24) < 0.01) {
+        planId = 'standard';
+        billingCycle = 'monthly';
+      } else if (Math.abs(receivedAmount - 48) < 0.01) {
+        planId = 'pro';
+        billingCycle = 'monthly';
+      } else if (Math.abs(receivedAmount - 86) < 0.01) {
+        planId = 'starter';
+        billingCycle = 'annual';
+      } else if (Math.abs(receivedAmount - 230) < 0.01) {
+        planId = 'standard';
+        billingCycle = 'annual';
+      } else if (Math.abs(receivedAmount - 461) < 0.01) {
+        planId = 'pro';
+        billingCycle = 'annual';
+      } else {
+        console.error(`❌ Unknown amount: ${receivedAmount}, cannot determine plan`);
+        return NextResponse.json({ error: 'Unknown plan' }, { status: 400 });
+      }
     }
 
-    // Validate amount (should be $5.99)
-    const expectedAmount = 5.99;
+    const selectedPlan = paymentTiers.find(t => t.id === planId);
+    if (!selectedPlan) {
+      console.error(`❌ Plan not found: ${planId}`);
+      return NextResponse.json({ error: 'Plan not found' }, { status: 400 });
+    }
+
+    // Validate amount matches the plan
+    const expectedAmount = billingCycle === 'annual' && selectedPlan.annualPrice 
+      ? selectedPlan.annualPrice 
+      : selectedPlan.price;
     const receivedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     if (Math.abs(receivedAmount - expectedAmount) > 0.01) {
-      console.error(`❌ Invalid amount: ${receivedAmount}, expected: ${expectedAmount}`);
+      console.error(`❌ Invalid amount: ${receivedAmount}, expected: ${expectedAmount} for ${planId} (${billingCycle})`);
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
@@ -161,10 +198,10 @@ export async function POST(request: NextRequest) {
     // Process payment based on event type
     if (eventType === 'payment.completed' || eventType === 'checkout.completed' || eventType === 'subscription.created') {
       // Initial subscription payment
-      await handleInitialPayment(userId, checkoutId);
+      await handleInitialPayment(userId, checkoutId, planId, billingCycle, selectedPlan);
     } else if (eventType === 'subscription.renewed' || eventType === 'payment.renewed') {
-      // Weekly renewal payment
-      await handleRenewal(userId, checkoutId);
+      // Monthly/annual renewal payment
+      await handleRenewal(userId, checkoutId, planId, billingCycle, selectedPlan);
     } else {
       console.log(`ℹ️ Unhandled event type: ${eventType}`);
       return NextResponse.json({ received: true });
@@ -178,6 +215,8 @@ export async function POST(request: NextRequest) {
       status,
       amount: receivedAmount,
       productId,
+      planId,
+      billingCycle,
       processedAt: new Date().toISOString(),
     });
 
@@ -196,38 +235,51 @@ export async function POST(request: NextRequest) {
 /**
  * Handle initial subscription payment
  */
-async function handleInitialPayment(userId: string, checkoutId: string) {
-  console.log(`🎉 Initial subscription payment for user ${userId}`);
+async function handleInitialPayment(
+  userId: string, 
+  checkoutId: string, 
+  planId: string,
+  billingCycle: string,
+  plan: typeof paymentTiers[0]
+) {
+  console.log(`🎉 Initial subscription payment for user ${userId} - Plan: ${planId} (${billingCycle})`);
   
-  // Grant 300 credits (150 image + 150 video)
-  await addCredits(userId, 150, 150);
+  // Grant credits based on plan (image and video credits are the same)
+  await addCredits(userId, plan.imageCredits, plan.videoCredits);
   
-  // Update user tier to 'pro' for weekly subscribers
+  // Update user tier and subscription info
   await adminDb.collection('users').doc(userId).update({
-    tier: 'pro',
-    subscriptionType: 'weekly',
+    tier: planId as 'starter' | 'standard' | 'pro',
+    subscriptionType: billingCycle as 'monthly' | 'annual',
+    planId: planId,
     subscriptionStartDate: new Date().toISOString(),
     lastPaymentDate: new Date().toISOString(),
   });
 
-  console.log(`✅ Granted 300 credits and upgraded user ${userId} to Pro Weekly`);
+  console.log(`✅ Granted ${plan.imageCredits} image + ${plan.videoCredits} video credits and upgraded user ${userId} to ${plan.name} (${billingCycle})`);
 }
 
 /**
- * Handle weekly renewal payment
+ * Handle monthly/annual renewal payment
  */
-async function handleRenewal(userId: string, checkoutId: string) {
-  console.log(`🔄 Weekly renewal payment for user ${userId}`);
+async function handleRenewal(
+  userId: string, 
+  checkoutId: string,
+  planId: string,
+  billingCycle: string,
+  plan: typeof paymentTiers[0]
+) {
+  console.log(`🔄 Renewal payment for user ${userId} - Plan: ${planId} (${billingCycle})`);
   
-  // Grant 300 credits for the new week
-  await addCredits(userId, 150, 150);
+  // Grant credits for the renewal period
+  await addCredits(userId, plan.imageCredits, plan.videoCredits);
   
   // Update last payment date
   await adminDb.collection('users').doc(userId).update({
     lastPaymentDate: new Date().toISOString(),
   });
 
-  console.log(`✅ Granted 300 credits for weekly renewal to user ${userId}`);
+  console.log(`✅ Granted ${plan.imageCredits} image + ${plan.videoCredits} video credits for renewal to user ${userId}`);
 }
 
 // Handle GET requests (for webhook endpoint verification)

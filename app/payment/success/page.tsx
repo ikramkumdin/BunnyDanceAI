@@ -18,15 +18,17 @@ function PaymentSuccessContent() {
   const item = searchParams.get('product_name') || searchParams.get('item_name') || 'Pro Weekly Subscription';
   const customerId = searchParams.get('customer_id') || searchParams.get('payer_id');
 
-  // Check if credits were granted (user should have pro tier or increased credits)
+  // Check if credits were granted (user should have paid tier or increased credits)
   const checkCreditsGranted = () => {
     if (user) {
-      const hasProTier = user.tier === 'pro' || user.tier === 'lifetime';
+      const hasPaidTier = user.tier === 'starter' || user.tier === 'standard' || user.tier === 'pro';
       const hasIncreasedCredits = (user.imageCredits || 0) > 3 || (user.videoCredits || 0) > 3;
-      return hasProTier || hasIncreasedCredits;
+      return hasPaidTier || hasIncreasedCredits;
     }
     return false;
   };
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+read_file
 
   // Automatically grant credits if webhook didn't process (silent fallback)
   const autoGrantCreditsIfNeeded = async () => {

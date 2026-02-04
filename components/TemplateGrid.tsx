@@ -54,14 +54,14 @@ export default function TemplateGrid({ searchQuery = '' }: TemplateGridProps) {
     
     // Filter by category
     if (selectedCategory === 'all') return true;
-    if (template.isHidden && user?.tier !== 'lifetime' && user?.tier !== 'pro') return false;
+    if (template.isHidden && user?.tier === 'free') return false;
     return template.category === selectedCategory;
   });
 
   const canAccess = (template: Template) => {
     if (!template.isPremium) return true;
-    if (template.isHidden && user?.tier !== 'lifetime' && user?.tier !== 'pro') return false;
-    if (user?.tier === 'lifetime' || user?.tier === 'pro') return true;
+    if (template.isHidden && user?.tier === 'free') return false;
+    if (user?.tier === 'starter' || user?.tier === 'standard' || user?.tier === 'pro') return true;
     return user && user.credits >= (template.price || 0);
   };
 

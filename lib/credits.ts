@@ -21,11 +21,6 @@ export async function hasCredits(userId: string, type: 'image' | 'video'): Promi
     
     const userData = userDoc.data() as User;
     
-    // Pro and lifetime users have unlimited credits
-    if (userData.tier === 'pro' || userData.tier === 'lifetime') {
-      return true;
-    }
-    
     // Check credits based on type
     if (type === 'image') {
       return (userData.imageCredits || 0) > 0;
@@ -49,11 +44,6 @@ export async function deductCredit(userId: string, type: 'image' | 'video'): Pro
     if (!userDoc.exists) return false;
     
     const userData = userDoc.data() as User;
-    
-    // Pro and lifetime users don't need credit deduction
-    if (userData.tier === 'pro' || userData.tier === 'lifetime') {
-      return true;
-    }
     
     // Deduct credit based on type
     if (type === 'image') {
@@ -90,11 +80,6 @@ export async function getRemainingCredits(userId: string): Promise<{ imageCredit
     }
     
     const userData = userDoc.data() as User;
-    
-    // Pro and lifetime users have unlimited
-    if (userData.tier === 'pro' || userData.tier === 'lifetime') {
-      return { imageCredits: Infinity, videoCredits: Infinity };
-    }
     
     return {
       imageCredits: userData.imageCredits || 0,

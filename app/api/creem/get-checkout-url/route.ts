@@ -19,6 +19,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const planId = searchParams.get('planId') || 'standard'; // Default to standard
+    const billingCycle = searchParams.get('billing') || 'monthly'; // Default to monthly
 
     if (!userId) {
       console.error('❌ Creem checkout: User ID is required');
@@ -30,8 +32,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: User ID mismatch' }, { status: 403 });
     }
 
+    // Validate planId
+    const validPlans = ['starter', 'standard', 'pro'];
+    if (!validPlans.includes(planId)) {
+      console.error('❌ Creem checkout: Invalid plan ID', { planId });
+      return NextResponse.json({ error: 'Invalid plan ID' }, { status: 400 });
+    }
+
+    // Validate billingCycle
+    if (billingCycle !== 'monthly' && billingCycle !== 'annual') {
+      console.error('❌ Creem checkout: Invalid billing cycle', { billingCycle });
+      return NextResponse.json({ error: 'Invalid billing cycle' }, { status: 400 });
+    }
+
     // Check environment variables before calling Creem API
     const creemApiKey = process.env.CREEM_API_KEY;
+    // Note: You'll need to create products in Creem for each plan and store their IDs
+    // For now, we'll use a single product ID or you can create a mapping
     const creemProductId = process.env.CREEM_PRODUCT_ID;
 
     if (!creemApiKey) {
@@ -56,8 +73,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('✅ Creem checkout: Environment variables are set, calling Creem API...');
-    const checkoutUrl = await generateCreemCheckoutUrl(userId);
+    console.log('✅ Creem checkout: Environment variables are set, calling Creem API...', {
+      userId,
+      planId,
+      billingCycle,
+    });
+    const checkoutUrl = await generateCreemCheckoutUrl(userId, planId, billingCycle);
 
     return NextResponse.json({ url: checkoutUrl });
   } catch (error) {

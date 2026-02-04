@@ -16,10 +16,23 @@ const IS_SANDBOX = CREEM_MODE === 'sandbox';
 /**
  * Generate Creem checkout URL for a user
  * Since the API returns 403, we'll use direct checkout URLs
- * Format: https://www.creem.io/checkout/{product_id}?metadata[user_id]={userId}
+ * Format: https://www.creem.io/checkout/{product_id}?metadata[user_id]={userId}&metadata[plan_id]={planId}&metadata[billing_cycle]={billingCycle}
+ * 
+ * Note: You'll need to create products in Creem for each plan (starter, standard, pro) 
+ * and for each billing cycle (monthly, annual). Store their product IDs in environment variables.
  */
-export async function generateCreemCheckoutUrl(userId: string): Promise<string> {
-  if (!CREEM_PRODUCT_ID) {
+export async function generateCreemCheckoutUrl(
+  userId: string, 
+  planId: string = 'standard', 
+  billingCycle: string = 'monthly'
+): Promise<string> {
+  // TODO: Map planId + billingCycle to actual Creem product IDs
+  // For now, using the default CREEM_PRODUCT_ID
+  // You should create environment variables like:
+  // CREEM_PRODUCT_STARTER_MONTHLY, CREEM_PRODUCT_STARTER_ANNUAL, etc.
+  const productId = CREEM_PRODUCT_ID; // This should be mapped based on planId and billingCycle
+  
+  if (!productId) {
     console.error('❌ CREEM_PRODUCT_ID is not set');
     throw new Error('CREEM_PRODUCT_ID is not set in environment variables');
   }
@@ -32,12 +45,20 @@ export async function generateCreemCheckoutUrl(userId: string): Promise<string> 
     ? 'https://www.creem.io/test/payment'
     : 'https://www.creem.io/payment';
 
-  // Build checkout URL with product ID and user metadata as query param
-  const checkoutUrl = `${baseUrl}/${CREEM_PRODUCT_ID}?metadata[user_id]=${encodeURIComponent(userId)}`;
+  // Build checkout URL with product ID and metadata as query params
+  const params = new URLSearchParams({
+    'metadata[user_id]': userId,
+    'metadata[plan_id]': planId,
+    'metadata[billing_cycle]': billingCycle,
+  });
+  
+  const checkoutUrl = `${baseUrl}/${productId}?${params.toString()}`;
 
   console.log('✅ Generated direct Creem checkout URL:', {
-    productId: CREEM_PRODUCT_ID,
+    productId,
     userId,
+    planId,
+    billingCycle,
     mode: IS_SANDBOX ? 'test' : 'production',
     url: checkoutUrl.replace(userId, '***'), // Don't log full URL with user ID
   });

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has image credits (unless they're pro/lifetime)
+    // Check if user has image credits (paid tiers have credits)
     if (user.tier === 'free') {
       const hasImageCredits = await hasCredits(authUid, 'image');
       if (!hasImageCredits) {

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has video credits (unless they're pro/lifetime)
+    // Check if user has video credits (paid tiers have credits)
     if (user.tier === 'free') {
       const hasVideoCredits = await hasCredits(authUid, 'video');
       if (!hasVideoCredits) {

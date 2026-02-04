@@ -1,4 +1,4 @@
-export type UserTier = 'free' | 'pro' | 'lifetime';
+export type UserTier = 'free' | 'starter' | 'standard' | 'pro';
 export type IntensityLevel = 'mild' | 'spicy' | 'extreme';
 export type TemplateCategory = 'all' | 'for-you' | 'sway' | 'shimmy' | 'peach' | 'halloween' | 'playful' | 'fright-zone' | 'jk' | 'bunny-girl' | 'catgirl' | 'custom';
 
@@ -53,8 +53,9 @@ export interface User {
   lastVideoDate: string;
   isAgeVerified: boolean;
   createdAt: string;
-  // PayPal subscription fields
-  subscriptionType?: 'weekly' | 'monthly' | 'lifetime';
+  // Subscription fields
+  subscriptionType?: 'monthly' | 'annual';
+  planId?: 'starter' | 'standard' | 'pro'; // Which plan they're subscribed to
   subscriptionStartDate?: string;
   lastPaymentDate?: string;
   paypalEmail?: string;
