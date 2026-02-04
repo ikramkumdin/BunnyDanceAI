@@ -12,11 +12,11 @@ function PaymentSuccessContent() {
   const [countdown, setCountdown] = useState(10);
   const { refreshUser } = useUser();
 
-  // Get transaction details from URL params
-  const txId = searchParams.get('tx') || searchParams.get('txn_id');
-  const amount = searchParams.get('amt') || searchParams.get('mc_gross');
-  const item = searchParams.get('item_name') || 'Subscription';
-  const payerId = searchParams.get('payer_id');
+  // Get transaction details from URL params (Creem may send different params)
+  const txId = searchParams.get('checkout_id') || searchParams.get('tx') || searchParams.get('txn_id');
+  const amount = searchParams.get('amount') || searchParams.get('amt') || searchParams.get('mc_gross');
+  const item = searchParams.get('product_name') || searchParams.get('item_name') || 'Pro Weekly Subscription';
+  const customerId = searchParams.get('customer_id') || searchParams.get('payer_id');
 
   useEffect(() => {
     // Refresh user credits when payment success page loads
@@ -67,7 +67,7 @@ function PaymentSuccessContent() {
               Receipt Confirmation
             </h2>
             <p className="text-white/70 leading-relaxed">
-              A receipt for your purchase has been emailed to you. Please check your inbox (and spam folder) for the transaction details and confirmation from PayPal.
+              A receipt for your purchase has been emailed to you. Please check your inbox (and spam folder) for the transaction details and confirmation from Creem.
             </p>
           </div>
 
@@ -98,18 +98,18 @@ function PaymentSuccessContent() {
             </div>
           )}
 
-          {/* PayPal Link */}
+          {/* Creem Link */}
           <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/20 rounded-xl p-6 mb-8 border border-blue-400/30">
             <p className="text-white/80 mb-4">
-              To view full transaction details, manage your subscription, or download your receipt, log into your PayPal account.
+              To view full transaction details, manage your subscription, or download your receipt, log into your Creem account.
             </p>
             <a
-              href="https://www.paypal.com/myaccount/transactions"
+              href="https://www.creem.io/dashboard"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
             >
-              View on PayPal
+              View on Creem
               <ExternalLink className="w-4 h-4" />
             </a>
           </div>

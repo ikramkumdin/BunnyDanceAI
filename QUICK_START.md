@@ -16,7 +16,7 @@
 Go to: **Vercel Dashboard** → **Your Project** → **Settings** → **Environment Variables**
 
 Add:
-- `PAYPAL_PDT_TOKEN` = `2ZdecpHZ-VKsobQKLneeVBjweb7v5-j8pDVSdJYQGrxJWTvYvhvHPn5_-rW`
+- `PAYPAL_PDT_TOKEN` = `your-paypal-pdt-token` (get from PayPal dashboard)
 - `PAYPAL_MODE` = `sandbox` (for testing first)
 
 ### 2. Deploy
