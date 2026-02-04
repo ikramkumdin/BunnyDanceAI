@@ -17,32 +17,61 @@ const CREEM_API_KEY = process.env.CREEM_API_KEY || '';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify API key from header (Creem should send this)
+    // Get API key from header (Creem should send this)
     const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.replace('Bearer ', '');
     
-    if (apiKey !== CREEM_API_KEY) {
-      console.error('❌ Invalid API key in webhook request');
+    // Log all headers for debugging (don't log actual API key)
+    console.log('📧 Creem webhook received - Headers:', {
+      'x-api-key': apiKey ? '***' : 'missing',
+      'authorization': request.headers.get('authorization') ? '***' : 'missing',
+      'content-type': request.headers.get('content-type'),
+    });
+    
+    // For testing, allow webhook without API key if CREEM_API_KEY is not set
+    // In production, this should be required
+    if (CREEM_API_KEY && apiKey !== CREEM_API_KEY) {
+      console.error('❌ Invalid API key in webhook request', {
+        received: apiKey ? 'present' : 'missing',
+        expected: CREEM_API_KEY ? 'set' : 'not set',
+      });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
     
+    // Log the FULL webhook payload for debugging
+    console.log('📧 Creem webhook received - Full payload:', JSON.stringify(body, null, 2));
+    
     // Log the webhook for debugging
-    console.log('📧 Creem webhook received:', {
-      event_type: body.event_type || body.type,
-      payment_status: body.status || body.payment_status,
-      checkout_id: body.checkout_id || body.id,
-      product_id: body.product_id,
-      user_id: body.metadata?.user_id || body.user_id,
+    console.log('📧 Creem webhook received - Summary:', {
+      event_type: body.event_type || body.type || body.event,
+      payment_status: body.status || body.payment_status || body.payment?.status,
+      checkout_id: body.checkout_id || body.id || body.checkout?.id,
+      product_id: body.product_id || body.product?.id,
+      metadata: body.metadata,
+      customer: body.customer,
+      user_id: body.metadata?.user_id || body.user_id || body.customer_id || body.customer?.id,
     });
 
     // Extract important fields (adjust based on actual Creem webhook payload)
-    const eventType = body.event_type || body.type || 'payment.completed';
-    const status = body.status || body.payment_status || body.state;
-    const checkoutId = body.checkout_id || body.id;
-    const productId = body.product_id;
-    const userId = body.metadata?.user_id || body.user_id || body.customer_id;
-    const amount = body.amount || body.total_amount;
+    // Try multiple possible field names since Creem's webhook format may vary
+    const eventType = body.event_type || body.type || body.event || 'checkout.completed';
+    const status = body.status || body.payment_status || body.payment?.status || body.state || body.checkout?.status;
+    const checkoutId = body.checkout_id || body.id || body.checkout?.id || body.checkout_id;
+    const productId = body.product_id || body.product?.id || body.product_id;
+    
+    // Try multiple ways to extract user_id from metadata
+    // Since we pass it as metadata[user_id] in the URL, it might be nested differently
+    let userId = 
+      body.metadata?.user_id || 
+      body.metadata?.['user_id'] ||
+      body.custom_data?.user_id ||
+      body.user_id || 
+      body.customer_id || 
+      body.customer?.id ||
+      body.customer?.email; // Fallback to email if we can find user by email
+    
+    const amount = body.amount || body.total_amount || body.payment?.amount || body.checkout?.amount;
 
     // Only process completed/succeeded payments
     if (status !== 'completed' && status !== 'succeeded' && status !== 'paid') {
@@ -66,8 +95,32 @@ export async function POST(request: NextRequest) {
     }
 
     if (!userId) {
-      console.error('❌ No user ID in webhook payload');
-      return NextResponse.json({ error: 'No user ID' }, { status: 400 });
+      console.error('❌ No user ID in webhook payload. Full body:', JSON.stringify(body, null, 2));
+      
+      // Try to find user by email if customer email is provided
+      const customerEmail = body.customer?.email || body.email || body.payer_email;
+      if (customerEmail) {
+        console.log('🔍 Attempting to find user by email:', customerEmail);
+        try {
+          const usersSnapshot = await adminDb.collection('users')
+            .where('email', '==', customerEmail)
+            .limit(1)
+            .get();
+          
+          if (!usersSnapshot.empty) {
+            userId = usersSnapshot.docs[0].id;
+            console.log('✅ Found user by email:', userId);
+          } else {
+            console.error('❌ No user found with email:', customerEmail);
+            return NextResponse.json({ error: 'No user ID and no matching user email' }, { status: 400 });
+          }
+        } catch (emailError) {
+          console.error('❌ Error searching for user by email:', emailError);
+          return NextResponse.json({ error: 'No user ID' }, { status: 400 });
+        }
+      } else {
+        return NextResponse.json({ error: 'No user ID' }, { status: 400 });
+      }
     }
 
     if (!checkoutId) {

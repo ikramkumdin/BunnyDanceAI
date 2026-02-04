@@ -10,7 +10,9 @@ function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [countdown, setCountdown] = useState(10);
-  const { refreshUser } = useUser();
+  const { refreshUser, user } = useUser();
+  const [isGrantingCredits, setIsGrantingCredits] = useState(false);
+  const [creditsGranted, setCreditsGranted] = useState(false);
 
   // Get transaction details from URL params (Creem may send different params)
   const txId = searchParams.get('checkout_id') || searchParams.get('tx') || searchParams.get('txn_id');
@@ -18,10 +20,77 @@ function PaymentSuccessContent() {
   const item = searchParams.get('product_name') || searchParams.get('item_name') || 'Pro Weekly Subscription';
   const customerId = searchParams.get('customer_id') || searchParams.get('payer_id');
 
+  // Check if credits were granted (user should have pro tier or increased credits)
+  const checkCreditsGranted = () => {
+    if (user) {
+      const hasProTier = user.tier === 'pro' || user.tier === 'lifetime';
+      const hasIncreasedCredits = (user.imageCredits || 0) > 3 || (user.videoCredits || 0) > 3;
+      return hasProTier || hasIncreasedCredits;
+    }
+    return false;
+  };
+
+  const handleManualGrant = async () => {
+    if (!user?.id || !txId) {
+      console.error('Missing user ID or transaction ID');
+      return;
+    }
+
+    setIsGrantingCredits(true);
+    try {
+      const { auth } = await import('@/lib/firebase');
+      const { getIdToken } = await import('firebase/auth');
+      const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+
+      if (!idToken) {
+        console.error('No auth token');
+        setIsGrantingCredits(false);
+        return;
+      }
+
+      const response = await fetch('/api/creem/manual-grant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ checkoutId: txId }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setCreditsGranted(true);
+        await refreshUser();
+      } else {
+        console.error('Failed to grant credits:', data);
+      }
+    } catch (error) {
+      console.error('Error granting credits:', error);
+    } finally {
+      setIsGrantingCredits(false);
+    }
+  };
+
   useEffect(() => {
     // Refresh user credits when payment success page loads
-    // This ensures credits are updated after PayPal payment
-    refreshUser();
+    // This ensures credits are updated after Creem payment
+    const checkAndRefreshCredits = async () => {
+      // First refresh to get latest credits
+      await refreshUser();
+      
+      // Wait a bit for webhook to process, then refresh again
+      setTimeout(async () => {
+        await refreshUser();
+      }, 2000);
+      
+      // Final refresh before redirect
+      setTimeout(async () => {
+        await refreshUser();
+      }, 5000);
+    };
+    
+    checkAndRefreshCredits();
     
     // Countdown redirect to generate page
     const timer = setInterval(() => {
@@ -110,6 +179,30 @@ function PaymentSuccessContent() {
               <ExternalLink className="w-4 h-4" />
             </a>
           </div>
+
+          {/* Manual Credit Grant (if credits not showing) */}
+          {!checkCreditsGranted() && !creditsGranted && txId && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-4">
+              <p className="text-yellow-300 text-sm mb-3">
+                Credits may take a few seconds to update. If they don&apos;t appear, click below:
+              </p>
+              <button
+                onClick={handleManualGrant}
+                disabled={isGrantingCredits}
+                className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+              >
+                {isGrantingCredits ? 'Granting Credits...' : 'Grant Credits Now'}
+              </button>
+            </div>
+          )}
+
+          {creditsGranted && (
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+              <p className="text-green-300 text-sm">
+                ✅ Credits granted successfully! Your account has been updated.
+              </p>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="space-y-3">
