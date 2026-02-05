@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { addCredits } from '@/lib/credits';
-import { paymentTiers, PaymentTier } from '@/lib/payment';
+import { paymentTiers, payAsYouGoPacks, PaymentTier } from '@/lib/payment';
 
 /**
  * Creem Webhook Handler
@@ -106,13 +106,28 @@ export async function POST(request: NextRequest) {
     // For now, we'll match by amount and metadata
     let planId = body.metadata?.plan_id || body.plan_id;
     let billingCycle = body.metadata?.billing_cycle || body.billing_cycle || 'monthly';
+    let isPayAsYouGo = body.metadata?.plan_type === 'pay-as-you-go' || planId?.startsWith('pack-');
     
     // If no plan_id in metadata, try to match by amount
     if (!planId) {
       const receivedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
       
-      // Match by amount (monthly prices)
-      if (Math.abs(receivedAmount - 9) < 0.01) {
+      // Match by amount - check pay-as-you-go packs first
+      if (Math.abs(receivedAmount - 5) < 0.01) {
+        planId = 'pack-small';
+        billingCycle = 'one-time';
+        isPayAsYouGo = true;
+      } else if (Math.abs(receivedAmount - 20) < 0.01) {
+        planId = 'pack-medium';
+        billingCycle = 'one-time';
+        isPayAsYouGo = true;
+      } else if (Math.abs(receivedAmount - 50) < 0.01) {
+        planId = 'pack-large';
+        billingCycle = 'one-time';
+        isPayAsYouGo = true;
+      } 
+      // Then check subscription plans (monthly)
+      else if (Math.abs(receivedAmount - 9) < 0.01) {
         planId = 'starter';
         billingCycle = 'monthly';
       } else if (Math.abs(receivedAmount - 24) < 0.01) {
@@ -121,7 +136,9 @@ export async function POST(request: NextRequest) {
       } else if (Math.abs(receivedAmount - 48) < 0.01) {
         planId = 'pro';
         billingCycle = 'monthly';
-      } else if (Math.abs(receivedAmount - 86) < 0.01) {
+      } 
+      // Annual subscriptions
+      else if (Math.abs(receivedAmount - 86) < 0.01) {
         planId = 'starter';
         billingCycle = 'annual';
       } else if (Math.abs(receivedAmount - 230) < 0.01) {
@@ -136,9 +153,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const selectedPlan = paymentTiers.find(t => t.id === planId);
+    // Find plan in either subscriptions or pay-as-you-go packs
+    const selectedPlan = isPayAsYouGo 
+      ? payAsYouGoPacks.find(t => t.id === planId)
+      : paymentTiers.find(t => t.id === planId);
+    
     if (!selectedPlan) {
-      console.error(`❌ Plan not found: ${planId}`);
+      console.error(`❌ Plan not found: ${planId} (pay-as-you-go: ${isPayAsYouGo})`);
       return NextResponse.json({ error: 'Plan not found' }, { status: 400 });
     }
 
@@ -195,8 +216,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    // Process payment based on event type
-    if (eventType === 'payment.completed' || eventType === 'checkout.completed' || eventType === 'subscription.created') {
+    // Process payment based on event type and plan type
+    if (isPayAsYouGo) {
+      // Pay-as-you-go packs are one-time purchases - just grant credits
+      await handlePayAsYouGoPurchase(userId, checkoutId, planId, selectedPlan);
+    } else if (eventType === 'payment.completed' || eventType === 'checkout.completed' || eventType === 'subscription.created') {
       // Initial subscription payment
       await handleInitialPayment(userId, checkoutId, planId, billingCycle, selectedPlan);
     } else if (eventType === 'subscription.renewed' || eventType === 'payment.renewed') {
@@ -280,6 +304,29 @@ async function handleRenewal(
   });
 
   console.log(`✅ Granted ${plan.imageCredits} image + ${plan.videoCredits} video credits for renewal to user ${userId}`);
+}
+
+/**
+ * Handle pay-as-you-go credit pack purchase
+ */
+async function handlePayAsYouGoPurchase(
+  userId: string,
+  checkoutId: string,
+  planId: string,
+  plan: PaymentTier
+) {
+  console.log(`💰 Pay-as-you-go purchase for user ${userId} - Pack: ${planId}`);
+  
+  // Grant credits (one-time purchase, no tier change)
+  await addCredits(userId, plan.imageCredits, plan.videoCredits);
+  
+  // Don't change user tier for pay-as-you-go purchases
+  // Just record the purchase
+  await adminDb.collection('users').doc(userId).update({
+    lastPaymentDate: new Date().toISOString(),
+  });
+
+  console.log(`✅ Granted ${plan.imageCredits} image + ${plan.videoCredits} video credits from pay-as-you-go pack to user ${userId}`);
 }
 
 // Handle GET requests (for webhook endpoint verification)

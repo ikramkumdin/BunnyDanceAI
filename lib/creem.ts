@@ -26,6 +26,10 @@ export async function generateCreemCheckoutUrl(
   planId: string = 'standard', 
   billingCycle: string = 'monthly'
 ): Promise<string> {
+  // Normalize billing cycle for pay-as-you-go
+  if (planId.startsWith('pack-')) {
+    billingCycle = 'one-time';
+  }
   // TODO: Map planId + billingCycle to actual Creem product IDs
   // For now, using the default CREEM_PRODUCT_ID
   // You should create environment variables like:

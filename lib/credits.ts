@@ -1,15 +1,7 @@
 import { adminDb } from './firebase-admin';
 import { User } from '@/types';
-
-// Free tier limits
-export const FREE_IMAGE_CREDITS = 3;
-export const FREE_VIDEO_CREDITS = 3;
-
-// Credit costs for each generation type
-export const CREDIT_COSTS = {
-  IMAGE: 1,
-  VIDEO: 1,
-};
+import { CREDIT_COSTS, FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } from './credit-constants';
+export { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS, CREDIT_COSTS };
 
 /**
  * Check if user has enough credits for a specific action
@@ -22,10 +14,11 @@ export async function hasCredits(userId: string, type: 'image' | 'video'): Promi
     const userData = userDoc.data() as User;
     
     // Check credits based on type
+    // Video requires 20 credits, image requires 1 credit
     if (type === 'image') {
-      return (userData.imageCredits || 0) > 0;
+      return (userData.imageCredits || 0) >= CREDIT_COSTS.IMAGE;
     } else {
-      return (userData.videoCredits || 0) > 0;
+      return (userData.videoCredits || 0) >= CREDIT_COSTS.VIDEO;
     }
   } catch (error) {
     console.error('Error checking credits:', error);
@@ -48,14 +41,14 @@ export async function deductCredit(userId: string, type: 'image' | 'video'): Pro
     // Deduct credit based on type
     if (type === 'image') {
       const currentCredits = userData.imageCredits || 0;
-      if (currentCredits <= 0) return false;
+      if (currentCredits < CREDIT_COSTS.IMAGE) return false;
       
       await userRef.update({
         imageCredits: currentCredits - CREDIT_COSTS.IMAGE,
       });
     } else {
       const currentCredits = userData.videoCredits || 0;
-      if (currentCredits <= 0) return false;
+      if (currentCredits < CREDIT_COSTS.VIDEO) return false;
       
       await userRef.update({
         videoCredits: currentCredits - CREDIT_COSTS.VIDEO,

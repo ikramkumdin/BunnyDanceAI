@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const planId = searchParams.get('planId') || 'standard'; // Default to standard
-    const billingCycle = searchParams.get('billing') || 'monthly'; // Default to monthly
+    let billingCycle = searchParams.get('billing') || 'monthly'; // Default to monthly
 
     if (!userId) {
       console.error('❌ Creem checkout: User ID is required');
@@ -40,9 +40,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate billingCycle
-    if (billingCycle !== 'monthly' && billingCycle !== 'annual') {
+    if (billingCycle !== 'monthly' && billingCycle !== 'annual' && billingCycle !== 'one-time') {
       console.error('❌ Creem checkout: Invalid billing cycle', { billingCycle });
       return NextResponse.json({ error: 'Invalid billing cycle' }, { status: 400 });
+    }
+    
+    // Check if this is a pay-as-you-go pack
+    const isPayAsYouGo = planId.startsWith('pack-') || billingCycle === 'one-time';
+    if (isPayAsYouGo && billingCycle !== 'one-time') {
+      billingCycle = 'one-time'; // Force one-time for pay-as-you-go
     }
 
     // Check environment variables before calling Creem API

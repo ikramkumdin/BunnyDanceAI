@@ -40,15 +40,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has video credits (paid tiers have credits)
-    if (user.tier === 'free') {
-      const hasVideoCredits = await hasCredits(authUid, 'video');
-      if (!hasVideoCredits) {
-        return NextResponse.json(
-          { error: 'No video credits remaining. Please upgrade to continue generating videos.', needsUpgrade: true },
-          { status: 403 }
-        );
-      }
+    // Check if user has enough video credits (20 credits required per video)
+    const hasVideoCredits = await hasCredits(authUid, 'video');
+    if (!hasVideoCredits) {
+      return NextResponse.json(
+        { error: 'Insufficient video credits. Each video requires 20 credits. Please upgrade to continue generating videos.', needsUpgrade: true },
+        { status: 403 }
+      );
     }
 
     console.log('🎬 Text-to-video started (Grok Imagine)');
@@ -119,8 +117,9 @@ export async function POST(request: NextRequest) {
     if (taskId) {
       // Deduct credit for free users
       if (user.tier === 'free') {
+        const { CREDIT_COSTS } = await import('@/lib/credits');
         await deductCredit(authUid, 'video');
-        console.log('💳 Deducted 1 video credit from user');
+        console.log(`💳 Deducted ${CREDIT_COSTS.VIDEO} video credits from user`);
       }
       
       return NextResponse.json({ success: true, taskId });

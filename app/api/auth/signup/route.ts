@@ -74,14 +74,15 @@ export async function POST(request: NextRequest) {
     const { idToken, localId: uid, email: userEmail } = signUpData;
 
     // Create user in Firestore
+    const { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } = await import('@/lib/credit-constants');
     const userData = {
       email: userEmail,
       name: name || undefined,
       displayName: name || undefined,
       tier: 'free',
       credits: 0, // Legacy field
-      imageCredits: 3, // Free tier: 3 images
-      videoCredits: 3, // Free tier: 3 videos
+      imageCredits: FREE_IMAGE_CREDITS,
+      videoCredits: FREE_VIDEO_CREDITS,
       dailyVideoCount: 0,
       lastVideoDate: new Date().toISOString(),
       isAgeVerified: false,

@@ -26,12 +26,13 @@ export function useUser() {
             const { doc, setDoc, Timestamp } = await import('firebase/firestore');
             const { db } = await import('@/lib/firebase');
             const userRef = doc(db, 'users', firebaseUser.uid);
+            const { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } = await import('@/lib/credit-constants');
             const userData: Omit<User, 'id'> = {
               email: firebaseUser.email || undefined,
               tier: 'free',
               credits: 0,
-              imageCredits: 3, // Free tier: 3 images
-              videoCredits: 3, // Free tier: 3 videos
+              imageCredits: FREE_IMAGE_CREDITS,
+              videoCredits: FREE_VIDEO_CREDITS,
               dailyVideoCount: 0,
               lastVideoDate: new Date().toISOString(),
               isAgeVerified: false,
@@ -161,11 +162,12 @@ export function useUser() {
 
   const createDefaultUser = async () => {
     try {
+      const { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } = await import('@/lib/credit-constants');
       const defaultUserData: Omit<User, 'id'> = {
         tier: 'free',
         credits: 0,
-        imageCredits: 3, // Free tier: 3 images
-        videoCredits: 3, // Free tier: 3 videos
+        imageCredits: FREE_IMAGE_CREDITS,
+        videoCredits: FREE_VIDEO_CREDITS,
         dailyVideoCount: 0,
         lastVideoDate: new Date().toISOString(),
         isAgeVerified: false,
@@ -193,12 +195,13 @@ export function useUser() {
     } catch (error) {
       console.error('Error creating user:', error);
       // Fallback to localStorage if Firestore fails
+      const { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } = await import('@/lib/credit-constants');
       const fallbackUser: User = {
         id: `user_${Date.now()}`,
         tier: 'free',
         credits: 0,
-        imageCredits: 3,
-        videoCredits: 3,
+        imageCredits: FREE_IMAGE_CREDITS,
+        videoCredits: FREE_VIDEO_CREDITS,
         dailyVideoCount: 0,
         lastVideoDate: new Date().toISOString(),
         isAgeVerified: false,

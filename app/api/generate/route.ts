@@ -4,7 +4,7 @@ import { uploadImage } from '@/lib/storage';
 import { getTemplatePrompt } from '@/data/template-prompts';
 import { verifyAuthToken } from '@/lib/verify-auth';
 import { getUserAdmin } from '@/lib/firestore-admin';
-import { hasCredits, deductCredit } from '@/lib/credits';
+import { hasCredits, deductCredit, CREDIT_COSTS } from '@/lib/credits';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -40,15 +40,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has video credits (paid tiers have credits)
-    if (user.tier === 'free') {
-      const hasVideoCredits = await hasCredits(authUid, 'video');
-      if (!hasVideoCredits) {
-        return NextResponse.json(
-          { error: 'No video credits remaining. Please upgrade to continue generating videos.', needsUpgrade: true },
-          { status: 403 }
-        );
-      }
+    // Check if user has enough video credits (20 credits required per video)
+    const hasVideoCredits = await hasCredits(authUid, 'video');
+    if (!hasVideoCredits) {
+      return NextResponse.json(
+        { error: 'Insufficient video credits. Each video requires 20 credits. Please upgrade to continue generating videos.', needsUpgrade: true },
+        { status: 403 }
+      );
     }
 
     console.log('🎬 Image-to-video started');
@@ -144,10 +142,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (taskId) {
-      // Deduct credit for free users
-      if (user.tier === 'free') {
-        await deductCredit(authUid, 'video');
-        console.log('💳 Deducted 1 video credit from user');
+      // Deduct 20 credits for video generation (all users)
+      const deducted = await deductCredit(authUid, 'video');
+      if (deducted) {
+        console.log(`💳 Deducted ${CREDIT_COSTS.VIDEO} video credits from user`);
       }
       
       return NextResponse.json({ success: true, taskId });

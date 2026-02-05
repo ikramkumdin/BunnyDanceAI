@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserAdmin } from '@/lib/firestore-admin';
+import { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } from '@/lib/credit-constants';
 
 // Handle CORS preflight
 export async function OPTIONS() {
@@ -85,8 +86,8 @@ export async function POST(request: NextRequest) {
         email: userEmail,
         tier: 'free',
         credits: 100, // Legacy field, kept for backward compatibility
-        imageCredits: 3, // Free tier: 3 image credits
-        videoCredits: 3, // Free tier: 3 video credits
+        imageCredits: FREE_IMAGE_CREDITS,
+        videoCredits: FREE_VIDEO_CREDITS,
         dailyVideoCount: 0,
         lastVideoDate: new Date().toISOString(),
         isAgeVerified: false,

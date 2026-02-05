@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
-import { paymentTiers, PaymentTier } from '@/lib/payment';
+import { paymentTiers, payAsYouGoPacks, PaymentTier, getAllPlans } from '@/lib/payment';
 import { useUser } from '@/hooks/useUser';
 import { trackEvent } from '@/lib/analytics';
 
@@ -15,6 +15,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const { user } = useUser();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [selectedTier, setSelectedTier] = useState<string>('standard'); // Default to Standard
+  const [showPayAsYouGo, setShowPayAsYouGo] = useState(false); // Toggle between subscriptions and pay-as-you-go
   const [creemUrl, setCreemUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -69,7 +70,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
           // Fetch Creem checkout URL from API
           // Note: You'll need to create products in Creem for each plan
-          const response = await fetch(`/api/creem/get-checkout-url?userId=${user.id}&planId=${selectedTier}&billing=${billingCycle}`, {
+          const billing = showPayAsYouGo ? 'one-time' : billingCycle;
+          const response = await fetch(`/api/creem/get-checkout-url?userId=${user.id}&planId=${selectedTier}&billing=${billing}`, {
             headers: {
               'Authorization': `Bearer ${idToken}`,
             },
@@ -99,21 +101,21 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     };
 
     fetchCreemUrl();
-  }, [isOpen, user?.id, selectedTier, billingCycle]);
+  }, [isOpen, user?.id, selectedTier, billingCycle, showPayAsYouGo]);
 
   if (!isOpen) return null;
 
   const handleCreemClick = () => {
     if (creemUrl && user?.id) {
       // Track checkout button click
-      const selectedPlan = paymentTiers.find(t => t.id === selectedTier);
+      const allPlans = [...paymentTiers, ...payAsYouGoPacks];
+      const selectedPlan = allPlans.find(t => t.id === selectedTier);
       trackEvent('pricing_checkout_clicked', {
         plan_id: selectedTier,
         plan_name: selectedPlan?.name || selectedTier,
-        billing_cycle: billingCycle,
-        price: billingCycle === 'annual' && selectedPlan?.annualPrice 
-          ? selectedPlan.annualPrice 
-          : selectedPlan?.price || 0,
+        billing_cycle: showPayAsYouGo ? 'one-time' : billingCycle,
+        plan_type: showPayAsYouGo ? 'pay-as-you-go' : 'subscription',
+        price: selectedPlan?.price || 0,
         user_tier: user?.tier || 'free',
       });
       
@@ -148,35 +150,69 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         <h2 className="text-2xl font-bold mb-2 text-center">Choose Your Plan</h2>
         <p className="text-gray-400 text-sm mb-6 text-center">Select a plan that fits your needs</p>
 
-        {/* Billing Cycle Toggle */}
-        <div className="flex justify-center mb-6">
+        {/* Subscription vs Pay-As-You-Go Toggle */}
+        <div className="flex justify-center mb-4">
           <div className="bg-gray-700 rounded-lg p-1 inline-flex gap-1">
             <button
-              onClick={() => setBillingCycle('monthly')}
+              onClick={() => {
+                setShowPayAsYouGo(false);
+                setSelectedTier('standard'); // Reset to default
+              }}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                billingCycle === 'monthly'
+                !showPayAsYouGo
                   ? 'bg-primary text-white'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Monthly
+              Subscriptions
             </button>
             <button
-              onClick={() => setBillingCycle('annual')}
+              onClick={() => {
+                setShowPayAsYouGo(true);
+                setSelectedTier('pack-medium'); // Default to medium pack
+              }}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                billingCycle === 'annual'
+                showPayAsYouGo
                   ? 'bg-primary text-white'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Annual <span className="text-xs text-green-400">(20% off)</span>
+              Pay-As-You-Go
             </button>
           </div>
         </div>
 
+        {/* Billing Cycle Toggle (only for subscriptions) */}
+        {!showPayAsYouGo && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-gray-700 rounded-lg p-1 inline-flex gap-1">
+              <button
+                onClick={() => setBillingCycle('monthly')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  billingCycle === 'monthly'
+                    ? 'bg-primary text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingCycle('annual')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  billingCycle === 'annual'
+                    ? 'bg-primary text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Annual <span className="text-xs text-green-400">(20% off)</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Plans Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {paymentTiers.map((tier) => {
+          {(showPayAsYouGo ? payAsYouGoPacks : paymentTiers).map((tier) => {
             const isSelected = selectedTier === tier.id;
             const price = getPrice(tier);
             const priceLabel = getPriceLabel(tier);
@@ -204,9 +240,9 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                 <div className="mb-4">
                   <span className="text-3xl font-bold">${price}</span>
                   <span className="text-gray-400 text-sm">
-                    {billingCycle === 'annual' ? '/year' : '/month'}
+                    {showPayAsYouGo ? ' one-time' : billingCycle === 'annual' ? '/year' : '/month'}
                   </span>
-                  {savings && (
+                  {savings && !showPayAsYouGo && (
                     <div className="text-xs text-green-400 mt-1">
                       Save ${savings}/year
                     </div>
@@ -215,19 +251,29 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
                 <div className="mb-4 space-y-2">
                   <div className="text-sm text-gray-300">
-                    <span className="font-semibold">{tier.imageCredits.toLocaleString()}</span> Image Credits/month
+                    <span className="font-semibold">{tier.imageCredits.toLocaleString()}</span> Image Credits{showPayAsYouGo ? '' : '/month'}
                   </div>
                   <div className="text-sm text-gray-300">
-                    <span className="font-semibold">{tier.videoCredits.toLocaleString()}</span> Video Credits/month
+                    <span className="font-semibold">{tier.videoCredits.toLocaleString()}</span> Video Credits{showPayAsYouGo ? '' : '/month'} ({tier.videosPerMonth} videos)
                   </div>
-                  <div className="text-sm text-gray-300">
-                    ~<span className="font-semibold">{tier.videosPerMonth}</span> videos/month
-                  </div>
+                  {!showPayAsYouGo && (
+                    <div className="text-sm text-gray-300">
+                      ~<span className="font-semibold">{tier.videosPerMonth}</span> videos/month
+                    </div>
+                  )}
                   <div className="text-xs text-gray-400">
-                    ${billingCycle === 'annual' && tier.annualPerVideoCost 
-                      ? tier.annualPerVideoCost 
-                      : tier.perVideoCost}/video
+                    ${tier.perVideoCost}/video
                   </div>
+                  {tier.videoResolution && (
+                    <div className="text-xs text-gray-400">
+                      {tier.videoResolution} quality
+                    </div>
+                  )}
+                  {tier.generationSpeed && (
+                    <div className="text-xs text-gray-400">
+                      {tier.generationSpeed} speed
+                    </div>
+                  )}
                 </div>
 
                 <ul className="space-y-2 mb-6">
