@@ -10,12 +10,24 @@ export default function Footer() {
           <div className="text-sm">
             © {new Date().getFullYear()} WaifuDance AI (ASMRTTS). All Rights Reserved.
           </div>
-          <div className="flex gap-6 text-sm">
+          <div className="flex flex-wrap gap-4 md:gap-6 text-sm justify-center md:justify-end">
             <Link 
               href="/terms" 
               className="hover:text-primary transition-colors"
             >
               Terms of Service
+            </Link>
+            <Link 
+              href="/privacy" 
+              className="hover:text-primary transition-colors"
+            >
+              Privacy Policy
+            </Link>
+            <Link 
+              href="/returns" 
+              className="hover:text-primary transition-colors"
+            >
+              Returns & Refunds
             </Link>
             <a 
               href="mailto:support@waifudance.com" 
