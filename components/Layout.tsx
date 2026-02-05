@@ -3,6 +3,7 @@
 import { ReactNode, useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import Footer from './Footer';
 
 interface LayoutProps {
   children: ReactNode;
@@ -42,6 +43,7 @@ export default function Layout({
         <main className="flex-1 overflow-y-auto pt-16 lg:pt-0">
           {children}
         </main>
+        <Footer />
       </div>
     </div>
   );
