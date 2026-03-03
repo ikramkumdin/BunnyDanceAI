@@ -109,46 +109,47 @@ export const paymentTiers: PaymentTier[] = [
 ];
 
 // Pay-As-You-Go Credit Packs (one-time purchases)
+// Pricing strategy: $50 for 10,000 credits → $0.005/credit, 20 credits/video → $0.10/video cost
 export const payAsYouGoPacks: PaymentTier[] = [
   {
-    id: 'pack-small',
-    name: 'Small Pack',
-    price: 5,
+    id: 'pack-basic',
+    name: 'Basic',
+    price: 4,
     type: 'pay-as-you-go',
-    credits: 100,
-    imageCredits: 100,
-    videoCredits: 100, // 100 credits = 5 videos
-    videosPerMonth: 5,
+    credits: 80,
+    imageCredits: 80,
+    videoCredits: 80, // 80 credits = 4 videos (80 / 20)
+    videosPerMonth: 4,
     perVideoCost: 1.00,
     videoResolution: '4K',
     generationSpeed: 'Standard',
     watermarkRemoval: false,
     exclusiveModels: false,
     features: [
-      '100 Image Credits',
-      '100 Video Credits (5 videos)',
+      '80 Credits',
+      'Up to 4 videos',
       '4K quality videos',
       'No expiration',
       'One-time purchase',
     ],
   },
   {
-    id: 'pack-medium',
-    name: 'Medium Pack',
-    price: 20,
+    id: 'pack-plus',
+    name: 'Plus',
+    price: 16,
     type: 'pay-as-you-go',
-    credits: 500,
-    imageCredits: 500,
-    videoCredits: 500, // 500 credits = 25 videos
-    videosPerMonth: 25,
+    credits: 400,
+    imageCredits: 400,
+    videoCredits: 400, // 400 credits = 20 videos (400 / 20)
+    videosPerMonth: 20,
     perVideoCost: 0.80,
     videoResolution: '4K',
     generationSpeed: 'Standard',
     watermarkRemoval: true,
     exclusiveModels: false,
     features: [
-      '500 Image Credits',
-      '500 Video Credits (25 videos)',
+      '400 Credits',
+      'Up to 20 videos',
       '4K quality videos',
       'Watermark removal',
       'No expiration',
@@ -158,22 +159,22 @@ export const payAsYouGoPacks: PaymentTier[] = [
     popular: true,
   },
   {
-    id: 'pack-large',
-    name: 'Large Pack',
-    price: 50,
+    id: 'pack-premium',
+    name: 'Premium',
+    price: 40,
     type: 'pay-as-you-go',
-    credits: 1500,
-    imageCredits: 1500,
-    videoCredits: 1500, // 1500 credits = 75 videos
-    videosPerMonth: 75,
+    credits: 1200,
+    imageCredits: 1200,
+    videoCredits: 1200, // 1200 credits = 60 videos (1200 / 20)
+    videosPerMonth: 60,
     perVideoCost: 0.67,
     videoResolution: '4K',
     generationSpeed: 'Priority',
     watermarkRemoval: true,
     exclusiveModels: false,
     features: [
-      '1,500 Image Credits',
-      '1,500 Video Credits (75 videos)',
+      '1,200 Credits',
+      'Up to 60 videos',
       '4K quality videos',
       'Priority processing',
       'Watermark removal',

@@ -130,7 +130,7 @@ export const templates: Template[] = [
     intensity: 'spicy',
     prompt: 'A highly detailed animated sequence of a beautiful woman based on the reference image, starting with a sensual tongue-out gesture: she playfully extends her tongue slightly while gazing seductively at the camera, her lips parted in a teasing manner with a flirtatious sparkle in her eyes. Then, she transitions smoothly to the shush finger pose: raising her index finger to her lips in a "shh" gesture, her expression turning mysterious and inviting, with a subtle wink or smile. The animation is ultra-smooth, realistic, and in high resolution, faithfully replicating her facial features, hair, makeup, clothing, and overall style from the reference. Use soft cinematic lighting with warm highlights on her face, gentle particle effects like glistening on the tongue and subtle finger motion blur, and a neutral blurred background to highlight the sequential actions.',
     isPremium: false,
-    isHidden: false,
+    isHidden: true,
     previewVideo: ''
   },
   {
@@ -142,7 +142,7 @@ export const templates: Template[] = [
     intensity: 'spicy',
     prompt: 'A beautiful young woman exactly matching the reference image for her face, hair, and body, standing in a starry night sky background with magical sparkles. She undergoes a dramatic transformation into a Sailor Moon-inspired anime magical girl warrior: her casual clothes swirl and dissolve in glowing pink energy, revealing a frilly sailor uniform with short skirt, gloves, boots, and tiara; her hair lengthens into twin tails with red bows; she strikes powerful poses with spinning ribbons and moon crescent effects. Hyper-detailed anime style animation, fluid motion capture, vibrant colors, epic orchestral music swells, slow-motion emphasis on clothing change and power-up glow, cinematic camera orbiting around her, 4K resolution, 10-second seamless loop, inspired by 90s Sailor Moon transformation sequences',
     isPremium: false,
-    isHidden: false,
+    isHidden: true,
     previewVideo: ''
   },
   {
@@ -154,7 +154,7 @@ export const templates: Template[] = [
     intensity: 'extreme',
     prompt: 'A beautiful young woman exactly matching the reference image for her face, hair, and body, standing in a foggy abandoned hospital hallway with dim flickering lights and eerie shadows. She undergoes a horrifying transformation into a classic Silent Hill female nurse NPC: her skin pales to a sickly gray, face wraps in bloody bandages obscuring features, hair becomes matted and disheveled; her casual clothes tear and reform into a tattered, stained nurse uniform with short skirt, stockings, and heels; she hunches over with jerky, unnatural movements, wielding a rusty pipe weapon, groaning and twitching grotesquely. Hyper-detailed horror game style animation inspired by Silent Hill 2, fluid yet glitchy motion, dark atmospheric colors with red blood accents, tense horror sound design swells, slow-motion emphasis on body contortions and facial morphing, cinematic camera circling in close-up, 4K resolution, 12-second seamless loop.',
     isPremium: false,
-    isHidden: false,
+    isHidden: true,
     previewVideo: ''
   },
   {
@@ -164,9 +164,9 @@ export const templates: Template[] = [
     thumbnail: '/templates/custom-5.jpg',
     category: 'halloween',
     intensity: 'spicy',
-    prompt: 'A beautiful young woman exactly matching the reference image for her face, hair, and body, standing in a spooky Halloween night forest with glowing jack-o\'-lanterns and misty fog. She undergoes a magical sequence: her mouth opens wide as a vibrant orange Halloween-themed pumpkin with carved evil grin and inner glow emerges smoothly from her lips in a burst of ethereal smoke and sparkles; she catches it gently with both hands, cradling and presenting it forward with a mischievous smile. Hyper-detailed fantasy animation style, fluid motion capture, autumnal colors with orange and purple hues, whimsical sound effects of popping and whooshing, slow-motion emphasis on the pumpkin ejection and hand-catching moment, cinematic camera zooming in on her face then panning out, 4K resolution, 10-second seamless loop, inspired by Halloween magic tricks and whimsical horror elements.',
+    prompt: 'A beautiful young woman exactly matching the reference image for her face, hair, and body, standing in a spooky Halloween night forest with glowing jack-o\'lanterns and misty fog. She undergoes a magical sequence: her mouth opens wide as a vibrant orange Halloween-themed pumpkin with carved evil grin and inner glow emerges smoothly from her lips in a burst of ethereal smoke and sparkles; she catches it gently with both hands, cradling and presenting it forward with a mischievous smile. Hyper-detailed fantasy animation style, fluid motion capture, autumnal colors with orange and purple hues, whimsical sound effects of popping and whooshing, slow-motion emphasis on the pumpkin ejection and hand-catching moment, cinematic camera zooming in on her face then panning out, 4K resolution, 10-second seamless loop, inspired by Halloween magic tricks and whimsical horror elements.',
     isPremium: false,
-    isHidden: false,
+    isHidden: true,
     previewVideo: ''
   },
   {
@@ -178,7 +178,7 @@ export const templates: Template[] = [
     intensity: 'extreme',
     prompt: 'The character exactly matching the reference image for face, hair, and body, standing on a misty ninja battlefield at dusk with ancient trees and explosive craters. They perform a dramatic turnaround transformation into a Naruto-style ninja: spinning around quickly as casual clothes swirl and dissolve in glowing blue chakra energy, reforming into an ninja jacket, pants, headband, and sandals; once transformed, they rapidly form intricate hand seals with both hands in a dynamic sequence (ram,tiger, etc.), chakra energy glowing orange around their palms and body; they then inhale deeply, with the camera zooming in for an intense close-up on their mouth opening wide to unleash a massive roaring fireball erupting forward in explosive flames with trailing embers and shockwaves. Hyper-detailed anime style animation inspired by Naruto Shippuden, fluid high-speed motion capture, vibrant fiery colors with dramatic shadows, epic sound design of whooshing wind and booming fire roar, slow-motion emphasis on the spin transformation, hand seals, and extreme close-up fireball launch from the mouth, cinematic camera starting with orbiting wide shot during turnaround, then tight facial focus, 4K resolution, loop.',
     isPremium: false,
-    isHidden: false,
+    isHidden: true,
     previewVideo: ''
   },
   {
@@ -190,7 +190,7 @@ export const templates: Template[] = [
     intensity: 'spicy',
     prompt: 'The character exactly matching the reference image for face, hair, and body, standing in a vibrant party scene with colorful lights, confetti, in the background. They energetically dance and lip-sync: precise mouth movements, starting with head bobs and arm waves during the intro, building to full-body grooves with hip sways, jumps, and spins on the chorus; expressive facial animations showing joy and excitement, hands gesturing emphatically. Hyper-detailed realistic animation style with music video vibes, fluid dance choreography, bright neon colors and dynamic lighting, slow-motion highlights on key dance moves and lip-sync close-ups, cinematic camera panning from wide party shot to facial zoom-ins, 4K resolution.',
     isPremium: false,
-    isHidden: false,
+    isHidden: true,
     previewVideo: ''
   },
   {
@@ -202,7 +202,7 @@ export const templates: Template[] = [
     intensity: 'spicy',
     prompt: 'The character exactly matching the reference image for face, hair, body, and dress, entering a opulent bedroom with grand chandelier and velvet curtains. They joyfully jump onto a massive king-sized bed overflowing with piles of shiny gold coins, bars, and jewelry, scattering treasures in the air; sinking into the soft mattress amidst the wealth, they relax and lie down comfortably, rolling playfully in the money with a satisfied smile, arms spread wide. Hyper-detailed realistic animation style with wealth fantasy vibes, fluid motion capture, golden warm lighting and sparkling reflections off the coins, whimsical sound effects of clinking metal and soft thuds, slow-motion emphasis on the jump impact and treasure scattering, cinematic camera following from wide room shot to close-up on relaxed face and body lounging, seamless loop',
     isPremium: false,
-    isHidden: false,
+    isHidden: true,
     previewVideo: ''
   },
   {
@@ -214,7 +214,7 @@ export const templates: Template[] = [
     intensity: 'extreme',
     prompt: 'The character exactly matching the reference image for face, hair, body, clothes, height, and overall appearance, walk to the edge of a towering skyscraper in a futuristic cityscape with massive buildings surrounding on all sides, Below hangs a large, suspended bed floating mid-air between the skyscrapers, covered in soft fluffy fur blankets and pillows, highly elastic and bouncy mattress that jiggles upon impact. The character leaps confidently from the high ledge, soaring through the air in a graceful arc toward the bed, landing softly with a deep bounce, then relaxing with a satisfied sigh as the bed sways slightly. Hyper-detailed realistic animation style with adventure fantasy vibes, fluid motion capture, vibrant urban colors with golden hour lighting and wind effects, whimsical sound design of whooshing air and soft thumps, slow-motion emphasis on the jump trajectory, mid-air freefall, and bouncy landing, cinematic camera following from high wide shot to close-up on the impact and relaxation, seamless loop',
     isPremium: false,
-    isHidden: false,
+    isHidden: true,
     previewVideo: ''
   }
 ];

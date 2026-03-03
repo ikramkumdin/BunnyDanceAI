@@ -157,7 +157,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
             <button
               onClick={() => {
                 setShowPayAsYouGo(true);
-                setSelectedTier('pack-medium'); // Default to medium pack
+                setSelectedTier('pack-plus'); // Default to plus pack
               }}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 showPayAsYouGo

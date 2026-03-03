@@ -264,9 +264,9 @@ function matchPlanByAmount(amount: number): { planId: string; billingCycle: stri
   const close = (a: number, b: number) => Math.abs(a - b) < 1;
 
   // Pay-as-you-go packs
-  if (close(amount, 5))   return { planId: 'pack-small',  billingCycle: 'one-time', isPayAsYouGo: true };
-  if (close(amount, 20))  return { planId: 'pack-medium', billingCycle: 'one-time', isPayAsYouGo: true };
-  if (close(amount, 50))  return { planId: 'pack-large',  billingCycle: 'one-time', isPayAsYouGo: true };
+  if (close(amount, 4))   return { planId: 'pack-basic',   billingCycle: 'one-time', isPayAsYouGo: true };
+  if (close(amount, 16))  return { planId: 'pack-plus',    billingCycle: 'one-time', isPayAsYouGo: true };
+  if (close(amount, 40))  return { planId: 'pack-premium', billingCycle: 'one-time', isPayAsYouGo: true };
   // Monthly subscriptions
   if (close(amount, 9))   return { planId: 'starter',  billingCycle: 'monthly', isPayAsYouGo: false };
   if (close(amount, 24))  return { planId: 'standard', billingCycle: 'monthly', isPayAsYouGo: false };
