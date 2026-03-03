@@ -34,7 +34,7 @@ export default function PaymentCanceledPage() {
             </h2>
             <ul className="space-y-2 text-white/70">
               <li>• You clicked &quot;Cancel&quot; during checkout</li>
-              <li>• You closed the PayPal window before completing payment</li>
+              <li>• You closed the Stripe checkout window before completing payment</li>
               <li>• The payment session timed out</li>
             </ul>
           </div>

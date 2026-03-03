@@ -16,7 +16,6 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [selectedTier, setSelectedTier] = useState<string>('standard'); // Default to Standard
   const [showPayAsYouGo, setShowPayAsYouGo] = useState(false); // Toggle between subscriptions and pay-as-you-go
-  const [creemUrl, setCreemUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
@@ -51,62 +50,14 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     }
   }, [billingCycle, isOpen, selectedTier]);
 
-  useEffect(() => {
-    const fetchCreemUrl = async () => {
-      if (isOpen && user?.id && selectedTier) {
-        setIsLoading(true);
-        setError('');
-        try {
-          // Get auth token
-          const { auth } = await import('@/lib/firebase');
-          const { getIdToken } = await import('firebase/auth');
-          const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
-
-          if (!idToken) {
-            setError('Please sign in to continue');
-            setIsLoading(false);
-            return;
-          }
-
-          // Fetch Creem checkout URL from API
-          // Note: You'll need to create products in Creem for each plan
-          const billing = showPayAsYouGo ? 'one-time' : billingCycle;
-          const response = await fetch(`/api/creem/get-checkout-url?userId=${user.id}&planId=${selectedTier}&billing=${billing}`, {
-            headers: {
-              'Authorization': `Bearer ${idToken}`,
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.url) {
-              setCreemUrl(data.url);
-            } else {
-              setError('Failed to get checkout URL. Please try again.');
-            }
-          } else {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            const errorMessage = errorData.error || errorData.details || 'Failed to connect to payment service';
-            setError(errorMessage);
-            console.error('Failed to get Creem checkout URL:', errorData);
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Network error. Please check your connection.';
-          setError(errorMessage);
-          console.error('Error fetching Creem checkout URL:', error);
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchCreemUrl();
-  }, [isOpen, user?.id, selectedTier, billingCycle, showPayAsYouGo]);
-
   if (!isOpen) return null;
 
-  const handleCreemClick = () => {
-    if (creemUrl && user?.id) {
+  const handleStripeCheckout = async () => {
+    if (!user?.id) return;
+    setIsLoading(true);
+    setError('');
+
+    try {
       // Track checkout button click
       const allPlans = [...paymentTiers, ...payAsYouGoPacks];
       const selectedPlan = allPlans.find(t => t.id === selectedTier);
@@ -118,9 +69,46 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         price: selectedPlan?.price || 0,
         user_tier: user?.tier || 'free',
       });
-      
-      // Redirect to Creem checkout
-      window.location.href = creemUrl;
+
+      // Get auth token
+      const { auth } = await import('@/lib/firebase');
+      const { getIdToken } = await import('firebase/auth');
+      const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
+
+      if (!idToken) {
+        setError('Please sign in to continue');
+        setIsLoading(false);
+        return;
+      }
+
+      const billing = showPayAsYouGo ? 'one-time' : billingCycle;
+      const response = await fetch('/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ planId: selectedTier, billingCycle: billing }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          setError('Failed to create checkout session. Please try again.');
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        setError(errorData.error || errorData.details || 'Failed to connect to payment service');
+        console.error('Failed to create Stripe checkout:', errorData);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Network error. Please check your connection.';
+      setError(errorMessage);
+      console.error('Error creating Stripe checkout:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -307,28 +295,21 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
               </div>
             )}
             <button
-              onClick={handleCreemClick}
-              disabled={isLoading || !creemUrl}
+              onClick={handleStripeCheckout}
+              disabled={isLoading}
               className="w-full bg-primary hover:bg-primary-dark disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Loading...
-                </>
-              ) : creemUrl ? (
-                <>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  Subscribe with Creem
+                  Redirecting to Stripe...
                 </>
               ) : (
                 <>
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                   </svg>
-                  {error ? 'Error - Check Console' : 'Preparing...'}
+                  {showPayAsYouGo ? 'Buy Credits with Stripe' : 'Subscribe with Stripe'}
                 </>
               )}
             </button>

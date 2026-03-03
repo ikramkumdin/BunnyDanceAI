@@ -12,11 +12,11 @@ function PaymentSuccessContent() {
   const [countdown, setCountdown] = useState(10);
   const { refreshUser, user } = useUser();
 
-  // Get transaction details from URL params (Creem may send different params)
-  const txId = searchParams.get('checkout_id') || searchParams.get('tx') || searchParams.get('txn_id');
-  const amount = searchParams.get('amount') || searchParams.get('amt') || searchParams.get('mc_gross');
-  const item = searchParams.get('product_name') || searchParams.get('item_name') || 'Pro Weekly Subscription';
-  const customerId = searchParams.get('customer_id') || searchParams.get('payer_id');
+  // Get transaction details from URL params (Stripe sends session_id)
+  const txId = searchParams.get('session_id') || searchParams.get('checkout_id') || searchParams.get('tx');
+  const amount = searchParams.get('amount') || searchParams.get('amt');
+  const item = searchParams.get('product_name') || searchParams.get('item_name') || 'Subscription';
+  const customerId = searchParams.get('customer_id');
 
   // Check if credits were granted (user should have paid tier or increased credits)
   const checkCreditsGranted = () => {
@@ -44,13 +44,13 @@ function PaymentSuccessContent() {
       }
 
       console.log('🔄 Auto-granting credits as fallback...');
-      const response = await fetch('/api/creem/manual-grant', {
+      const response = await fetch('/api/stripe/manual-grant', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ checkoutId: txId }),
+        body: JSON.stringify({ sessionId: txId }),
       });
 
       if (response.ok) {
@@ -64,7 +64,7 @@ function PaymentSuccessContent() {
 
   useEffect(() => {
     // Refresh user credits when payment success page loads
-    // This ensures credits are updated after Creem payment
+    // This ensures credits are updated after Stripe payment
     const checkAndRefreshCredits = async () => {
       // First refresh immediately
       await refreshUser();
@@ -162,18 +162,18 @@ function PaymentSuccessContent() {
             </div>
           )}
 
-          {/* Creem Link */}
+          {/* Stripe Link */}
           <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
             <p className="text-gray-400 text-sm mb-3">
-              View full transaction details or manage your subscription in your Creem account.
+              View full transaction details or manage your subscription in your Stripe dashboard.
             </p>
             <a
-              href="https://www.creem.io/dashboard"
+              href="https://billing.stripe.com/p/login/test"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-primary hover:text-primary-light text-sm font-medium transition-colors"
             >
-              View on Creem
+              Manage Subscription
               <ExternalLink className="w-4 h-4" />
             </a>
           </div>

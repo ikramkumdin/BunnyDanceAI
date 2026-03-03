@@ -1,6 +1,6 @@
 export type UserTier = 'free' | 'starter' | 'standard' | 'pro';
 export type IntensityLevel = 'mild' | 'spicy' | 'extreme';
-export type TemplateCategory = 'all' | 'for-you' | 'sway' | 'shimmy' | 'peach' | 'halloween' | 'playful' | 'fright-zone' | 'jk' | 'bunny-girl' | 'catgirl' | 'custom';
+export type TemplateCategory = 'all' | 'for-you' | 'sway' | 'shimmy' | 'peach' | 'halloween' | 'playful' | 'fright-zone' | 'jk' | 'bunny-girl' | 'catgirl' | 'custom' | 'anime' | 'fantasy';
 
 export interface Template {
   id: string;
