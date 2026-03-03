@@ -52,7 +52,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   if (!isOpen) return null;
 
-  const handleStripeCheckout = async () => {
+  const handleCreemCheckout = async () => {
     if (!user?.id) return;
     setIsLoading(true);
     setError('');
@@ -82,31 +82,31 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
       }
 
       const billing = showPayAsYouGo ? 'one-time' : billingCycle;
-      const response = await fetch('/api/stripe/create-checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ planId: selectedTier, billingCycle: billing }),
-      });
+      const response = await fetch(
+        `/api/creem/get-checkout-url?userId=${user.id}&planId=${selectedTier}&billing=${billing}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+          },
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
         if (data.url) {
           window.location.href = data.url;
         } else {
-          setError('Failed to create checkout session. Please try again.');
+          setError('Failed to get checkout URL. Please try again.');
         }
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         setError(errorData.error || errorData.details || 'Failed to connect to payment service');
-        console.error('Failed to create Stripe checkout:', errorData);
+        console.error('Failed to get Creem checkout URL:', errorData);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Network error. Please check your connection.';
       setError(errorMessage);
-      console.error('Error creating Stripe checkout:', error);
+      console.error('Error getting Creem checkout URL:', error);
     } finally {
       setIsLoading(false);
     }
@@ -295,21 +295,21 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
               </div>
             )}
             <button
-              onClick={handleStripeCheckout}
+              onClick={handleCreemCheckout}
               disabled={isLoading}
               className="w-full bg-primary hover:bg-primary-dark disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Redirecting to Stripe...
+                  Redirecting to checkout...
                 </>
               ) : (
                 <>
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                   </svg>
-                  {showPayAsYouGo ? 'Buy Credits with Stripe' : 'Subscribe with Stripe'}
+                  {showPayAsYouGo ? 'Buy Credits' : 'Subscribe Now'}
                 </>
               )}
             </button>

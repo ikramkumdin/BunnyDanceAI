@@ -1,73 +1,98 @@
 /**
  * Creem.io Integration Utilities
- * 
- * Helper functions for Creem checkout URL generation and payment processing
+ *
+ * Docs: https://docs.creem.io/api-reference/introduction
+ *
+ * Test mode  → base URL: https://test-api.creem.io/v1
+ * Production → base URL: https://api.creem.io/v1
  */
+
+import * as crypto from 'crypto';
 
 const CREEM_API_KEY = process.env.CREEM_API_KEY || '';
 const CREEM_PRODUCT_ID = process.env.CREEM_PRODUCT_ID || '';
-const CREEM_API_BASE = 'https://api.creem.io/v1';
 
-// Creem mode: 'sandbox' for testing, 'production' for live
-// Set CREEM_MODE=sandbox in .env.local for testing
 const CREEM_MODE = process.env.CREEM_MODE || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox');
 const IS_SANDBOX = CREEM_MODE === 'sandbox';
 
+// Correct base URLs per Creem docs
+const CREEM_API_BASE = IS_SANDBOX
+  ? 'https://test-api.creem.io/v1'
+  : 'https://api.creem.io/v1';
+
 /**
- * Generate Creem checkout URL for a user
- * Since the API returns 403, we'll use direct checkout URLs
- * Format: https://www.creem.io/checkout/{product_id}?metadata[user_id]={userId}&metadata[plan_id]={planId}&metadata[billing_cycle]={billingCycle}
- * 
- * Note: You'll need to create products in Creem for each plan (starter, standard, pro) 
- * and for each billing cycle (monthly, annual). Store their product IDs in environment variables.
+ * Create a Creem checkout session via the API and return the checkout URL.
+ *
+ * POST {base}/checkouts
+ * Headers: x-api-key, Content-Type: application/json
+ * Body: { product_id, success_url, metadata }
+ * Response: { checkout_url, id, ... }
  */
 export async function generateCreemCheckoutUrl(
-  userId: string, 
-  planId: string = 'standard', 
+  userId: string,
+  planId: string = 'standard',
   billingCycle: string = 'monthly'
 ): Promise<string> {
-  // Normalize billing cycle for pay-as-you-go
   if (planId.startsWith('pack-')) {
     billingCycle = 'one-time';
   }
-  // TODO: Map planId + billingCycle to actual Creem product IDs
-  // For now, using the default CREEM_PRODUCT_ID
-  // You should create environment variables like:
-  // CREEM_PRODUCT_STARTER_MONTHLY, CREEM_PRODUCT_STARTER_ANNUAL, etc.
-  const productId = CREEM_PRODUCT_ID; // This should be mapped based on planId and billingCycle
-  
+
+  const productId = CREEM_PRODUCT_ID;
   if (!productId) {
-    console.error('❌ CREEM_PRODUCT_ID is not set');
     throw new Error('CREEM_PRODUCT_ID is not set in environment variables');
   }
+  if (!CREEM_API_KEY) {
+    throw new Error('CREEM_API_KEY is not set in environment variables');
+  }
 
-  // Use direct checkout URL format (no API call needed)
-  // This works around the 403 API permission issue
-  // Format: https://www.creem.io/test/payment/{product_id} for sandbox
-  // Format: https://www.creem.io/payment/{product_id} for production
-  const baseUrl = IS_SANDBOX 
-    ? 'https://www.creem.io/test/payment'
-    : 'https://www.creem.io/payment';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.waifudance.com';
 
-  // Build checkout URL with product ID and metadata as query params
-  const params = new URLSearchParams({
-    'metadata[user_id]': userId,
-    'metadata[plan_id]': planId,
-    'metadata[billing_cycle]': billingCycle,
-  });
-  
-  const checkoutUrl = `${baseUrl}/${productId}?${params.toString()}`;
+  const body = {
+    product_id: productId,
+    success_url: `${baseUrl}/payment/success`,
+    metadata: {
+      user_id: userId,
+      plan_id: planId,
+      billing_cycle: billingCycle,
+    },
+  };
 
-  console.log('✅ Generated direct Creem checkout URL:', {
+  console.log('🔄 Creating Creem checkout session:', {
+    apiBase: CREEM_API_BASE,
     productId,
-    userId,
     planId,
     billingCycle,
     mode: IS_SANDBOX ? 'test' : 'production',
-    url: checkoutUrl.replace(userId, '***'), // Don't log full URL with user ID
   });
 
-  return checkoutUrl;
+  const response = await fetch(`${CREEM_API_BASE}/checkouts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CREEM_API_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`❌ Creem API error (${response.status}):`, errorText);
+    throw new Error(`Creem API returned ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.checkout_url) {
+    console.error('❌ Creem API response missing checkout_url:', data);
+    throw new Error('Creem API did not return a checkout_url');
+  }
+
+  console.log('✅ Creem checkout session created:', {
+    checkoutId: data.id,
+    mode: data.mode,
+  });
+
+  return data.checkout_url;
 }
 
 /**
@@ -78,11 +103,20 @@ export function getCreemMode(): 'sandbox' | 'production' {
 }
 
 /**
- * Verify Creem webhook signature (if Creem provides webhook signing)
- * This is a placeholder - update based on Creem's webhook documentation
+ * Verify Creem webhook signature using HMAC SHA-256.
+ *
+ * Creem sends the signature in the `creem-signature` header.
+ * The secret is your webhook signing secret from Creem Dashboard → Developers → Webhook.
  */
-export function verifyCreemWebhook(body: string, signature: string): boolean {
-  // TODO: Implement webhook signature verification when Creem documentation is available
-  // For now, we'll rely on the API key check in the webhook handler
-  return true;
+export function verifyCreemWebhook(payload: string, signature: string): boolean {
+  const secret = process.env.CREEM_WEBHOOK_SECRET;
+  if (!secret) {
+    console.warn('⚠️ CREEM_WEBHOOK_SECRET not set — skipping signature verification');
+    return true; // Allow in dev / sandbox when secret is not configured
+  }
+  const computed = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  return computed === signature;
 }

@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: User ID mismatch' }, { status: 403 });
     }
 
-    // Validate planId
-    const validPlans = ['starter', 'standard', 'pro'];
+    // Validate planId (subscriptions + pay-as-you-go packs)
+    const validPlans = ['starter', 'standard', 'pro', 'pack-small', 'pack-medium', 'pack-large'];
     if (!validPlans.includes(planId)) {
       console.error('❌ Creem checkout: Invalid plan ID', { planId });
       return NextResponse.json({ error: 'Invalid plan ID' }, { status: 400 });
