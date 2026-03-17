@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const requestOrigin = new URL(request.url).origin;
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const planId = searchParams.get('planId') || 'standard'; // Default to standard
@@ -83,8 +85,9 @@ export async function GET(request: NextRequest) {
       userId,
       planId,
       billingCycle,
+      requestOrigin,
     });
-    const checkoutUrl = await generateCreemCheckoutUrl(userId, planId, billingCycle);
+    const checkoutUrl = await generateCreemCheckoutUrl(userId, planId, billingCycle, requestOrigin);
 
     return NextResponse.json({ url: checkoutUrl });
   } catch (error) {

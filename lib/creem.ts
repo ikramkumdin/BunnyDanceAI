@@ -31,7 +31,8 @@ const CREEM_API_BASE = IS_SANDBOX
 export async function generateCreemCheckoutUrl(
   userId: string,
   planId: string = 'standard',
-  billingCycle: string = 'monthly'
+  billingCycle: string = 'monthly',
+  successUrlBase?: string
 ): Promise<string> {
   if (planId.startsWith('pack-')) {
     billingCycle = 'one-time';
@@ -45,7 +46,7 @@ export async function generateCreemCheckoutUrl(
     throw new Error('CREEM_API_KEY is not set in environment variables');
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.waifudance.com';
+  const baseUrl = successUrlBase || process.env.NEXT_PUBLIC_BASE_URL || 'https://www.waifudance.com';
 
   const body = {
     product_id: productId,

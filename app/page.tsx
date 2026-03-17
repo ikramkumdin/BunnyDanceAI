@@ -8,6 +8,7 @@ import { Camera, ChevronDown, Download, Loader2, Play, Sparkles } from 'lucide-r
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import { useStore } from '@/store/useStore';
+import PaymentModal from '@/components/PaymentModal';
 
 import { beautyPrompts } from '@/data/beauty-prompts';
 import { useUser } from '@/hooks/useUser';
@@ -17,6 +18,7 @@ export default function Home() {
   const router = useRouter();
   const setStoreUploadedImage = useStore((state) => state.setUploadedImage);
   const { user } = useUser();
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory>('all');
   const [activeTab, setActiveTab] = useState<'trending' | 'my-effect'>('trending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -361,8 +363,7 @@ export default function Home() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Redirect to Stripe checkout for Pro upgrade
-                    window.location.href = 'https://buy.stripe.com/test_placeholder';
+                    setIsPaymentModalOpen(true);
                   }}
                   className="w-full mt-2 sm:mt-3 bg-primary hover:bg-primary-dark text-white font-bold py-2 sm:py-3 rounded-full flex items-center justify-center gap-1 sm:gap-2 shadow-lg transition-all active:scale-95 text-sm sm:text-base"
                 >
@@ -396,6 +397,11 @@ export default function Home() {
             MY EFFECT
           </button>
         </div>
+
+        <PaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+        />
 
         {/* Category Filter Buttons */}
         <div className="flex gap-2 flex-wrap overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -488,7 +494,7 @@ export default function Home() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.location.href = 'https://buy.stripe.com/test_placeholder';
+                      setIsPaymentModalOpen(true);
                     }}
                     className="bg-primary hover:bg-primary-dark text-white text-xs font-bold py-3 px-4 rounded-full flex items-center gap-2 shadow-2xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"
                   >

@@ -1646,7 +1646,7 @@ export default function GeneratePage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           if (template.id === 'kneel-and-crawl') {
-                            window.location.href = 'https://buy.stripe.com/test_placeholder';
+                            setIsPaymentModalOpen(true);
                           } else {
                             handleTemplateSelect(template);
                             // Scroll to top to show the generate button
