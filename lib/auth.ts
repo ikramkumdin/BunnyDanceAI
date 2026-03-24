@@ -11,9 +11,31 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
 } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import { auth } from './firebase';
 import { getUser, getUserByEmail, updateUser } from './firestore';
 import { User } from '@/types';
+
+function toFriendlyAuthError(err: unknown): Error {
+  if (err instanceof FirebaseError) {
+    if (err.code === 'auth/network-request-failed') {
+      return new Error(
+        'Network request failed while contacting Firebase. This is usually caused by a blocked connection (adblock/VPN/firewall), a wrong Firebase Auth domain configuration, or missing NEXT_PUBLIC_FIREBASE_* env vars on Vercel. Check browser console + Network tab, and ensure your site domain is added to Firebase Auth -> Settings -> Authorized domains.'
+      );
+    }
+
+    if (err.code === 'auth/unauthorized-domain') {
+      return new Error(
+        'This domain is not authorized for Firebase Auth. Add your current site domain to Firebase Console -> Authentication -> Settings -> Authorized domains, then refresh and try again.'
+      );
+    }
+
+    return new Error(err.message || 'Firebase authentication error');
+  }
+
+  if (err instanceof Error) return err;
+  return new Error('Authentication failed. Please try again.');
+}
 
 export async function signUp(email: string, password: string, displayName?: string): Promise<{ user: User; firebaseUser: FirebaseUser }> {
   if (!auth) {
@@ -26,9 +48,13 @@ export async function signUp(email: string, password: string, displayName?: stri
     throw new Error('An account with this email already exists');
   }
 
-  // Create Firebase Auth user
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  const firebaseUser = userCredential.user;
+  let firebaseUser: FirebaseUser;
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    firebaseUser = userCredential.user;
+  } catch (err) {
+    throw toFriendlyAuthError(err);
+  }
 
   // Update display name if provided
   if (displayName) {
@@ -82,9 +108,13 @@ export async function signIn(email: string, password: string): Promise<{ user: U
     throw new Error('Firebase Auth is not initialized. Please enable Authentication in Firebase Console and ensure your environment variables are set correctly.');
   }
 
-  // Sign in with Firebase Auth
-  const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  const firebaseUser = userCredential.user;
+  let firebaseUser: FirebaseUser;
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    firebaseUser = userCredential.user;
+  } catch (err) {
+    throw toFriendlyAuthError(err);
+  }
 
   // Get or create Firestore user
   let user = await getUser(firebaseUser.uid);
@@ -150,7 +180,11 @@ export async function resetPassword(email: string): Promise<void> {
     throw new Error('Firebase Auth is not initialized. Please enable Authentication in Firebase Console.');
   }
 
-  await sendPasswordResetEmail(auth, email);
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (err) {
+    throw toFriendlyAuthError(err);
+  }
 }
 
 export function getCurrentFirebaseUser(): FirebaseUser | null {
@@ -170,9 +204,13 @@ export async function signInWithGoogle(): Promise<{ user: User; firebaseUser: Fi
   provider.addScope('profile');
   provider.addScope('email');
 
-  // Sign in with Google popup
-  const userCredential = await signInWithPopup(auth, provider);
-  const firebaseUser = userCredential.user;
+  let firebaseUser: FirebaseUser;
+  try {
+    const userCredential = await signInWithPopup(auth, provider);
+    firebaseUser = userCredential.user;
+  } catch (err) {
+    throw toFriendlyAuthError(err);
+  }
 
   // Get or create Firestore user
   let user = await getUser(firebaseUser.uid);
