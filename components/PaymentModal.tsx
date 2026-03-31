@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
-import { paymentTiers, payAsYouGoPacks, PaymentTier, getAllPlans } from '@/lib/payment';
+import { paymentTiers, payAsYouGoPacks, PaymentTier, getAllPlans, freeTrialTier } from '@/lib/payment';
 import { useUser } from '@/hooks/useUser';
 import { trackEvent } from '@/lib/analytics';
 
@@ -54,6 +54,11 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   const handleCreemCheckout = async () => {
     if (!user?.id) return;
+    if (selectedTier === 'free-trial') {
+      // Free trial doesn't need checkout - just close modal
+      onClose();
+      return;
+    }
     setIsLoading(true);
     setError('');
 
@@ -199,8 +204,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         )}
 
         {/* Plans Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {(showPayAsYouGo ? payAsYouGoPacks : paymentTiers).map((tier) => {
+        <div className={`grid grid-cols-1 ${showPayAsYouGo ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-4 mb-6`}>
+          {(showPayAsYouGo ? payAsYouGoPacks : [freeTrialTier, ...paymentTiers]).map((tier) => {
             const isSelected = selectedTier === tier.id;
             const price = getPrice(tier);
             const priceLabel = getPriceLabel(tier);
@@ -273,9 +278,14 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                   ))}
                 </ul>
 
-                {isSelected && (
+                {isSelected && tier.id !== 'free-trial' && (
                   <div className="bg-primary/20 border border-primary/50 rounded-lg p-2 text-center text-sm text-primary font-semibold">
                     Selected
+                  </div>
+                )}
+                {tier.id === 'free-trial' && (
+                  <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-2 text-center text-sm text-green-400 font-semibold">
+                    Current Plan
                   </div>
                 )}
               </div>

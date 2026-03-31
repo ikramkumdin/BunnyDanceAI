@@ -22,6 +22,30 @@ export interface PaymentTier {
   exclusiveModels?: boolean;
 }
 
+// Free trial tier (display-only, no checkout needed)
+export const freeTrialTier: PaymentTier = {
+  id: 'free-trial',
+  name: 'Free Trial',
+  price: 0,
+  type: 'pay-as-you-go',
+  credits: 20,
+  imageCredits: 20,
+  videoCredits: 20, // 20 credits = 1 video
+  videosPerMonth: 1,
+  perVideoCost: 0,
+  videoResolution: 'HD',
+  generationSpeed: 'Standard',
+  watermarkRemoval: false,
+  exclusiveModels: false,
+  features: [
+    '20 Credits included',
+    'Up to 1 video',
+    'HD quality videos',
+    'Standard speed',
+    'No payment required',
+  ],
+};
+
 // Subscription plans
 export const paymentTiers: PaymentTier[] = [
   {

@@ -372,6 +372,15 @@ export default function GeneratePage() {
               setIsGenerating(false);
               // Refresh user credits after successful generation
               refreshUser();
+              // Auto-save to assets so it appears on the Assets page
+              if (initialMode === 'image-to-video') {
+                const tmpl = selectedTemplate;
+                if (tmpl) {
+                  saveVideoToAssets(videoUrl, tmpl.name, tmpl.id);
+                }
+              } else {
+                saveVideoToAssets(videoUrl, 'Text-to-Video', 'text-to-video', videoUrl);
+              }
               return;
             }
           }
@@ -460,7 +469,7 @@ export default function GeneratePage() {
       setIsGenerating(false);
       showNotification('Error checking video status. Please try again.', 'error');
     }
-  }, [activeMode, showNotification]);
+  }, [activeMode, showNotification, saveVideoToAssets, selectedTemplate]);
 
   // Handle generation
   const handleGenerate = async () => {
@@ -612,8 +621,8 @@ export default function GeneratePage() {
           setGeneratedVideo(data.videoUrl);
           setShowGeneratedVideoActions(true);
           setHasSavedGeneratedVideo(false);
-          // Save to assets
-          // For text-to-video, user saves via the details sheet (like text-to-image).
+          // Auto-save to assets
+          saveVideoToAssets(data.videoUrl, 'Text-to-Video', 'text-to-video', data.videoUrl);
         } else if (data.taskId) {
           // Async generation - start polling
           console.log('🎬 Started text-to-video generation, polling for completion...');
