@@ -50,7 +50,7 @@ export async function generateCreemCheckoutUrl(
 
   const body = {
     product_id: productId,
-    success_url: `${baseUrl}/payment/success`,
+    success_url: `${baseUrl}/payment/success?plan_id=${planId}&billing_cycle=${billingCycle}`,
     metadata: {
       user_id: userId,
       plan_id: planId,

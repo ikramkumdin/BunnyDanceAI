@@ -17,6 +17,8 @@ function PaymentSuccessContent() {
   const amount = searchParams.get('amount') || searchParams.get('amt') || searchParams.get('mc_gross');
   const item = searchParams.get('product_name') || searchParams.get('item_name') || 'Subscription';
   const customerId = searchParams.get('customer_id') || searchParams.get('payer_id');
+  const planId = searchParams.get('plan_id');
+  const billingCycle = searchParams.get('billing_cycle');
 
   // Check if credits were granted (user should have paid tier or increased credits)
   const checkCreditsGranted = () => {
@@ -50,7 +52,7 @@ function PaymentSuccessContent() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ checkoutId: txId }),
+        body: JSON.stringify({ checkoutId: txId, planId, billingCycle }),
       });
 
       if (response.ok) {

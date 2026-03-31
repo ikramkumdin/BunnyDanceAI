@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthToken } from '@/lib/verify-auth';
 import { adminDb } from '@/lib/firebase-admin';
 import { addCredits } from '@/lib/credits';
+import { paymentTiers, payAsYouGoPacks } from '@/lib/payment';
 
 /**
  * Manual Credit Grant Endpoint
@@ -10,7 +11,7 @@ import { addCredits } from '@/lib/credits';
  * Only call this if webhook didn't process the payment.
  * 
  * POST /api/creem/manual-grant
- * Body: { checkoutId: string }
+ * Body: { checkoutId: string, planId?: string, billingCycle?: string }
  */
 
 export async function POST(request: NextRequest) {
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { checkoutId } = await request.json();
+    const { checkoutId, planId, billingCycle } = await request.json();
 
     if (!checkoutId) {
       return NextResponse.json({ error: 'Checkout ID is required' }, { status: 400 });
@@ -39,27 +40,42 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check if this is a manual grant request (user requesting credits)
-    // Verify the checkout belongs to this user by checking recent checkouts
-    // For now, we'll grant credits if the transaction doesn't exist
-    // In production, you might want to verify the checkout ID with Creem API
+    console.log(`🔧 Manual credit grant requested for checkout: ${checkoutId}, user: ${authUid}, plan: ${planId}, billing: ${billingCycle}`);
 
-    console.log(`🔧 Manual credit grant requested for checkout: ${checkoutId}, user: ${authUid}`);
+    // Look up the plan to determine correct credits
+    const isPayAsYouGo = planId?.startsWith('pack-') || billingCycle === 'one-time';
+    const allPlans = [...paymentTiers, ...payAsYouGoPacks];
+    const plan = planId ? allPlans.find(p => p.id === planId) : null;
 
-    // Grant 300 credits (150 image + 150 video)
-    const success = await addCredits(authUid, 150, 150);
+    if (!plan) {
+      console.warn(`⚠️ Manual grant: plan '${planId}' not found, granting default starter credits`);
+    }
+
+    const imageCredits = plan?.imageCredits ?? 200;
+    const videoCredits = plan?.videoCredits ?? 200;
+    const tierName = isPayAsYouGo ? undefined : (planId as 'starter' | 'standard' | 'pro');
+
+    // Grant credits
+    const success = await addCredits(authUid, imageCredits, videoCredits);
     
     if (!success) {
       return NextResponse.json({ error: 'Failed to grant credits' }, { status: 500 });
     }
 
-    // Update user tier
-    await adminDb.collection('users').doc(authUid).update({
-      tier: 'pro',
-      subscriptionType: 'weekly',
-      subscriptionStartDate: new Date().toISOString(),
-      lastPaymentDate: new Date().toISOString(),
-    });
+    // Update user tier (only for subscriptions, not pay-as-you-go)
+    if (tierName && !isPayAsYouGo) {
+      await adminDb.collection('users').doc(authUid).update({
+        tier: tierName,
+        subscriptionType: billingCycle || 'monthly',
+        planId: planId,
+        subscriptionStartDate: new Date().toISOString(),
+        lastPaymentDate: new Date().toISOString(),
+      });
+    } else {
+      await adminDb.collection('users').doc(authUid).update({
+        lastPaymentDate: new Date().toISOString(),
+      });
+    }
 
     // Mark as processed
     await transactionRef.set({
@@ -67,18 +83,19 @@ export async function POST(request: NextRequest) {
       checkoutId,
       eventType: 'manual_grant',
       status: 'completed',
-      amount: 5.99,
+      planId: planId || 'unknown',
+      billingCycle: billingCycle || 'unknown',
       productId: process.env.CREEM_PRODUCT_ID,
       processedAt: new Date().toISOString(),
       manualGrant: true,
     });
 
-    console.log(`✅ Manually granted 300 credits to user ${authUid} for checkout ${checkoutId}`);
+    console.log(`✅ Manually granted ${imageCredits} img + ${videoCredits} vid credits to ${authUid} (plan: ${planId})`);
     
     return NextResponse.json({ 
       success: true, 
       message: 'Credits granted successfully',
-      credits: { image: 150, video: 150 }
+      credits: { image: imageCredits, video: videoCredits }
     });
 
   } catch (error) {
