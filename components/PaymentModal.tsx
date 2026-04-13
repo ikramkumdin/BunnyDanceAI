@@ -140,11 +140,11 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
           <X className="w-5 h-5" />
         </button>
         
-        <h2 className="text-2xl font-bold mb-2 text-center">Choose Your Plan</h2>
-        <p className="text-gray-400 text-sm mb-6 text-center">Select a plan that fits your needs</p>
+        <h2 className="text-2xl font-bold mb-2 text-center pr-8">Choose Your Plan</h2>
+        <p className="text-gray-400 text-sm mb-4 text-center">Select a plan that fits your needs</p>
 
-        {/* Subscription vs Pay-As-You-Go Toggle */}
-        <div className="flex justify-center mb-4">
+        {/* Toggles Row: Subscription/PAYG + Monthly/Annual in one line */}
+        <div className="flex items-center justify-center gap-4 mb-6 flex-wrap">
           <div className="bg-gray-700 rounded-lg p-1 inline-flex gap-1">
             <button
               onClick={() => {
@@ -173,11 +173,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
               Pay-As-You-Go
             </button>
           </div>
-        </div>
 
-        {/* Billing Cycle Toggle (only for subscriptions) */}
-        {!showPayAsYouGo && (
-          <div className="flex justify-center mb-6">
+          {!showPayAsYouGo && (
             <div className="bg-gray-700 rounded-lg p-1 inline-flex gap-1">
               <button
                 onClick={() => setBillingCycle('monthly')}
@@ -200,8 +197,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                 Annual <span className="text-xs text-green-400">(20% off)</span>
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Plans Grid */}
         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6`}>
