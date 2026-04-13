@@ -131,8 +131,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-gray-800 rounded-lg max-w-[90vw] xl:max-w-7xl w-full p-6 relative my-8">
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-start justify-center p-4 pt-10 overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg max-w-[90vw] xl:max-w-7xl w-full p-6 pt-8 relative my-8">
         <button
           onClick={onClose}
           className="absolute top-3 right-3 z-10 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-full p-2 transition-colors shadow-lg"
