@@ -13,6 +13,7 @@ import PaymentModal from '@/components/PaymentModal';
 import { beautyPrompts } from '@/data/beauty-prompts';
 import { useUser } from '@/hooks/useUser';
 import { trackEvent } from '@/lib/analytics';
+import { saveImage } from '@/lib/firestore';
 
 export default function Home() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function Home() {
   // Random Beauty Generator State
   const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
   const [randomImageUrl, setRandomImageUrl] = useState<string | null>(null);
+  const lastRandomPrompt = useRef<string>('');
   const [randomError, setRandomError] = useState<string | null>(null);
   const activeRandomTaskId = useRef<string | null>(null);
 
@@ -60,6 +62,7 @@ export default function Home() {
 
     try {
       const randomPrompt = beautyPrompts[Math.floor(Math.random() * beautyPrompts.length)];
+      lastRandomPrompt.current = randomPrompt;
 
       // Get Firebase Auth token for protected endpoint
       const { auth } = await import('@/lib/firebase');
@@ -133,6 +136,23 @@ export default function Home() {
             setRandomImageUrl(pollData.imageUrl);
             setIsGeneratingRandom(false);
             activeRandomTaskId.current = null;
+
+            // Auto-save to assets
+            if (user?.id && pollData.imageUrl) {
+              saveImage({
+                userId: user.id,
+                imageUrl: pollData.imageUrl,
+                prompt: lastRandomPrompt.current,
+                source: 'text-to-image',
+                tags: ['photo', 'random-beauty'],
+                type: 'image',
+                createdAt: new Date().toISOString(),
+              }).then(() => {
+                console.log('✅ Random beauty image auto-saved to assets');
+              }).catch((err) => {
+                console.error('❌ Failed to auto-save random beauty image:', err);
+              });
+            }
           } else if (pollData.status === 'FAILED') {
             throw new Error(pollData.error || 'Generation failed');
           } else {
