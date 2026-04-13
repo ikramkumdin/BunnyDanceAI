@@ -10,7 +10,36 @@
 import * as crypto from 'crypto';
 
 const CREEM_API_KEY = process.env.CREEM_API_KEY || '';
-const CREEM_PRODUCT_ID = process.env.CREEM_PRODUCT_ID || '';
+const CREEM_PRODUCT_ID = process.env.CREEM_PRODUCT_ID || ''; // Fallback default
+
+// Per-plan Creem product IDs (set in .env.local / Vercel)
+// Subscriptions: monthly and annual are separate products in Creem
+const PLAN_PRODUCT_MAP: Record<string, string | undefined> = {
+  // Monthly subscriptions
+  'starter_monthly':    process.env.CREEM_PRODUCT_STARTER_MONTHLY,
+  'standard_monthly':   process.env.CREEM_PRODUCT_STANDARD_MONTHLY,
+  'pro_monthly':        process.env.CREEM_PRODUCT_PRO_MONTHLY,
+  // Annual subscriptions
+  'starter_annual':     process.env.CREEM_PRODUCT_STARTER_ANNUAL,
+  'standard_annual':    process.env.CREEM_PRODUCT_STANDARD_ANNUAL,
+  'pro_annual':         process.env.CREEM_PRODUCT_PRO_ANNUAL,
+  // Pay-as-you-go packs
+  'pack-taste':         process.env.CREEM_PRODUCT_PACK_TASTE,
+  'pack-casual':        process.env.CREEM_PRODUCT_PACK_CASUAL,
+  'pack-regular':       process.env.CREEM_PRODUCT_PACK_REGULAR,
+  'pack-power':         process.env.CREEM_PRODUCT_PACK_POWER,
+};
+
+function getProductId(planId: string, billingCycle: string): string {
+  // For subscriptions, key is planId_billingCycle (e.g. "starter_monthly")
+  // For PAYG, key is just the planId (e.g. "pack-taste")
+  const key = planId.startsWith('pack-') ? planId : `${planId}_${billingCycle}`;
+  const productId = PLAN_PRODUCT_MAP[key];
+  if (productId) return productId;
+  // Fallback to the single CREEM_PRODUCT_ID env var
+  console.warn(`⚠️ No Creem product ID for plan "${key}", falling back to CREEM_PRODUCT_ID`);
+  return CREEM_PRODUCT_ID;
+}
 
 const CREEM_MODE = process.env.CREEM_MODE || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox');
 const IS_SANDBOX = CREEM_MODE === 'sandbox';
@@ -38,9 +67,9 @@ export async function generateCreemCheckoutUrl(
     billingCycle = 'one-time';
   }
 
-  const productId = CREEM_PRODUCT_ID;
+  const productId = getProductId(planId, billingCycle);
   if (!productId) {
-    throw new Error('CREEM_PRODUCT_ID is not set in environment variables');
+    throw new Error(`No Creem product ID configured for plan "${planId}" (${billingCycle}). Set the appropriate CREEM_PRODUCT_* env var.`);
   }
   if (!CREEM_API_KEY) {
     throw new Error('CREEM_API_KEY is not set in environment variables');
