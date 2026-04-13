@@ -264,17 +264,18 @@ function matchPlanByAmount(amount: number): { planId: string; billingCycle: stri
   const close = (a: number, b: number) => Math.abs(a - b) < 1;
 
   // Pay-as-you-go packs
-  if (close(amount, 4))   return { planId: 'pack-basic',   billingCycle: 'one-time', isPayAsYouGo: true };
-  if (close(amount, 16))  return { planId: 'pack-plus',    billingCycle: 'one-time', isPayAsYouGo: true };
-  if (close(amount, 40))  return { planId: 'pack-premium', billingCycle: 'one-time', isPayAsYouGo: true };
+  if (close(amount, 5))   return { planId: 'pack-taste',   billingCycle: 'one-time', isPayAsYouGo: true };
+  if (close(amount, 10))  return { planId: 'pack-casual',  billingCycle: 'one-time', isPayAsYouGo: true };
+  if (close(amount, 25))  return { planId: 'pack-regular', billingCycle: 'one-time', isPayAsYouGo: true };
+  if (close(amount, 50))  return { planId: 'pack-power',   billingCycle: 'one-time', isPayAsYouGo: true };
   // Monthly subscriptions
-  if (close(amount, 9))   return { planId: 'starter',  billingCycle: 'monthly', isPayAsYouGo: false };
-  if (close(amount, 24))  return { planId: 'standard', billingCycle: 'monthly', isPayAsYouGo: false };
-  if (close(amount, 48))  return { planId: 'pro',      billingCycle: 'monthly', isPayAsYouGo: false };
+  if (close(amount, 19))  return { planId: 'starter',  billingCycle: 'monthly', isPayAsYouGo: false };
+  if (close(amount, 39))  return { planId: 'standard', billingCycle: 'monthly', isPayAsYouGo: false };
+  if (close(amount, 89))  return { planId: 'pro',      billingCycle: 'monthly', isPayAsYouGo: false };
   // Annual subscriptions
-  if (close(amount, 86))  return { planId: 'starter',  billingCycle: 'annual', isPayAsYouGo: false };
-  if (close(amount, 230)) return { planId: 'standard', billingCycle: 'annual', isPayAsYouGo: false };
-  if (close(amount, 461)) return { planId: 'pro',      billingCycle: 'annual', isPayAsYouGo: false };
+  if (close(amount, 182)) return { planId: 'starter',  billingCycle: 'annual', isPayAsYouGo: false };
+  if (close(amount, 374)) return { planId: 'standard', billingCycle: 'annual', isPayAsYouGo: false };
+  if (close(amount, 854)) return { planId: 'pro',      billingCycle: 'annual', isPayAsYouGo: false };
 
   return null;
 }

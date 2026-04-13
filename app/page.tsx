@@ -23,6 +23,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'trending' | 'my-effect'>('trending');
   const [searchQuery, setSearchQuery] = useState('');
   const [videoUrls, setVideoUrls] = useState<{ [key: string]: string }>({});
+  const [showCreditConfirm, setShowCreditConfirm] = useState(false);
 
   // Random Beauty Generator State
   const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
@@ -30,13 +31,21 @@ export default function Home() {
   const [randomError, setRandomError] = useState<string | null>(null);
   const activeRandomTaskId = useRef<string | null>(null);
 
-  const handleRandomGenerate = async () => {
+  const handleRandomGenerateClick = () => {
     // Redirect to sign-in if not authenticated
     if (!user || !user.email) {
       trackEvent('random_beauty_redirect_signin', { from: 'home' });
       router.push(`/signin?next=${encodeURIComponent('/')}`);
       return;
     }
+    // Show credit confirmation dialog
+    setShowCreditConfirm(true);
+  };
+
+  const handleRandomGenerate = async () => {
+    setShowCreditConfirm(false);
+
+    if (!user || !user.id) return;
 
     setIsGeneratingRandom(true);
     setRandomError(null);
@@ -212,6 +221,25 @@ export default function Home() {
     router.push(`/generate?template=${template.id}`);
   };
 
+  const handleApplyToMyPicture = (template: Template) => {
+    // If not signed in, redirect to sign-in
+    if (!user || !user.email) {
+      trackEvent('apply_redirect_signin', { template: template.id });
+      router.push(`/signin?next=${encodeURIComponent(`/generate?template=${template.id}`)}`);
+      return;
+    }
+    // If user has credits, go directly to generate page with template
+    const hasCredits = user.videoCredits > 0 || user.credits > 0;
+    if (hasCredits) {
+      trackEvent('apply_to_picture', { template: template.id });
+      router.push(`/generate?template=${template.id}`);
+    } else {
+      // No credits — show payment modal
+      trackEvent('apply_no_credits', { template: template.id });
+      setIsPaymentModalOpen(true);
+    }
+  };
+
   return (
     <Layout onSearch={(query) => setSearchQuery(query)}>
       <div className="flex flex-col gap-8 sm:gap-12 p-4 sm:p-6 max-w-7xl mx-auto">
@@ -234,7 +262,7 @@ export default function Home() {
               <span>Upload Photo Now</span>
             </button>
             <button
-              onClick={handleRandomGenerate}
+              onClick={handleRandomGenerateClick}
               disabled={isGeneratingRandom}
               className="flex items-center gap-3 bg-gray-900 border border-gray-700 hover:border-primary/50 text-white px-10 py-5 rounded-full transition-all hover:scale-105 font-bold shadow-xl text-lg disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
             >
@@ -363,7 +391,7 @@ export default function Home() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsPaymentModalOpen(true);
+                    handleApplyToMyPicture(template!);
                   }}
                   className="w-full mt-2 sm:mt-3 bg-primary hover:bg-primary-dark text-white font-bold py-2 sm:py-3 rounded-full flex items-center justify-center gap-1 sm:gap-2 shadow-lg transition-all active:scale-95 text-sm sm:text-base"
                 >
@@ -402,6 +430,36 @@ export default function Home() {
           isOpen={isPaymentModalOpen}
           onClose={() => setIsPaymentModalOpen(false)}
         />
+
+        {/* Credit Consumption Confirmation Dialog */}
+        {showCreditConfirm && (
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-800 rounded-2xl max-w-sm w-full p-6 border border-gray-700 shadow-2xl">
+              <h3 className="text-lg font-bold text-white mb-3">Generate Random Beauty</h3>
+              <p className="text-gray-400 text-sm mb-2">
+                This will consume credits from your account. The generated image will be saved to your assets page.
+              </p>
+              <p className="text-primary text-sm font-semibold mb-5">
+                Cost: ~10 credits (480p image)
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleRandomGenerate}
+                  className="flex-1 bg-primary hover:bg-primary-dark text-white py-2.5 rounded-full font-bold transition-colors flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Generate
+                </button>
+                <button
+                  onClick={() => setShowCreditConfirm(false)}
+                  className="flex-1 border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500 py-2.5 rounded-full font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Category Filter Buttons */}
         <div className="flex gap-2 flex-wrap overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -494,7 +552,7 @@ export default function Home() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setIsPaymentModalOpen(true);
+                      handleApplyToMyPicture(template);
                     }}
                     className="bg-primary hover:bg-primary-dark text-white text-xs font-bold py-3 px-4 rounded-full flex items-center gap-2 shadow-2xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"
                   >

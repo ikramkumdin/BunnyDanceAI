@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate planId (subscriptions + pay-as-you-go packs)
-    const validPlans = ['starter', 'standard', 'pro', 'pack-basic', 'pack-plus', 'pack-premium'];
+    const validPlans = ['starter', 'standard', 'pro', 'pack-taste', 'pack-casual', 'pack-regular', 'pack-power'];
     if (!validPlans.includes(planId)) {
       console.error('❌ Creem checkout: Invalid plan ID', { planId });
       return NextResponse.json({ error: 'Invalid plan ID' }, { status: 400 });

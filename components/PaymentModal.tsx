@@ -162,7 +162,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
             <button
               onClick={() => {
                 setShowPayAsYouGo(true);
-                setSelectedTier('pack-plus'); // Default to plus pack
+                setSelectedTier('pack-casual'); // Default to casual pack
               }}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 showPayAsYouGo
@@ -204,7 +204,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         )}
 
         {/* Plans Grid */}
-        <div className={`grid grid-cols-1 ${showPayAsYouGo ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-4 mb-6`}>
+        <div className={`grid grid-cols-1 ${showPayAsYouGo ? 'md:grid-cols-4' : 'md:grid-cols-4'} gap-4 mb-6`}>
           {(showPayAsYouGo ? payAsYouGoPacks : [freeTrialTier, ...paymentTiers]).map((tier) => {
             const isSelected = selectedTier === tier.id;
             const price = getPrice(tier);
@@ -304,25 +304,33 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                 </p>
               </div>
             )}
-            <button
-              onClick={handleCreemCheckout}
-              disabled={isLoading}
-              className="w-full bg-primary hover:bg-primary-dark disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Redirecting to checkout...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  {showPayAsYouGo ? 'Buy Credits' : 'Subscribe Now'}
-                </>
-              )}
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCreemCheckout}
+                disabled={isLoading}
+                className="flex-1 bg-primary hover:bg-primary-dark disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Redirecting to checkout...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    {showPayAsYouGo ? 'Buy Credits' : 'Subscribe Now'}
+                  </>
+                )}
+              </button>
+              <button
+                onClick={onClose}
+                className="px-6 py-3 rounded-lg font-semibold text-gray-400 hover:text-white border border-gray-600 hover:border-gray-500 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </>
         ) : (
           <p className="text-center text-gray-400 text-sm">Please sign in to upgrade</p>
