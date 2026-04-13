@@ -38,6 +38,13 @@ export default function Home() {
       router.push(`/signin?next=${encodeURIComponent('/')}`);
       return;
     }
+    // Check if user has credits — if not, open payment modal
+    const hasCredits = user.imageCredits > 0 || user.credits > 0;
+    if (!hasCredits) {
+      trackEvent('random_beauty_no_credits', { from: 'home' });
+      setIsPaymentModalOpen(true);
+      return;
+    }
     // Show credit confirmation dialog
     setShowCreditConfirm(true);
   };
@@ -76,7 +83,15 @@ export default function Home() {
 
       const data = await response.json();
       if (!response.ok) {
-        // If auth error, redirect to sign-in instead of showing error
+        // If no credits / needs upgrade, open payment modal
+        if (response.status === 403 && data.needsUpgrade) {
+          trackEvent('random_beauty_no_credits_api', { status: response.status });
+          setIsGeneratingRandom(false);
+          activeRandomTaskId.current = null;
+          setIsPaymentModalOpen(true);
+          return;
+        }
+        // If auth error, redirect to sign-in
         if (response.status === 401 || response.status === 403) {
           trackEvent('random_beauty_unauthorized', { status: response.status });
           router.push(`/signin?next=${encodeURIComponent('/')}`);

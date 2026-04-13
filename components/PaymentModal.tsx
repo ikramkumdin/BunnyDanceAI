@@ -132,10 +132,10 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-gray-800 rounded-lg max-w-5xl w-full p-6 relative my-8">
+      <div className="bg-gray-800 rounded-lg max-w-[90vw] xl:max-w-7xl w-full p-6 relative my-8">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white"
+          className="absolute top-3 right-3 z-10 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-full p-2 transition-colors shadow-lg"
         >
           <X className="w-5 h-5" />
         </button>
@@ -204,7 +204,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         )}
 
         {/* Plans Grid */}
-        <div className={`grid grid-cols-1 ${showPayAsYouGo ? 'md:grid-cols-4' : 'md:grid-cols-4'} gap-4 mb-6`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6`}>
           {(showPayAsYouGo ? payAsYouGoPacks : [freeTrialTier, ...paymentTiers]).map((tier) => {
             const isSelected = selectedTier === tier.id;
             const price = getPrice(tier);
