@@ -79,7 +79,9 @@ export async function generateCreemCheckoutUrl(
 
   const body = {
     product_id: productId,
-    success_url: `${baseUrl}/payment/success?plan_id=${planId}&billing_cycle=${billingCycle}`,
+    // {CHECKOUT_ID} is a Creem template variable replaced with the real checkout id on redirect.
+    // The success page uses it to trigger the manual-grant fallback when the webhook fails.
+    success_url: `${baseUrl}/payment/success?plan_id=${planId}&billing_cycle=${billingCycle}&checkout_id={CHECKOUT_ID}`,
     metadata: {
       user_id: userId,
       plan_id: planId,

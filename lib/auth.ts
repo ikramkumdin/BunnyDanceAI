@@ -13,8 +13,35 @@ import {
 } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth } from './firebase';
-import { getUser, getUserByEmail, updateUser } from './firestore';
+import { getUser, getUserByEmail, updateUser, mergeUserAssets } from './firestore';
 import { User } from '@/types';
+
+/**
+ * Snapshot the active (anonymous) user id BEFORE triggering Firebase sign-in.
+ * Firebase's onAuthStateChanged listener (in useUser) overwrites this localStorage
+ * value with the uid as soon as auth resolves, so we must read it up front.
+ */
+function capturePriorUserId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('bunnyDance_userId');
+}
+
+/**
+ * When an anonymous session becomes authenticated, the active user id switches
+ * from the random anonymous Firestore id to the Firebase uid, orphaning any
+ * assets saved under the anonymous id. This re-associates those assets to the uid.
+ * `priorId` must be captured (via capturePriorUserId) before sign-in begins.
+ */
+async function migrateAnonymousAssets(priorId: string | null, uid: string): Promise<void> {
+  try {
+    if (priorId && priorId !== uid) {
+      await mergeUserAssets(priorId, uid);
+    }
+  } catch (err) {
+    // Migration is best-effort — never block sign-in on it.
+    console.error('Asset migration on sign-in failed:', err);
+  }
+}
 
 function toFriendlyAuthError(err: unknown): Error {
   if (err instanceof FirebaseError) {
@@ -47,6 +74,8 @@ export async function signUp(email: string, password: string, displayName?: stri
   if (existingUser) {
     throw new Error('An account with this email already exists');
   }
+
+  const priorUserId = capturePriorUserId();
 
   let firebaseUser: FirebaseUser;
   try {
@@ -97,7 +126,8 @@ export async function signUp(email: string, password: string, displayName?: stri
     };
   }
 
-  // Store user ID in localStorage
+  // Migrate any assets from a prior anonymous session, then store the uid.
+  await migrateAnonymousAssets(priorUserId, firebaseUser.uid);
   localStorage.setItem('bunnyDance_userId', firebaseUser.uid);
 
   return { user, firebaseUser };
@@ -107,6 +137,8 @@ export async function signIn(email: string, password: string): Promise<{ user: U
   if (!auth) {
     throw new Error('Firebase Auth is not initialized. Please enable Authentication in Firebase Console and ensure your environment variables are set correctly.');
   }
+
+  const priorUserId = capturePriorUserId();
 
   let firebaseUser: FirebaseUser;
   try {
@@ -151,7 +183,8 @@ export async function signIn(email: string, password: string): Promise<{ user: U
     user = { ...user, email: firebaseUser.email || email };
   }
 
-  // Store user ID in localStorage
+  // Migrate any assets from a prior anonymous session, then store the uid.
+  await migrateAnonymousAssets(priorUserId, firebaseUser.uid);
   localStorage.setItem('bunnyDance_userId', firebaseUser.uid);
 
   return { user, firebaseUser };
@@ -204,6 +237,8 @@ export async function signInWithGoogle(): Promise<{ user: User; firebaseUser: Fi
   provider.addScope('profile');
   provider.addScope('email');
 
+  const priorUserId = capturePriorUserId();
+
   let firebaseUser: FirebaseUser;
   try {
     const userCredential = await signInWithPopup(auth, provider);
@@ -247,7 +282,8 @@ export async function signInWithGoogle(): Promise<{ user: User; firebaseUser: Fi
     user = { ...user, email: firebaseUser.email };
   }
 
-  // Store user ID in localStorage
+  // Migrate any assets from a prior anonymous session, then store the uid.
+  await migrateAnonymousAssets(priorUserId, firebaseUser.uid);
   localStorage.setItem('bunnyDance_userId', firebaseUser.uid);
 
   return { user, firebaseUser };

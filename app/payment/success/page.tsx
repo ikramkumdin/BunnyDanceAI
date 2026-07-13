@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle, Mail, ExternalLink, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
@@ -20,20 +20,21 @@ function PaymentSuccessContent() {
   const planId = searchParams.get('plan_id');
   const billingCycle = searchParams.get('billing_cycle');
 
-  // Check if credits were granted (user should have paid tier or increased credits)
-  const checkCreditsGranted = () => {
-    if (user) {
-      const hasPaidTier = user.tier === 'starter' || user.tier === 'standard' || user.tier === 'pro';
-      const hasIncreasedCredits = (user.imageCredits || 0) > 3 || (user.videoCredits || 0) > 3;
-      return hasPaidTier || hasIncreasedCredits;
-    }
-    return false;
-  };
+  // Show the "subscription active" banner once the purchase is reflected on the user.
+  // NOTE: this is display-only. It must NOT gate the grant fallback below — a free user
+  // starts with 20 credits, so any credit-count heuristic here would wrongly conclude the
+  // purchase was already applied and skip the grant.
+  const [creditsGranted, setCreditsGranted] = useState(false);
 
-  // Automatically grant credits if webhook didn't process (silent fallback)
+  // Guard against firing the grant more than once from the overlapping timers below.
+  const grantAttempted = useRef(false);
+
+  // Automatically grant credits if the webhook didn't process (silent fallback).
+  // The server endpoint is idempotent (de-dups by checkoutId), so we always attempt it
+  // rather than guessing from the current credit balance.
   const autoGrantCreditsIfNeeded = async () => {
-    if (!user?.id || !txId || checkCreditsGranted()) {
-      return; // Already granted or missing info
+    if (!user?.id || !txId || grantAttempted.current) {
+      return; // Missing info, or a grant is already in flight / done
     }
 
     try {
@@ -42,8 +43,12 @@ function PaymentSuccessContent() {
       const idToken = auth?.currentUser ? await getIdToken(auth.currentUser) : null;
 
       if (!idToken) {
-        return;
+        return; // Token not ready yet — let the next timer retry.
       }
+
+      // Only latch once we actually have a token and are about to call the server,
+      // so a token-not-ready first attempt doesn't block the retry.
+      grantAttempted.current = true;
 
       console.log('🔄 Auto-granting credits as fallback...');
       const response = await fetch('/api/creem/manual-grant', {
@@ -57,6 +62,7 @@ function PaymentSuccessContent() {
 
       if (response.ok) {
         console.log('✅ Credits auto-granted successfully');
+        setCreditsGranted(true);
         await refreshUser();
       }
     } catch (error) {
@@ -64,40 +70,49 @@ function PaymentSuccessContent() {
     }
   };
 
+  // Lets an explicit navigation (e.g. "View My Assets") cancel the auto-redirect
+  // so the countdown doesn't yank the user to /generate after they've clicked away.
+  const autoRedirectCancelled = useRef(false);
+
+  // Refresh credits + run the grant fallback. Keyed on user?.id (not the whole user
+  // object) and guarded so it runs once — otherwise each refreshUser() would change
+  // `user` and re-trigger this effect.
+  const creditFlowStarted = useRef(false);
   useEffect(() => {
-    // Refresh user credits when payment success page loads
-    // This ensures credits are updated after Creem payment
+    if (!user?.id || creditFlowStarted.current) return;
+    creditFlowStarted.current = true;
+
     const checkAndRefreshCredits = async () => {
-      // First refresh immediately
+      // First refresh immediately (webhook may have already granted)
       await refreshUser();
-      
-      // Wait 2 seconds for webhook to process, then check and refresh
+
+      // Give the webhook a moment, then run the idempotent grant fallback.
+      // The server de-dups by checkoutId, so a webhook-granted purchase won't double-count.
       setTimeout(async () => {
         await refreshUser();
-        // If credits still not granted, auto-grant them (silent fallback)
-        if (!checkCreditsGranted()) {
-          await autoGrantCreditsIfNeeded();
-        }
+        await autoGrantCreditsIfNeeded();
       }, 2000);
-      
-      // Final check and refresh at 5 seconds
+
+      // Retry once more in case the first attempt raced the auth token.
       setTimeout(async () => {
+        await autoGrantCreditsIfNeeded();
         await refreshUser();
-        // Final fallback: auto-grant if still not granted
-        if (!checkCreditsGranted()) {
-          await autoGrantCreditsIfNeeded();
-        }
       }, 5000);
     };
-    
+
     checkAndRefreshCredits();
-    
-    // Countdown redirect to generate page
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, txId]);
+
+  // Countdown redirect — isolated so credit refreshes don't reset the timer.
+  useEffect(() => {
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          router.push('/generate');
+          if (!autoRedirectCancelled.current) {
+            router.push('/generate');
+          }
           return 0;
         }
         return prev - 1;
@@ -105,7 +120,7 @@ function PaymentSuccessContent() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [router, refreshUser, user, txId]);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
@@ -181,7 +196,7 @@ function PaymentSuccessContent() {
           </div>
 
           {/* Status message - only show if credits are granted */}
-          {checkCreditsGranted() && (
+          {(creditsGranted || user?.tier === 'starter' || user?.tier === 'standard' || user?.tier === 'pro') && (
             <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
               <p className="text-green-300 text-sm">
                 ✅ Your subscription is active! Credits have been added to your account.
@@ -193,6 +208,7 @@ function PaymentSuccessContent() {
           <div className="space-y-3">
             <Link
               href="/generate"
+              onClick={() => { autoRedirectCancelled.current = true; }}
               className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-colors"
             >
               Start Creating Videos
@@ -201,6 +217,7 @@ function PaymentSuccessContent() {
 
             <Link
               href="/assets"
+              onClick={() => { autoRedirectCancelled.current = true; }}
               className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 px-6 rounded-lg transition-colors border border-slate-700"
             >
               View My Assets

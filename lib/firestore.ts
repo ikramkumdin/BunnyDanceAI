@@ -339,6 +339,40 @@ export async function deleteImage(imageId: string): Promise<void> {
   }
 }
 
+/**
+ * Re-associate all videos and images owned by `fromUserId` to `toUserId`.
+ *
+ * Assets are queried by their `userId` field (see getUserVideos/getUserImages),
+ * so when a user's identity changes (e.g. an anonymous session becoming an
+ * authenticated Firebase user, whose id switches from a random Firestore id to
+ * the auth uid) their previously-saved assets are orphaned under the old id.
+ * This walks both collections and updates the `userId` field so the assets
+ * surface under the new id. Idempotent: re-running with no matching docs is a no-op.
+ *
+ * @returns the number of asset documents moved.
+ */
+export async function mergeUserAssets(fromUserId: string, toUserId: string): Promise<number> {
+  if (!fromUserId || !toUserId || fromUserId === toUserId) return 0;
+
+  const database = await getDb();
+  let moved = 0;
+
+  for (const collectionName of [VIDEOS_COLLECTION, IMAGES_COLLECTION]) {
+    const snapshot = await getDocs(
+      query(collection(database, collectionName), where('userId', '==', fromUserId))
+    );
+    for (const assetDoc of snapshot.docs) {
+      await updateDoc(doc(database, collectionName, assetDoc.id), { userId: toUserId });
+      moved++;
+    }
+  }
+
+  if (moved > 0) {
+    console.log(`🔀 Migrated ${moved} asset(s) from ${fromUserId} → ${toUserId}`);
+  }
+  return moved;
+}
+
 // Helper to convert Firestore timestamp to ISO string
 export function convertTimestamp(timestamp: any): string {
   if (timestamp?.toDate) {

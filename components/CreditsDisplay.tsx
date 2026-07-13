@@ -34,13 +34,13 @@ export default function CreditsDisplay({ user, onUpgrade }: CreditsDisplayProps)
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-300">Images:</span>
               <span className={`font-bold ${imageCredits > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {imageCredits} {user.tier === 'free' ? '/ 3' : ''} remaining
+                {imageCredits} remaining
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-300">Videos:</span>
               <span className={`font-bold ${videoCredits > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {videoCredits} {user.tier === 'free' ? '/ 3' : ''} remaining
+                {videoCredits} remaining
               </span>
             </div>
           </div>
