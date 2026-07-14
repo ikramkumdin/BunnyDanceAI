@@ -14,6 +14,7 @@ import { beautyPrompts } from '@/data/beauty-prompts';
 import { useUser } from '@/hooks/useUser';
 import { trackEvent } from '@/lib/analytics';
 import { saveImage } from '@/lib/firestore';
+import { persistMediaUrl } from '@/lib/persist-media';
 
 export default function Home() {
   const router = useRouter();
@@ -137,21 +138,27 @@ export default function Home() {
             setIsGeneratingRandom(false);
             activeRandomTaskId.current = null;
 
-            // Auto-save to assets
+            // Auto-save to assets — re-host to permanent storage first so the
+            // saved URL doesn't expire like the provider's temporary URL.
             if (user?.id && pollData.imageUrl) {
-              saveImage({
-                userId: user.id,
-                imageUrl: pollData.imageUrl,
-                prompt: lastRandomPrompt.current,
-                source: 'text-to-image',
-                tags: ['photo', 'random-beauty'],
-                type: 'image',
-                createdAt: new Date().toISOString(),
-              }).then(() => {
-                console.log('✅ Random beauty image auto-saved to assets');
-              }).catch((err) => {
-                console.error('❌ Failed to auto-save random beauty image:', err);
-              });
+              persistMediaUrl(pollData.imageUrl, 'image', user.id)
+                .then((permanentUrl) =>
+                  saveImage({
+                    userId: user.id,
+                    imageUrl: permanentUrl,
+                    prompt: lastRandomPrompt.current,
+                    source: 'text-to-image',
+                    tags: ['photo', 'random-beauty'],
+                    type: 'image',
+                    createdAt: new Date().toISOString(),
+                  })
+                )
+                .then(() => {
+                  console.log('✅ Random beauty image auto-saved to assets');
+                })
+                .catch((err) => {
+                  console.error('❌ Failed to auto-save random beauty image:', err);
+                });
             }
           } else if (pollData.status === 'FAILED') {
             throw new Error(pollData.error || 'Generation failed');

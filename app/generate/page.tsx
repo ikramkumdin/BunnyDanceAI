@@ -10,6 +10,7 @@ import { useStore } from '@/store/useStore';
 import { useUser } from '@/hooks/useUser';
 import Layout from '@/components/Layout';
 import { saveImage, saveVideo } from '@/lib/firestore';
+import { persistMediaUrl } from '@/lib/persist-media';
 import { MAX_RETRIES, POLL_INTERVAL_MS } from '@/config/polling';
 import { motion, AnimatePresence } from 'framer-motion';
 import NextImage from 'next/image';
@@ -157,9 +158,12 @@ export default function GeneratePage() {
     if (!user) return false;
 
     try {
+      // Re-host to permanent storage so the saved URL doesn't expire.
+      const persistedUrl = await persistMediaUrl(imageUrl, 'image', user.id);
+
       const imageId = await saveImage({
         userId: user.id,
-        imageUrl,
+        imageUrl: persistedUrl,
         prompt: prompt || textPrompt,
         source,
         tags: ['photo', source],
@@ -172,7 +176,7 @@ export default function GeneratePage() {
       addImageToStore({
         id: imageId,
         userId: user.id,
-        imageUrl,
+        imageUrl: persistedUrl,
         prompt: prompt || textPrompt,
         source,
         tags: ['photo', source],
@@ -192,10 +196,19 @@ export default function GeneratePage() {
     if (!user) return;
 
     try {
+      // Re-host to permanent storage so the saved URL doesn't expire.
+      const persistedUrl = await persistMediaUrl(videoUrl, 'video', user.id);
+      // Callers pass either no thumbnail or the video URL itself as the thumbnail,
+      // so reuse the persisted video URL rather than re-uploading it as an image.
+      const persistedThumb =
+        thumbnail && thumbnail !== videoUrl
+          ? await persistMediaUrl(thumbnail, 'image', user.id)
+          : persistedUrl;
+
       const videoId = await saveVideo({
         userId: user.id,
-        videoUrl,
-        thumbnail: thumbnail || videoUrl,
+        videoUrl: persistedUrl,
+        thumbnail: persistedThumb,
         templateId,
         templateName,
         isWatermarked: false,
@@ -209,8 +222,8 @@ export default function GeneratePage() {
       addVideoToStore({
         id: videoId,
         userId: user.id,
-        videoUrl,
-        thumbnail: thumbnail || videoUrl,
+        videoUrl: persistedUrl,
+        thumbnail: persistedThumb,
         templateId,
         templateName,
         isWatermarked: false,

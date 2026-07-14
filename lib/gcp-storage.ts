@@ -66,12 +66,30 @@ export async function uploadImage(
     let fileName: string;
     let mimeType: string;
 
-    // Convert base64 to Buffer if needed
+    // Accept a remote URL (fetch it), a base64/data-URL string, or a File.
     if (typeof file === 'string') {
-      const base64Data = file.includes(',') ? file.split(',')[1] : file;
-      fileBuffer = Buffer.from(base64Data, 'base64');
-      fileName = `image-${Date.now()}.jpg`;
-      mimeType = 'image/jpeg';
+      if (file.startsWith('http')) {
+        const response = await fetch(file);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image for upload: ${response.status}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        fileBuffer = Buffer.from(arrayBuffer);
+        mimeType = response.headers.get('content-type') || 'image/jpeg';
+        const ext = mimeType.includes('png')
+          ? 'png'
+          : mimeType.includes('webp')
+          ? 'webp'
+          : mimeType.includes('gif')
+          ? 'gif'
+          : 'jpg';
+        fileName = `image-${Date.now()}.${ext}`;
+      } else {
+        const base64Data = file.includes(',') ? file.split(',')[1] : file;
+        fileBuffer = Buffer.from(base64Data, 'base64');
+        fileName = `image-${Date.now()}.jpg`;
+        mimeType = 'image/jpeg';
+      }
     } else {
       const arrayBuffer = await file.arrayBuffer();
       fileBuffer = Buffer.from(arrayBuffer);
