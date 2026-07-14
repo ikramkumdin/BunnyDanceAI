@@ -64,6 +64,7 @@ const hasFlag = (name: string) => process.argv.includes(`--${name}`);
 
 const argEmail = getArg('email');
 const argId = getArg('id');
+const ALL = hasFlag('all');
 const APPLY = hasFlag('apply');
 const PURGE_DEAD = hasFlag('purge-dead');
 
@@ -90,9 +91,13 @@ async function resolveUid(): Promise<string | null> {
   return null;
 }
 
-async function processCollection(coll: 'videos' | 'images', uid: string) {
+// When uid is null, scans the entire collection (all users) and uses each doc's
+// own userId for the storage path.
+async function processCollection(coll: 'videos' | 'images', uid: string | null) {
   const urlField = coll === 'videos' ? 'videoUrl' : 'imageUrl';
-  const snap = await db.collection(coll).where('userId', '==', uid).get();
+  const snap = uid
+    ? await db.collection(coll).where('userId', '==', uid).get()
+    : await db.collection(coll).get();
 
   let rehosted = 0;
   let lost = 0;
@@ -101,9 +106,10 @@ async function processCollection(coll: 'videos' | 'images', uid: string) {
   for (const d of snap.docs) {
     const data = d.data();
     const url: string = data[urlField] || '';
+    const ownerId: string = data.userId || uid || '';
 
     if (isPermanent(url)) { ok++; continue; }
-    if (!url) { continue; }
+    if (!url || !ownerId) { continue; }
 
     const alive = await isAlive(url);
     if (!alive) {
@@ -121,11 +127,11 @@ async function processCollection(coll: 'videos' | 'images', uid: string) {
       try {
         let permanentUrl: string;
         if (coll === 'videos') {
-          permanentUrl = await uploadVideo(url, uid);
+          permanentUrl = await uploadVideo(url, ownerId);
         } else {
           const res = await fetch(url);
           const buf = Buffer.from(await res.arrayBuffer());
-          permanentUrl = await uploadImage(buf.toString('base64'), uid, 'images');
+          permanentUrl = await uploadImage(buf.toString('base64'), ownerId, 'images');
         }
         await d.ref.update({ [urlField]: permanentUrl });
         rehosted++;
@@ -140,9 +146,17 @@ async function processCollection(coll: 'videos' | 'images', uid: string) {
 }
 
 async function main() {
+  if (ALL) {
+    console.log(`${APPLY ? '🚀 APPLY' : '🔍 DRY RUN'} — persisting temp assets for ALL users\n`);
+    await processCollection('videos', null);
+    await processCollection('images', null);
+    if (!APPLY) console.log('\n(Dry run — re-run with --all --apply to re-host reachable assets.)');
+    process.exit(0);
+  }
+
   const uid = await resolveUid();
   if (!uid) {
-    console.error('❌ Provide --email <email> or --id <uid>');
+    console.error('❌ Provide --email <email>, --id <uid>, or --all');
     process.exit(1);
   }
 
