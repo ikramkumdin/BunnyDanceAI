@@ -75,6 +75,7 @@ function getArg(name: string): string | undefined {
 const argEmail = getArg('email');
 const argFrom = getArg('from');
 const argTo = getArg('to');
+const argInspect = getArg('inspect');
 
 // ── Helpers ───────────────────────────────────────────────────────────
 async function resolveUidByEmail(email: string): Promise<string | null> {
@@ -166,7 +167,38 @@ async function merge(fromId: string, toUid: string) {
   console.log(`\n✅ Recovered ${moved} asset(s): ${fromId} → ${toUid}`);
 }
 
+async function inspect(id: string) {
+  console.log(`🔬 Inspecting owner id: ${id}\n`);
+
+  const userDoc = await db.collection('users').doc(id).get();
+  if (userDoc.exists) {
+    console.log('User document:');
+    console.log(JSON.stringify(userDoc.data(), null, 2));
+  } else {
+    console.log('No user document exists for this id (pure orphan).');
+  }
+
+  for (const coll of ['videos', 'images']) {
+    const snap = await db.collection(coll).where('userId', '==', id).get();
+    console.log(`\n=== ${coll} (${snap.size}) ===`);
+    let i = 0;
+    snap.forEach((d) => {
+      const data = d.data();
+      const created =
+        data.createdAt?.toDate?.()?.toISOString?.() || data.createdAt || '(no date)';
+      const label = data.templateName || data.prompt || '(untitled)';
+      const url = data.videoUrl || data.imageUrl || '';
+      console.log(`  ${++i}. [${created}] ${String(label).slice(0, 45)}`);
+      console.log(`     ${url}`);
+    });
+  }
+}
+
 async function main() {
+  if (argInspect) {
+    await inspect(argInspect);
+    process.exit(0);
+  }
   if (argFrom) {
     let toUid = argTo || null;
     if (!toUid && argEmail) toUid = await resolveUidByEmail(argEmail);
