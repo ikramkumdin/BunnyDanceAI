@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
-import { paymentTiers, payAsYouGoPacks, PaymentTier, getAllPlans, freeTrialTier } from '@/lib/payment';
+import { paymentTiers, payAsYouGoPacks, PaymentTier, freeTrialTier } from '@/lib/payment';
+import { videosFor, fmtDollarsPerVideo } from '@/lib/pricing-table';
 import { useUser } from '@/hooks/useUser';
 import { trackEvent } from '@/lib/analytics';
 
@@ -240,20 +241,28 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                 </div>
 
                 <div className="mb-4 space-y-2">
+                  {/* v6: single credit figure. "~videos" + $/video derived
+                      from the single cost table (lib/pricing-table.ts) at
+                      the plan's advertised resolution. */}
                   <div className="text-sm text-gray-300">
-                    <span className="font-semibold">{tier.imageCredits.toLocaleString()}</span> Image Credits{showPayAsYouGo ? '' : '/month'}
+                    <span className="font-semibold">{tier.credits.toLocaleString()}</span> credits{showPayAsYouGo ? '' : '/month'}
                   </div>
-                  <div className="text-sm text-gray-300">
-                    <span className="font-semibold">{tier.videoCredits.toLocaleString()}</span> Video Credits{showPayAsYouGo ? '' : '/month'} ({tier.videosPerMonth} videos)
-                  </div>
-                  {!showPayAsYouGo && (
-                    <div className="text-sm text-gray-300">
-                      ~<span className="font-semibold">{tier.videosPerMonth}</span> videos/month
-                    </div>
-                  )}
-                  <div className="text-xs text-gray-400">
-                    ${tier.perVideoCost}/video
-                  </div>
+                  {(() => {
+                    const res = (tier.videoResolution === '720p' || tier.videoResolution === '720p + 4K upscale' || tier.videoResolution === '4K' || tier.videoResolution === '8K') ? '720p' : '480p';
+                    const videos480 = videosFor(tier.credits, '480p');
+                    const videos720 = videosFor(tier.credits, '720p');
+                    const dpv = fmtDollarsPerVideo(tier.price, tier.credits, res);
+                    return (
+                      <>
+                        <div className="text-sm text-gray-300">
+                          ~<span className="font-semibold">{videos480}</span> videos at 480p · ~<span className="font-semibold">{videos720}</span> at 720p
+                        </div>
+                        {tier.price > 0 && (
+                          <div className="text-xs text-gray-400">{dpv} at {res}</div>
+                        )}
+                      </>
+                    );
+                  })()}
                   {tier.videoResolution && (
                     <div className="text-xs text-gray-400">
                       {tier.videoResolution} quality

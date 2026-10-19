@@ -1,14 +1,30 @@
-// Credit constants that can be used on both client and server
-// This file does NOT import firebase-admin, so it's safe for client components
+// Credit constants — safe to import on both client and server
+// (no firebase-admin here).
+//
+// v6 model (2026-10-14 spec): one unified credit pool. Legacy constants
+// kept as re-exports to avoid breaking old call sites during migration.
 
-// Free tier limits - 40 credits total for free trial (sufficient for 1-2 videos and images)
-// According to pricing strategy: 40 credits = enough for 1-2 videos (20 credits each) and images
-export const FREE_IMAGE_CREDITS = 20; // 20 credits for images
-export const FREE_VIDEO_CREDITS = 20; // 20 credits for 1 video (20 credits per video)
+// Free tier: one-time grant on first Firestore user-doc creation.
+// No monthly refill (there never was a cron for that; the "monthly" claim
+// in old copy was aspirational).
+export const FREE_SIGNUP_CREDITS = 20;
 
-// Credit costs for each generation type
-// According to pricing strategy: Video = 20 credits, Image = 1 credit
+// Per-generation costs — unified pool, charged per resolution.
 export const CREDIT_COSTS = {
-  IMAGE: 1, // 1 credit per image
-  VIDEO: 20, // 20 credits per video (as per pricing strategy document)
-};
+  IMAGE: 1,
+  VIDEO_480P: 10,
+  VIDEO_720P: 19,
+  // Backward-compat: the old `VIDEO` constant mapped to 20. The 720p
+  // cost (19) is the closer and more conservative replacement.
+  VIDEO: 19,
+} as const;
+
+export type ResolutionKey = "480p" | "720p";
+export function videoCost(resolution: ResolutionKey = "480p"): number {
+  return resolution === "720p" ? CREDIT_COSTS.VIDEO_720P : CREDIT_COSTS.VIDEO_480P;
+}
+
+// ─── Legacy exports kept so existing imports keep compiling. Remove once
+// every call site has moved to FREE_SIGNUP_CREDITS. ────────────────────
+export const FREE_IMAGE_CREDITS = FREE_SIGNUP_CREDITS;
+export const FREE_VIDEO_CREDITS = 0;

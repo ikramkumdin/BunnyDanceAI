@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
             currency: 'usd',
             product_data: {
               name: plan.name,
-              description: `${plan.imageCredits} Image Credits + ${plan.videoCredits} Video Credits`,
+              description: `${plan.credits} Credits`,
             },
             unit_amount: amountInCents,
             ...(isPayAsYouGo

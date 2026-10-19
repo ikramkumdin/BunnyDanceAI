@@ -51,12 +51,11 @@ export async function POST(request: NextRequest) {
       console.warn(`⚠️ Manual grant: plan '${planId}' not found, granting default starter credits`);
     }
 
-    const imageCredits = plan?.imageCredits ?? 200;
-    const videoCredits = plan?.videoCredits ?? 200;
+    const creditsToGrant = plan?.credits ?? 400;
     const tierName = isPayAsYouGo ? undefined : (planId as 'starter' | 'standard' | 'pro');
 
-    // Grant credits
-    const success = await addCredits(authUid, imageCredits, videoCredits);
+    // Grant credits (v6 unified pool)
+    const success = await addCredits(authUid, creditsToGrant, isPayAsYouGo ? 'payg' : 'subscription');
     
     if (!success) {
       return NextResponse.json({ error: 'Failed to grant credits' }, { status: 500 });
@@ -90,12 +89,13 @@ export async function POST(request: NextRequest) {
       manualGrant: true,
     });
 
-    console.log(`✅ Manually granted ${imageCredits} img + ${videoCredits} vid credits to ${authUid} (plan: ${planId})`);
-    
-    return NextResponse.json({ 
-      success: true, 
+    console.log(`✅ Manually granted ${creditsToGrant} credits to ${authUid} (plan: ${planId})`);
+
+    return NextResponse.json({
+      success: true,
       message: 'Credits granted successfully',
-      credits: { image: imageCredits, video: videoCredits }
+      credits: creditsToGrant,
+      source: isPayAsYouGo ? 'payg' : 'subscription',
     });
 
   } catch (error) {

@@ -115,14 +115,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   // Grant credits
-  await addCredits(userId, plan.imageCredits, plan.videoCredits);
+  await addCredits(userId, plan.credits, plan.type === "pay-as-you-go" ? "payg" : "subscription");
 
   if (isPayAsYouGo) {
     // Pay-as-you-go: just record the purchase, don't change tier
     await adminDb.collection('users').doc(userId).update({
       lastPaymentDate: new Date().toISOString(),
     });
-    console.log(`💰 Pay-as-you-go: Granted ${plan.imageCredits} image + ${plan.videoCredits} video credits to ${userId}`);
+    console.log(`💰 Pay-as-you-go: Granted ${plan.credits} credits to ${userId}`);
   } else {
     // Subscription: update tier
     await adminDb.collection('users').doc(userId).update({
@@ -134,7 +134,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       stripeCustomerId: session.customer as string || '',
       stripeSubscriptionId: session.subscription as string || '',
     });
-    console.log(`🎉 Subscription: Upgraded ${userId} to ${plan.name} (${billingCycle}), granted ${plan.imageCredits} image + ${plan.videoCredits} video credits`);
+    console.log(`🎉 Subscription: Upgraded ${userId} to ${plan.name} (${billingCycle}), granted ${plan.credits} credits`);
   }
 
   // Record transaction
@@ -207,7 +207,7 @@ async function handleSubscriptionRenewal(invoice: Stripe.Invoice) {
   }
 
   // Grant credits for renewal
-  await addCredits(userId, plan.imageCredits, plan.videoCredits);
+  await addCredits(userId, plan.credits, plan.type === "pay-as-you-go" ? "payg" : "subscription");
 
   await adminDb.collection('users').doc(userId).update({
     lastPaymentDate: new Date().toISOString(),
@@ -224,7 +224,7 @@ async function handleSubscriptionRenewal(invoice: Stripe.Invoice) {
     processedAt: new Date().toISOString(),
   });
 
-  console.log(`🔄 Renewal: Granted ${plan.imageCredits} image + ${plan.videoCredits} video credits to ${userId}`);
+  console.log(`🔄 Renewal: Granted ${plan.credits} credits to ${userId}`);
 }
 
 /**

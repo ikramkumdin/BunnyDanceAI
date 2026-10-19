@@ -100,13 +100,14 @@ export async function signUp(email: string, password: string, displayName?: stri
     user = { ...firestoreUser, email };
   } else {
     // Create new user in Firestore with Firebase UID
-    const { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } = await import('./credit-constants');
+    const { FREE_SIGNUP_CREDITS } = await import('./credit-constants');
     const userData: Omit<User, 'id'> = {
       email,
       tier: 'free',
-      credits: 0, // Legacy field, kept for backward compatibility
-      imageCredits: FREE_IMAGE_CREDITS,
-      videoCredits: FREE_VIDEO_CREDITS,
+      credits: FREE_SIGNUP_CREDITS,
+      paygCredits: 0,
+      imageCredits: 0,
+      videoCredits: 0,
       dailyVideoCount: 0,
       lastVideoDate: new Date().toISOString(),
       isAgeVerified: false,
@@ -153,13 +154,14 @@ export async function signIn(email: string, password: string): Promise<{ user: U
   
   if (!user) {
     // Create new user in Firestore if doesn't exist with Firebase UID
-    const { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } = await import('./credit-constants');
+    const { FREE_SIGNUP_CREDITS } = await import('./credit-constants');
     const userData: Omit<User, 'id'> = {
       email: firebaseUser.email || email,
       tier: 'free',
-      credits: 0, // Legacy field, kept for backward compatibility
-      imageCredits: FREE_IMAGE_CREDITS,
-      videoCredits: FREE_VIDEO_CREDITS,
+      credits: FREE_SIGNUP_CREDITS,
+      paygCredits: 0,
+      imageCredits: 0,
+      videoCredits: 0,
       dailyVideoCount: 0,
       lastVideoDate: new Date().toISOString(),
       isAgeVerified: false,
@@ -252,13 +254,14 @@ export async function signInWithGoogle(): Promise<{ user: User; firebaseUser: Fi
   
   if (!user) {
     // Create new user in Firestore with Firebase UID
-    const { FREE_IMAGE_CREDITS, FREE_VIDEO_CREDITS } = await import('./credit-constants');
+    const { FREE_SIGNUP_CREDITS } = await import('./credit-constants');
     const userData: Omit<User, 'id'> = {
       email: firebaseUser.email || undefined,
       tier: 'free',
-      credits: 0, // Legacy field, kept for backward compatibility
-      imageCredits: FREE_IMAGE_CREDITS,
-      videoCredits: FREE_VIDEO_CREDITS,
+      credits: FREE_SIGNUP_CREDITS,
+      paygCredits: 0,
+      imageCredits: 0,
+      videoCredits: 0,
       dailyVideoCount: 0,
       lastVideoDate: new Date().toISOString(),
       isAgeVerified: false,

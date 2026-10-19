@@ -60,15 +60,12 @@ async function resetCredits(email: string) {
   console.log(`Found user: ${uid} (${email})`);
   console.log('Current data:', JSON.stringify(userDoc.data(), null, 2));
 
-  // Reset to a clean free-tier state (as if freshly signed up) so the paid
-  // upgrade is clearly visible when testing a payment again.
-  const FREE_IMAGE_CREDITS = 20;
-  const FREE_VIDEO_CREDITS = 20;
-
+  // Reset to zero credits on the free tier so the paid upgrade is clearly
+  // visible (and the "out of credits" flow is testable) when testing payment.
   await userDoc.ref.update({
     credits: 0,
-    imageCredits: FREE_IMAGE_CREDITS,
-    videoCredits: FREE_VIDEO_CREDITS,
+    imageCredits: 0,
+    videoCredits: 0,
     tier: 'free',
     // Clear subscription fields left over from a prior test purchase.
     planId: admin.firestore.FieldValue.delete(),
@@ -77,7 +74,7 @@ async function resetCredits(email: string) {
     lastPaymentDate: admin.firestore.FieldValue.delete(),
   });
 
-  console.log(`✅ Reset to free tier (${FREE_IMAGE_CREDITS} img / ${FREE_VIDEO_CREDITS} vid) for ${email}`);
+  console.log(`✅ Reset to free tier with 0 img / 0 vid credits for ${email}`);
 
   // Remove the processed-payment "tokens" (creem_transactions) for this user so a
   // repeat checkout won't be de-duped and skipped when re-testing the grant flow.

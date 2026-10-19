@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Grant credits
-    const success = await addCredits(authUid, plan.imageCredits, plan.videoCredits);
+    const success = await addCredits(authUid, plan.credits, plan.type === "pay-as-you-go" ? "payg" : "subscription");
     if (!success) {
       return NextResponse.json({ error: 'Failed to grant credits' }, { status: 500 });
     }
@@ -110,12 +110,12 @@ export async function POST(request: NextRequest) {
       processedAt: new Date().toISOString(),
     });
 
-    console.log(`✅ Manually granted ${plan.imageCredits} image + ${plan.videoCredits} video credits to ${authUid}`);
+    console.log(`✅ Manually granted ${plan.credits} credits to ${authUid}`);
 
     return NextResponse.json({
       success: true,
       message: 'Credits granted successfully',
-      credits: { image: plan.imageCredits, video: plan.videoCredits },
+      credits: plan.credits,
     });
   } catch (error) {
     console.error('❌ Stripe manual grant error:', error);
