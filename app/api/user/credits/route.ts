@@ -18,6 +18,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      // v6 unified pool
+      credits: credits.credits,
+      paygCredits: credits.paygCredits,
+      total: credits.total,
+      // Legacy fields kept so older clients keep working during rollout
       imageCredits: credits.imageCredits,
       videoCredits: credits.videoCredits,
     });

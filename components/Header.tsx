@@ -164,10 +164,8 @@ export default function Header({
           <div className="flex items-center gap-1 sm:gap-2">
             <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             <div className="flex items-center gap-1 sm:gap-2">
-              <span className="text-xs sm:text-sm font-semibold">
-                <span className="text-green-400">{(user.imageCredits || 0)}</span>
-                <span className="text-gray-400 mx-1">/</span>
-                <span className="text-blue-400">{(user.videoCredits || 0)}</span>
+              <span className="text-xs sm:text-sm font-semibold text-green-400">
+                {((user.credits ?? 0) + (user.paygCredits ?? 0) + (user.imageCredits ?? 0) + (user.videoCredits ?? 0)).toLocaleString()}
               </span>
               <span className="hidden sm:inline text-xs text-gray-400">credits</span>
             </div>

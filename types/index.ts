@@ -46,9 +46,15 @@ export interface User {
   id: string;
   email?: string;
   tier: UserTier;
-  credits: number; // Legacy field, kept for backward compatibility
-  imageCredits: number; // Free tier: 3 images
-  videoCredits: number; // Free tier: 3 videos
+  // v6 unified credit model (2026-10-14):
+  //   credits      — subscription or signup grant (resets each billing cycle)
+  //   paygCredits  — one-time purchases, never expires
+  credits: number;
+  paygCredits?: number;
+  // Legacy split pools — kept so pre-migration docs still read correctly.
+  // The one-shot backfill script collapses these into `credits`.
+  imageCredits?: number;
+  videoCredits?: number;
   dailyVideoCount: number;
   lastVideoDate: string;
   isAgeVerified: boolean;

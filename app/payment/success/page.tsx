@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle, Mail, ExternalLink, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/useUser';
+import { paymentTiers, payAsYouGoPacks } from '@/lib/payment';
 
 function PaymentSuccessContent() {
   const router = useRouter();
@@ -12,13 +13,27 @@ function PaymentSuccessContent() {
   const [countdown, setCountdown] = useState(10);
   const { refreshUser, user } = useUser();
 
-  // Get transaction details from URL params (Creem may send different params)
-  const txId = searchParams.get('checkout_id') || searchParams.get('tx') || searchParams.get('txn_id') || searchParams.get('session_id');
+  // Get transaction details from URL params (Creem may send different params).
+  // If a historical link still carries the un-substituted {CHECKOUT_ID} literal
+  // in position 1, prefer the next real-looking checkout id in the query string.
+  const checkoutIds = searchParams.getAll('checkout_id');
+  const realCheckoutId = checkoutIds.find((v) => v && !v.startsWith('{')) || null;
+  const txId = realCheckoutId || searchParams.get('tx') || searchParams.get('txn_id') || searchParams.get('session_id');
   const amount = searchParams.get('amount') || searchParams.get('amt') || searchParams.get('mc_gross');
-  const item = searchParams.get('product_name') || searchParams.get('item_name') || 'Subscription';
   const customerId = searchParams.get('customer_id') || searchParams.get('payer_id');
   const planId = searchParams.get('plan_id');
   const billingCycle = searchParams.get('billing_cycle');
+
+  // Prefer the pack / tier name over whatever Creem puts in the URL — Creem does
+  // not send product_name, and we don't want a one-time pack labeled "Subscription".
+  const plan = planId
+    ? [...paymentTiers, ...payAsYouGoPacks].find((p) => p.id === planId)
+    : null;
+  const item =
+    plan?.name ||
+    searchParams.get('product_name') ||
+    searchParams.get('item_name') ||
+    (billingCycle === 'one-time' ? 'Credit Pack' : 'Subscription');
 
   // Show the "subscription active" banner once the purchase is reflected on the user.
   // NOTE: this is display-only. It must NOT gate the grant fallback below — a free user

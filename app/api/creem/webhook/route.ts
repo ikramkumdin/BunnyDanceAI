@@ -139,13 +139,14 @@ async function handleCheckoutCompleted(data: any) {
   }
 
   // Grant credits
-  await addCredits(userId, plan.imageCredits, plan.videoCredits);
+  // v6: single credit grant; source = payg for one-time packs, subscription otherwise
+  await addCredits(userId, plan.credits, plan.type === 'pay-as-you-go' ? 'payg' : 'subscription');
 
   if (isPayAsYouGo) {
     await adminDb.collection('users').doc(userId).update({
       lastPaymentDate: new Date().toISOString(),
     });
-    console.log(`💰 Pay-as-you-go: granted ${plan.imageCredits} img + ${plan.videoCredits} vid credits to ${userId}`);
+    console.log(`💰 Pay-as-you-go: granted ${plan.credits} credits to ${userId}`);
   } else {
     await adminDb.collection('users').doc(userId).update({
       tier: planId as 'starter' | 'standard' | 'pro',
@@ -154,7 +155,7 @@ async function handleCheckoutCompleted(data: any) {
       subscriptionStartDate: new Date().toISOString(),
       lastPaymentDate: new Date().toISOString(),
     });
-    console.log(`🎉 Subscription: upgraded ${userId} to ${plan.name} (${billingCycle}), granted ${plan.imageCredits} img + ${plan.videoCredits} vid`);
+    console.log(`🎉 Subscription: upgraded ${userId} to ${plan.name} (${billingCycle}), granted ${plan.credits} credits`);
   }
 
   await txRef.set({
@@ -217,7 +218,8 @@ async function handleSubscriptionPaid(data: any) {
     return;
   }
 
-  await addCredits(userId, plan.imageCredits, plan.videoCredits);
+  // v6: single credit grant; source = payg for one-time packs, subscription otherwise
+  await addCredits(userId, plan.credits, plan.type === 'pay-as-you-go' ? 'payg' : 'subscription');
   await adminDb.collection('users').doc(userId).update({
     lastPaymentDate: new Date().toISOString(),
   });
@@ -232,7 +234,7 @@ async function handleSubscriptionPaid(data: any) {
     processedAt: new Date().toISOString(),
   });
 
-  console.log(`🔄 Renewal: granted ${plan.imageCredits} img + ${plan.videoCredits} vid credits to ${userId}`);
+  console.log(`🔄 Renewal: granted ${plan.credits} credits to ${userId}`);
 }
 
 // ─── subscription.canceled ────────────────────────────────────────────

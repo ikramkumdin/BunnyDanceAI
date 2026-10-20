@@ -162,7 +162,7 @@ async function handleInitialPayment(userId: string, txnId: string, payerEmail?: 
   
   // Grant 300 credits (150 image + 150 video, or split as needed)
   // For weekly plan, we grant 300 total credits
-  await addCredits(userId, 150, 150);
+  await addCredits(userId, 300, 'subscription');
   
   // Update user tier to 'pro' for weekly subscribers
   await adminDb.collection('users').doc(userId).update({
@@ -183,7 +183,7 @@ async function handleRenewal(userId: string, txnId: string, payerEmail?: string)
   console.log(`🔄 Weekly renewal payment for user ${userId}`);
   
   // Grant 300 credits for the new week
-  await addCredits(userId, 150, 150);
+  await addCredits(userId, 300, 'subscription');
   
   // Update last payment date
   await adminDb.collection('users').doc(userId).update({

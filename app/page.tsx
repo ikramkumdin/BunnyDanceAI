@@ -41,9 +41,9 @@ export default function Home() {
       router.push(`/signin?next=${encodeURIComponent('/')}`);
       return;
     }
-    // Check if user has credits — if not, open payment modal
-    const hasCredits = user.imageCredits > 0 || user.credits > 0;
-    if (!hasCredits) {
+    // Check if user has credits — unified pool (v6)
+    const totalCredits = (user.credits ?? 0) + (user.paygCredits ?? 0) + (user.imageCredits ?? 0) + (user.videoCredits ?? 0);
+    if (totalCredits <= 0) {
       trackEvent('random_beauty_no_credits', { from: 'home' });
       setIsPaymentModalOpen(true);
       return;
@@ -270,9 +270,9 @@ export default function Home() {
       router.push(`/signin?next=${encodeURIComponent(`/generate?template=${template.id}`)}`);
       return;
     }
-    // If user has credits, go directly to generate page with template
-    const hasCredits = user.videoCredits > 0 || user.credits > 0;
-    if (hasCredits) {
+    // If user has credits, go directly to generate page with template (v6 unified pool)
+    const totalCredits = (user.credits ?? 0) + (user.paygCredits ?? 0) + (user.imageCredits ?? 0) + (user.videoCredits ?? 0);
+    if (totalCredits > 0) {
       trackEvent('apply_to_picture', { template: template.id });
       router.push(`/generate?template=${template.id}`);
     } else {
