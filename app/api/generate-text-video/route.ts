@@ -115,13 +115,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (taskId) {
-      // Deduct credit for free users
-      if (user.tier === 'free') {
-        const { CREDIT_COSTS } = await import('@/lib/credits');
-        await deductCredit(authUid, 'video');
-        console.log(`💳 Deducted ${CREDIT_COSTS.VIDEO} video credits from user`);
-      }
-      
+      // v6: everyone pays per generation from the unified credit pool.
+      const { CREDIT_COSTS } = await import('@/lib/credits');
+      await deductCredit(authUid, 'video');
+      console.log(`💳 Deducted ${CREDIT_COSTS.VIDEO} video credits`);
+
       return NextResponse.json({ success: true, taskId });
     }
 

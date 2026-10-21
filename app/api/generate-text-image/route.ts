@@ -40,15 +40,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has image credits (paid tiers have credits)
-    if (user.tier === 'free') {
-      const hasImageCredits = await hasCredits(authUid, 'image');
-      if (!hasImageCredits) {
-        return NextResponse.json(
-          { error: 'No image credits remaining. Please upgrade to continue generating images.', needsUpgrade: true },
-          { status: 403 }
-        );
-      }
+    // v6: everyone pays per generation from the unified credit pool —
+    // the old `tier === 'free'` gate skipped the check for paid tiers,
+    // which meant Pro users got images for free.
+    const hasImageCredits = await hasCredits(authUid, 'image');
+    if (!hasImageCredits) {
+      return NextResponse.json(
+        { error: 'No credits remaining. Please upgrade or buy a top-up to continue generating images.', needsUpgrade: true },
+        { status: 403 }
+      );
     }
 
     console.log('🎨 Text-to-image generation started');
@@ -107,11 +107,9 @@ export async function POST(request: NextRequest) {
         console.log('✅ Got taskId from Kie.ai:', taskId);
         console.log('⏰ Kie.ai will callback when ready (no polling needed!)');
         
-        // Deduct credit for free users
-        if (user.tier === 'free') {
-          await deductCredit(authUid, 'image');
-          console.log('💳 Deducted 1 image credit from user');
-        }
+        // v6: charge every user regardless of tier.
+        await deductCredit(authUid, 'image');
+        console.log('💳 Deducted 1 image credit');
         
         return NextResponse.json({
           success: true,
