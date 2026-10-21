@@ -136,6 +136,61 @@ export function getCreemMode(): 'sandbox' | 'production' {
 }
 
 /**
+ * Minimal shape of a Creem checkout as returned by GET /v1/checkouts/{id}.
+ * We only read the fields the server needs to verify a redirect — Creem's
+ * response has many more.
+ */
+export interface CreemCheckout {
+  id: string;
+  status?: string;        // "paid" | "pending" | ... (varies by Creem docs)
+  mode?: string;          // "test" | "live"
+  product?: { id?: string } | null;
+  product_id?: string;
+  order?: { id?: string; amount?: number; status?: string } | null;
+  customer?: { id?: string; email?: string } | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+/**
+ * Fetch a checkout from Creem by id. Used by /api/creem/manual-grant to
+ * verify server-side that the checkoutId sent from the client corresponds
+ * to a real, paid checkout before granting credits — without this, a
+ * signed-in user could call manual-grant with any string and get credits.
+ *
+ * Returns null if Creem's API returns a non-2xx response (incl. 404).
+ */
+export async function fetchCreemCheckout(id: string): Promise<CreemCheckout | null> {
+  if (!CREEM_API_KEY) {
+    console.warn('⚠️ fetchCreemCheckout: CREEM_API_KEY not set, cannot verify');
+    return null;
+  }
+  try {
+    const res = await fetch(`${CREEM_API_BASE}/checkouts/${encodeURIComponent(id)}`, {
+      headers: { 'x-api-key': CREEM_API_KEY },
+      // Don't let Vercel cache the verification response.
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      console.warn(`⚠️ fetchCreemCheckout(${id}): HTTP ${res.status}`);
+      return null;
+    }
+    return (await res.json()) as CreemCheckout;
+  } catch (err) {
+    console.error('fetchCreemCheckout error:', err);
+    return null;
+  }
+}
+
+/**
+ * Resolve the expected Creem product_id for a (planId, billingCycle) pair.
+ * Exported so manual-grant can match the Creem checkout against the plan
+ * the client claims it bought.
+ */
+export function expectedProductId(planId: string, billingCycle: string): string {
+  return getProductId(planId, billingCycle);
+}
+
+/**
  * Verify Creem webhook signature using HMAC SHA-256.
  *
  * Creem sends the signature in the `creem-signature` header.
