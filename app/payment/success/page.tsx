@@ -23,12 +23,27 @@ function PaymentSuccessContent() {
   const customerId = searchParams.get('customer_id') || searchParams.get('payer_id');
   const planId = searchParams.get('plan_id');
   const billingCycle = searchParams.get('billing_cycle');
+  const signature = searchParams.get('signature');
+  const orderId = searchParams.get('order_id');
+  const productId = searchParams.get('product_id');
+
+  // Heuristic for a real Creem redirect: Creem appends order_id + product_id
+  // + signature to the success URL. Any URL that lacks all three (e.g. a
+  // hand-crafted /payment/success?checkout_id=fake_123) shouldn't display the
+  // confirmation UI, since that would make the success page spoofable.
+  // We still verify payment server-side via the webhook + manual-grant
+  // de-dup, so this is a UX guard, not a security control.
+  const looksLikeRealCreemRedirect =
+    !!txId && !!signature && !!orderId && !!productId;
 
   // Prefer the pack / tier name over whatever Creem puts in the URL — Creem does
   // not send product_name, and we don't want a one-time pack labeled "Subscription".
   const plan = planId
     ? [...paymentTiers, ...payAsYouGoPacks].find((p) => p.id === planId)
     : null;
+  const isPayAsYouGo =
+    plan?.type === 'pay-as-you-go' ||
+    (!plan && (planId?.startsWith('pack-') || billingCycle === 'one-time'));
   const item =
     plan?.name ||
     searchParams.get('product_name') ||
@@ -50,6 +65,12 @@ function PaymentSuccessContent() {
   const autoGrantCreditsIfNeeded = async () => {
     if (!user?.id || !txId || grantAttempted.current) {
       return; // Missing info, or a grant is already in flight / done
+    }
+    // Don't fire the client-side fallback on a hand-crafted URL — the webhook
+    // is still the primary path, and this would otherwise let anyone trigger
+    // a grant by visiting /payment/success?checkout_id=anything.
+    if (!looksLikeRealCreemRedirect) {
+      return;
     }
 
     try {
@@ -149,11 +170,13 @@ function PaymentSuccessContent() {
 
           {/* Main Heading */}
           <h1 className="text-2xl md:text-3xl font-bold text-white text-center mb-2">
-            Payment Successful
+            {looksLikeRealCreemRedirect ? 'Payment Successful' : 'Checkout status'}
           </h1>
 
           <p className="text-gray-400 text-center mb-6">
-            Your transaction has been completed successfully.
+            {looksLikeRealCreemRedirect
+              ? 'Your transaction has been completed successfully.'
+              : 'This page is reached after Creem completes a checkout. If you arrived here directly, no transaction will be recorded — please start a purchase from the Get More menu.'}
           </p>
 
           {/* Confirmation Box */}
@@ -195,26 +218,32 @@ function PaymentSuccessContent() {
           )}
 
           {/* Creem Link */}
-          <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
-            <p className="text-gray-400 text-sm mb-3">
-              View full transaction details or manage your subscription in your Creem account.
-            </p>
-            <a
-              href="https://www.creem.io/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-primary hover:text-primary-light text-sm font-medium transition-colors"
-            >
-              Manage Subscription
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          </div>
+          {looksLikeRealCreemRedirect && (
+            <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
+              <p className="text-gray-400 text-sm mb-3">
+                {isPayAsYouGo
+                  ? 'View your receipt or past purchases in your Creem account.'
+                  : 'View full transaction details or manage your subscription in your Creem account.'}
+              </p>
+              <a
+                href="https://www.creem.io/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-primary hover:text-primary-light text-sm font-medium transition-colors"
+              >
+                {isPayAsYouGo ? 'View receipts' : 'Manage Subscription'}
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          )}
 
           {/* Status message - only show if credits are granted */}
           {(creditsGranted || user?.tier === 'starter' || user?.tier === 'standard' || user?.tier === 'pro') && (
             <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
               <p className="text-green-300 text-sm">
-                ✅ Your subscription is active! Credits have been added to your account.
+                {isPayAsYouGo
+                  ? `✅ ${plan?.credits ?? 'Your'} credits have been added to your account — they never expire.`
+                  : '✅ Your subscription is active! Credits have been added to your account.'}
               </p>
             </div>
           )}

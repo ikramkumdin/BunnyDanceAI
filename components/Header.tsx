@@ -160,17 +160,33 @@ export default function Header({
           <span className="hidden md:inline">Join us</span>
         </button>
         {/* Credits Display */}
-        {user && (
-          <div className="flex items-center gap-1 sm:gap-2">
-            <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-            <div className="flex items-center gap-1 sm:gap-2">
-              <span className="text-xs sm:text-sm font-semibold text-green-400">
-                {((user.credits ?? 0) + (user.paygCredits ?? 0) + (user.imageCredits ?? 0) + (user.videoCredits ?? 0)).toLocaleString()}
-              </span>
-              <span className="hidden sm:inline text-xs text-gray-400">credits</span>
+        {user && (() => {
+          const sub = user.credits ?? 0;
+          const payg = user.paygCredits ?? 0;
+          const legacy = (user.imageCredits ?? 0) + (user.videoCredits ?? 0);
+          const total = sub + payg + legacy;
+          const parts = [
+            `Subscription / signup: ${sub.toLocaleString()}`,
+            `Top-up (never expires): ${payg.toLocaleString()}`,
+          ];
+          if (legacy > 0) parts.push(`Legacy image+video: ${legacy.toLocaleString()}`);
+          const tooltip = parts.join('\n');
+          return (
+            <div
+              className="flex items-center gap-1 sm:gap-2"
+              title={tooltip}
+              aria-label={`${total} credits — ${parts.join('; ')}`}
+            >
+              <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              <div className="flex items-center gap-1 sm:gap-2">
+                <span className="text-xs sm:text-sm font-semibold text-green-400">
+                  {total.toLocaleString()}
+                </span>
+                <span className="hidden sm:inline text-xs text-gray-400">credits</span>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         {isAuthenticated ? (
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-2 text-gray-400 text-xs sm:text-sm">
