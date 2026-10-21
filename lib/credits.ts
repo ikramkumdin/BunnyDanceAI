@@ -47,8 +47,10 @@ export async function hasCredits(
 }
 
 /**
- * Deduct `cost` credits atomically — subscription credits first, then PAYG,
- * then whatever is left in legacy pools (image first, video second).
+ * Deduct `cost` credits atomically. Spend order:
+ *   1. subscription `credits` (they reset each billing period so burn first)
+ *   2. legacy `imageCredits` + `videoCredits` (will be migrated away)
+ *   3. `paygCredits` (never expires, save for last)
  * Returns true if the deduction committed.
  */
 export async function deductCredit(
@@ -79,9 +81,9 @@ export async function deductCredit(
     };
 
     credits      = take(credits);
-    paygCredits  = take(paygCredits);
     imageCredits = take(imageCredits);
     videoCredits = take(videoCredits);
+    paygCredits  = take(paygCredits);
 
     update.credits      = credits;
     update.paygCredits  = paygCredits;

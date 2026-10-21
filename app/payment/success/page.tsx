@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle, Mail, ExternalLink, ArrowRight } from 'lucide-react';
+import { CheckCircle, Mail, ExternalLink, ArrowRight, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/useUser';
 import { paymentTiers, payAsYouGoPacks } from '@/lib/payment';
@@ -163,9 +163,15 @@ function PaymentSuccessContent() {
       <div className="max-w-2xl w-full">
         {/* Success Card */}
         <div className="bg-slate-900 rounded-lg shadow-lg p-6 md:p-8 border border-slate-800">
-          {/* Success Icon */}
+          {/* Status icon — green check only when the URL carries Creem's
+              signed params; otherwise an amber info icon so the page doesn't
+              read as "success" at a glance. */}
           <div className="flex justify-center mb-4">
-            <CheckCircle className="w-12 h-12 text-green-500" strokeWidth={2} />
+            {looksLikeRealCreemRedirect ? (
+              <CheckCircle className="w-12 h-12 text-green-500" strokeWidth={2} />
+            ) : (
+              <AlertCircle className="w-12 h-12 text-amber-400" strokeWidth={2} />
+            )}
           </div>
 
           {/* Main Heading */}
@@ -179,19 +185,24 @@ function PaymentSuccessContent() {
               : 'This page is reached after Creem completes a checkout. If you arrived here directly, no transaction will be recorded — please start a purchase from the Get More menu.'}
           </p>
 
-          {/* Confirmation Box */}
-          <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
-            <h2 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
-              <Mail className="w-4 h-4 text-gray-400" />
-              Receipt
-            </h2>
-            <p className="text-gray-400 text-sm leading-relaxed">
-              A receipt has been emailed to you. Check your inbox for transaction details.
-            </p>
-          </div>
+          {/* Confirmation Box — only rendered when we're sure a real
+              transaction completed. Otherwise claiming a receipt was emailed
+              would be false. */}
+          {looksLikeRealCreemRedirect && (
+            <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
+              <h2 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                <Mail className="w-4 h-4 text-gray-400" />
+                Receipt
+              </h2>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                A receipt has been emailed to you. Check your inbox for transaction details.
+              </p>
+            </div>
+          )}
 
-          {/* Transaction Details */}
-          {txId && (
+          {/* Transaction Details — same gate. Showing "Item: Subscription"
+              on a hand-crafted URL would misrepresent a non-event. */}
+          {looksLikeRealCreemRedirect && txId && (
             <div className="bg-slate-800 rounded-lg p-4 mb-4 border border-slate-700">
               <h2 className="text-sm font-semibold text-white mb-3">Transaction Details</h2>
               <div className="space-y-2 text-sm">
@@ -237,16 +248,20 @@ function PaymentSuccessContent() {
             </div>
           )}
 
-          {/* Status message - only show if credits are granted */}
-          {(creditsGranted || user?.tier === 'starter' || user?.tier === 'standard' || user?.tier === 'pro') && (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
-              <p className="text-green-300 text-sm">
-                {isPayAsYouGo
-                  ? `✅ ${plan?.credits ?? 'Your'} credits have been added to your account — they never expire.`
-                  : '✅ Your subscription is active! Credits have been added to your account.'}
-              </p>
-            </div>
-          )}
+          {/* Status message — only when (a) the URL looks like a real
+              Creem redirect, so we're not green-ticking on a crafted URL,
+              AND (b) we have evidence credits actually landed (fallback
+              granted them, or the user already has a paid tier). */}
+          {looksLikeRealCreemRedirect &&
+            (creditsGranted || user?.tier === 'starter' || user?.tier === 'standard' || user?.tier === 'pro') && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+                <p className="text-green-300 text-sm">
+                  {isPayAsYouGo
+                    ? `✅ ${plan?.credits ?? 'Your'} credits have been added to your account — they never expire.`
+                    : '✅ Your subscription is active! Credits have been added to your account.'}
+                </p>
+              </div>
+            )}
 
           {/* Action Buttons */}
           <div className="space-y-3">
