@@ -126,7 +126,7 @@ export const paymentTiers: PaymentTier[] = [
 export const payAsYouGoPacks: PaymentTier[] = [
   {
     id: "pack-taste",
-    name: "Taste",
+    name: "Taste Pack",
     price: 5,
     type: "pay-as-you-go",
     credits: 120,
@@ -144,7 +144,7 @@ export const payAsYouGoPacks: PaymentTier[] = [
   },
   {
     id: "pack-casual",
-    name: "Casual",
+    name: "Casual Pack",
     price: 10,
     type: "pay-as-you-go",
     credits: 280,
@@ -163,7 +163,7 @@ export const payAsYouGoPacks: PaymentTier[] = [
   },
   {
     id: "pack-regular",
-    name: "Regular",
+    name: "Regular Pack",
     price: 25,
     type: "pay-as-you-go",
     credits: 750,
@@ -181,7 +181,7 @@ export const payAsYouGoPacks: PaymentTier[] = [
   },
   {
     id: "pack-power",
-    name: "Power",
+    name: "Power Pack",
     price: 50,
     type: "pay-as-you-go",
     credits: 1600,

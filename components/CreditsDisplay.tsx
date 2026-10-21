@@ -39,10 +39,16 @@ export default function CreditsDisplay({ user, onUpgrade }: CreditsDisplayProps)
                 {total.toLocaleString()}
               </span>
             </div>
-            {paygCredits > 0 && subscriptionCredits > 0 && (
+            {paygCredits > 0 && (
               <div className="flex items-center justify-between text-[11px] text-gray-400">
                 <span>of which top-up (never expires):</span>
                 <span className="font-medium text-blue-300">{paygCredits.toLocaleString()}</span>
+              </div>
+            )}
+            {legacy > 0 && (
+              <div className="flex items-center justify-between text-[11px] text-gray-500">
+                <span>legacy image / video pools:</span>
+                <span className="font-medium">{legacy.toLocaleString()}</span>
               </div>
             )}
           </div>
