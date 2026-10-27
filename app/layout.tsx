@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import { Suspense } from "react";
@@ -60,21 +61,20 @@ export default function RootLayout({
             })
           }}
         />
-        {/* Umami — self-hosted at stats.kina.men (Kurt team). The tracker
-            is a no-op unless NEXT_PUBLIC_UMAMI_WEBSITE_ID is set in Vercel.
-            auto-track is disabled so we count pageviews from one source
-            (AnalyticsTracker) and don't double-count SPA navigations. */}
-        {process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
-          // eslint-disable-next-line @next/next/no-sync-scripts
-          <script
-            defer
-            src="https://stats.kina.men/script.js"
-            data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
-            data-auto-track="false"
-          />
-        )}
       </head>
       <body>
+        {/* Umami — self-hosted at stats.kina.men (Kurt team). next/script
+            handles the hydration quirks that stripped the raw <script>
+            tag from <head> on earlier builds. Auto-track is left on so
+            Umami counts initial loads AND SPA pushState navigations;
+            AnalyticsTracker's own pageview goes to Firebase only. */}
+        {process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
+          <Script
+            src="https://stats.kina.men/script.js"
+            data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
+            strategy="afterInteractive"
+          />
+        )}
         <Suspense fallback={null}>
           <AnalyticsTracker />
         </Suspense>
