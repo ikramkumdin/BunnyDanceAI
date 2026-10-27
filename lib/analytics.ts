@@ -34,6 +34,13 @@ function clean(params?: EventParams): Record<string, string | number | boolean> 
   return Object.keys(out).length ? out : undefined;
 }
 
+// Event names that are already covered by Umami's auto-track and must NOT
+// be forwarded from here, or Umami's dashboard will show a near-duplicate
+// row for every pageview (its own `pageview` + our custom event with a
+// different name). Firebase still gets everything, because its auto-track
+// is weaker than Umami's.
+const UMAMI_SKIP = new Set(['page_view']);
+
 export function trackEvent(name: string, params?: EventParams) {
   const cleaned = clean(params);
   // Firebase Analytics — existing, unchanged behaviour.
@@ -44,8 +51,8 @@ export function trackEvent(name: string, params?: EventParams) {
   } catch (e) {
     console.warn('[analytics] firebase trackEvent failed', e);
   }
-  // Umami — fan out the same event. No-op when the script isn't loaded
-  // (missing website id, ad-blocker, or still booting).
+  // Umami — fan out the same event, unless Umami already auto-tracks it.
+  if (UMAMI_SKIP.has(name)) return;
   try {
     umami()?.track(name, cleaned);
   } catch (e) {
