@@ -60,6 +60,19 @@ export default function RootLayout({
             })
           }}
         />
+        {/* Umami — self-hosted at stats.kina.men (Kurt team). The tracker
+            is a no-op unless NEXT_PUBLIC_UMAMI_WEBSITE_ID is set in Vercel.
+            auto-track is disabled so we count pageviews from one source
+            (AnalyticsTracker) and don't double-count SPA navigations. */}
+        {process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
+          // eslint-disable-next-line @next/next/no-sync-scripts
+          <script
+            defer
+            src="https://stats.kina.men/script.js"
+            data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
+            data-auto-track="false"
+          />
+        )}
       </head>
       <body>
         <Suspense fallback={null}>
