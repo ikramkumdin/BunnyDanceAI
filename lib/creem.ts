@@ -165,7 +165,11 @@ export async function fetchCreemCheckout(id: string): Promise<CreemCheckout | nu
     return null;
   }
   try {
-    const res = await fetch(`${CREEM_API_BASE}/checkouts/${encodeURIComponent(id)}`, {
+    // Creem's documented retrieve endpoint is GET /v1/checkouts?checkout_id=<id>
+    // — the id goes in the query string, NOT as a path segment. Hitting
+    // /v1/checkouts/<id> returns 404, which is what we were doing before.
+    const url = `${CREEM_API_BASE}/checkouts?checkout_id=${encodeURIComponent(id)}`;
+    const res = await fetch(url, {
       headers: { 'x-api-key': CREEM_API_KEY },
       // Don't let Vercel cache the verification response.
       cache: 'no-store',
@@ -174,7 +178,17 @@ export async function fetchCreemCheckout(id: string): Promise<CreemCheckout | nu
       console.warn(`⚠️ fetchCreemCheckout(${id}): HTTP ${res.status}`);
       return null;
     }
-    return (await res.json()) as CreemCheckout;
+    const body = (await res.json()) as unknown;
+    // Response may be a single object or a list wrapper { data: [...] }.
+    // Creem's docs on this exact shape are thin, so handle both defensively.
+    if (body && typeof body === 'object') {
+      const listed = (body as { data?: unknown[] }).data;
+      if (Array.isArray(listed)) {
+        return (listed[0] as CreemCheckout) ?? null;
+      }
+      return body as CreemCheckout;
+    }
+    return null;
   } catch (err) {
     console.error('fetchCreemCheckout error:', err);
     return null;
